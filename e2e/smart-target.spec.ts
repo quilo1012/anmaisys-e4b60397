@@ -58,7 +58,7 @@ const historyOn = (line: number) => {
   return { sessions, items: sessions.map((h) => ({ session_id: h.id, display_order: 1, sku_id: "sku-col", sku_code_text: null, actual_qty: 6362 })) };
 };
 
-async function stub(page: Page, cycles: unknown[] = [], history = false, items: unknown[] = ITEMS, historyLine = 2) {
+async function stub(page: Page, cycles: unknown[] = [], history = false, items: unknown[] = ITEMS, historyLine = 2, queue: unknown[] = []) {
   const { sessions: HISTORY_SESSIONS, items: HISTORY_ITEMS } = historyOn(historyLine);
   await page.addInitScript(([ref, session]) => {
     window.localStorage.setItem(`sb-${ref}-auth-token`, JSON.stringify(session));
@@ -73,6 +73,7 @@ async function stub(page: Page, cycles: unknown[] = [], history = false, items: 
     if (url.includes("/rpc/") && /single|maybe/.test(url)) return json(null);
     if (url.includes("/profiles")) return json([{ id: FAKE_SESSION.user.id, name: "Fixture Admin", email: FAKE_SESSION.user.email, active: true }]);
     // The forecast reads up to DATE itself; the eight-week history stops the day before.
+    if (url.includes("/smart_target_queue_snapshots")) return json(queue);
     if (url.includes("/production_sessions")) return json(url.includes(`session_date=lte.${DATE}`) ? SESSIONS : history ? HISTORY_SESSIONS : []);
     if (url.includes("/production_items")) return json(url.includes("actual_qty") ? (history ? HISTORY_ITEMS : []) : items);
     if (url.includes("/sku_products")) return json(SKUS);
@@ -206,4 +207,61 @@ test("forecasts the last job with no order as the line's capacity to the end of 
   await expect(line5).toContainText("Forecast");
   await expect(line5).not.toContainText("Not enough data");
   expect(errors).toEqual([]);
+});
+
+test("fills a missing order quantity from the iTouch queue saved for the shift", async ({ page }) => {
+  const at = "2026-11-04T20:16:00Z";
+  const src = "iTouch Product Details (test)";
+  const errors = await stub(page, [
+    { machine: "Filler Line 5", sku: "MMMG2V", cycle_seconds: 7.8, cavities: null, source: src, imported_at: at },
+    { machine: "Filler Line 5", sku: "COL165SR", cycle_seconds: 2.9, cavities: null, source: src, imported_at: at },
+  ], true, [
+    { id: "i51", session_id: "s5", display_order: 1, sku_id: "sku-mm", sku_code_text: null, planned_qty: 0 },
+  ], 5, [
+    { line: "Line 5", seq: 1, sku: "MMMG2V-B3", order_qty: 800, done_qty: 300, status: "Running", fetched_at: "2026-11-03T06:04:00Z" },
+  ]);
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await open(page);
+  await expect(page.getByText("Order quantities: iTouch queue read at 06:04.")).toBeVisible();
+  const line5 = page.getByTestId("smart-target-line-5");
+  await expect(line5).toContainText("Order 500"); // 800 ordered − 300 already made
+  await expect(line5).toContainText("Order completes at this rate");
+  await expect(line5).toContainText("from the iTouch queue read at 06:04");
+  expect(errors).toEqual([]);
+});
+
+test("reads iTouch once for the shift running now, saves it, and then reads only the saved copy", async ({ page }) => {
+  await page.addInitScript(([ref, session]) => {
+    window.localStorage.setItem(`sb-${ref}-auth-token`, JSON.stringify(session));
+  }, [PROJECT_REF, FAKE_SESSION] as const);
+  let saved: unknown[] = [];
+  const calls = { itouch: 0, save: 0 };
+  await page.route(/supabase\.co/, async (route: Route) => {
+    const url = route.request().url();
+    const json = (data: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(data) });
+    if (url.includes("/auth/v1/user")) return json(FAKE_SESSION.user);
+    if (url.includes("/auth/v1/token")) return json(FAKE_SESSION);
+    if (url.includes("/rpc/get_user_role")) return json("admin");
+    if (url.includes("/rpc/has_role") || url.includes("/rpc/is_owner")) return json(true);
+    if (url.includes("/functions/v1/intouch-list-scheduled-jobs")) {
+      calls.itouch++;
+      return json({ sections: [{ line: "Line 5", items: [{ sku_code: "MMMG2V", qty: 900, actual: 0, status: "Running", seq: 1 }] }] });
+    }
+    if (url.includes("/rpc/save_smart_target_queue")) {
+      calls.save++;
+      const body = route.request().postDataJSON() as { p_rows: Record<string, unknown>[] };
+      saved = body.p_rows.map((r) => ({ ...r, fetched_at: new Date().toISOString() }));
+      return json({ saved: true, rows: saved.length });
+    }
+    if (url.includes("/smart_target_queue_snapshots")) return json(saved);
+    if (url.includes("/rpc/") && /single|maybe/.test(url)) return json(null);
+    if (url.includes("/profiles")) return json([{ id: FAKE_SESSION.user.id, name: "Fixture Admin", email: FAKE_SESSION.user.email, active: true }]);
+    return json([]);
+  });
+  // No date picked: the page opens on the shift running now, the only one iTouch can describe.
+  await page.goto("/dashboard/smart-target");
+  await expect(page.getByText(/Order quantities: iTouch queue read at \d\d:\d\d\./)).toBeVisible();
+  await page.waitForTimeout(1500);
+  expect(calls).toEqual({ itouch: 1, save: 1 });
+  expect(saved).toEqual([expect.objectContaining({ line: "Line 5", seq: 1, sku: "MMMG2V", order_qty: 900, done_qty: 0 })]);
 });

@@ -11,6 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useSkuCatalogue } from "@/hooks/useSkuCatalogue";
 import { useItouchCycles } from "@/hooks/useItouchCycles";
 import { useSmartTargetHistory } from "@/hooks/useSmartTargetHistory";
+import { useSmartTargetQueue, type QueueState } from "@/hooks/useSmartTargetQueue";
+import { fillFromQueue } from "@/lib/smartTargetQueue";
 import { FORECAST_LINES, HELD_BACK_REASON, historyFromSessions } from "@/lib/smartTargetHistory";
 import { cleanCycles, lineFactors, ratesForLine, type LineFactor } from "@/lib/smartTargetRates";
 import { ItouchCyclesCard } from "@/components/smartTarget/ItouchCyclesCard";
@@ -55,6 +57,22 @@ const RATES_LIVE = {
   why: "Lines 2, 4 and 5 use iTouch's ideal speed × each line's performance over the last eight weeks (provisional). Lines 1, 3 and 6 vary too much from shift to shift and stay at \"—\" until Production sets the error it accepts.",
   owner: "Production: the acceptable error",
 };
+
+const londonTime = (iso: string) =>
+  new Date(iso).toLocaleTimeString("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit" });
+
+/** One line under the summary: where this shift's order quantities come from. */
+function queueText(state: QueueState | null): string | null {
+  if (!state) return null;
+  switch (state.kind) {
+    case "saved": return `Order quantities: iTouch queue read at ${londonTime(state.fetchedAt)}.`;
+    case "reading": return "Reading the iTouch queue for order quantities…";
+    case "not_current": return "Order quantities: no iTouch queue was saved for this shift, and iTouch can only be read for the shift running now.";
+    case "not_installed": return "Order quantities from iTouch need BLOCO 147 pasted in the PMSYSTEM SQL editor.";
+    case "empty": return `Order quantities: ${state.reason}. Jobs without a quantity use the end-of-shift rule.`;
+    case "error": return `Order quantities: the iTouch queue could not be read (${state.message}).`;
+  }
+}
 
 const fmt = (n: number | null | undefined) => (n === null || n === undefined ? "—" : n.toLocaleString());
 
@@ -246,6 +264,7 @@ export default function SmartTargetPage() {
   const { catalogue, isLoading: skusLoading } = useSkuCatalogue();
   const cyclesQuery = useItouchCycles();
   const historyQuery = useSmartTargetHistory(date);
+  const queue = useSmartTargetQueue(date, shift);
 
   // Each line's performance over the eight weeks before `date`, against iTouch's ideal.
   const rateBasis = useMemo(() => {
@@ -290,10 +309,16 @@ export default function SmartTargetPage() {
         const basis: RateBasis | null = rateBasis
           ? { factor, heldBack: shown ? null : HELD_BACK_REASON[l.line as LineNo] ?? null, from: rateBasis.from, to: rateBasis.to }
           : null;
-        return { ...l, basis, result: forecastShift({ ...l.input, rates }) };
+        // Plan rows with no quantity take what was left of iTouch's order for the same SKU
+        // when the queue was read (Q26b).
+        const fromQueue = fillFromQueue(l.line, l.input.jobs, queue.rows);
+        const notes = fromQueue.filled
+          ? [...l.notes, `Order quantity for ${fromQueue.filled} job${fromQueue.filled === 1 ? "" : "s"} from the iTouch queue read at ${londonTime(queue.rows[0].fetched_at)}: what was left to make then.`]
+          : l.notes;
+        return { ...l, notes, basis, result: forecastShift({ ...l.input, jobs: fromQueue.jobs, rates }) };
       }),
     };
-  }, [data, date, shift, catalogue, rateBasis]);
+  }, [data, date, shift, catalogue, rateBasis, queue.rows]);
 
   const loading = isLoading || skusLoading;
   const assumptions = built?.lines[0]?.result.assumptions ?? [];
@@ -341,6 +366,7 @@ export default function SmartTargetPage() {
                 ? "No line has a plan for this shift. Plans come from the iTouch import in Production Control."
                 : `${planned.length} of 6 lines have a plan. ${forecast.length} can be forecast.`}
             </p>
+            {queueText(queue.state) && <p className="text-sm text-muted-foreground">{queueText(queue.state)}</p>}
             <div className="space-y-3">
               {built.lines.map(({ line, result, notes, basis }) => (
                 <LineCard key={line} line={line} result={result} notes={notes} basis={basis} />
