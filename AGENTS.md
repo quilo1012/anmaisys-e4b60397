@@ -23,15 +23,19 @@
 
 ## Which database you are looking at
 
-Production is the Supabase project **AN Maintenance**, `apblxaaktftinstoidvp`, reached through
-the Supabase connector (`execute_sql`, `list_tables`, advisors) with that project id. It took
-over from Lovable Cloud on the day this change was merged; see `docs/migracao-supabase-proprio.md`.
+Production is the Supabase project **AN Maintenance**, `apblxaaktftinstoidvp`, reached with
+the Supabase MCP (`execute_sql` with that project_id). It took over from Lovable Cloud on the
+day this change was merged.
 
-The other databases are not production:
+The database the site talks to is fixed in `vite.config.ts` (`PRODUCTION_SUPABASE`, applied
+through `define`), not in `.env`. Lovable Cloud rewrites `.env` to its own project every time
+the Lovable agent runs — that is what sent the factory back to the old database on 05/11/2026 —
+so never "fix" the database by editing `.env`, and never remove the `define` block.
 
-- `ybtrzqzliepknpzqdajx` — the old Lovable Cloud database, reached through the Lovable MCP
-  `query_database` (project_id `091e038b-48fc-421f-9245-b03e63c99308`). Kept untouched for
-  30 days after the switch as the fallback, then retired. Nothing writes to it after the switch.
+Other databases, none of them production:
+
+- `ybtrzqzliepknpzqdajx` (Lovable Cloud, via Lovable `query_database`) — the old production,
+  kept as a fallback. Its crons are off. Nothing it shows after the switch is current.
 - `bjwwtusdcwjqfwtoxzcq` (AN PMSYSTEM), `ammlyqnjlhioukpgldgc` (PM System, a 12/09 copy) and
   `zljsksshbauwbdgaavpi` — paused or unused copies.
 
