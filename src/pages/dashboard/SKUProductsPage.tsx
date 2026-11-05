@@ -408,9 +408,11 @@ export default function SKUProductsPage() {
               tabIndex={-1}
               aria-hidden="true"
               onChange={async (e) => {
-                const file = e.target.files?.[0];
+                // Held now: React nulls e.currentTarget as soon as this handler yields.
+                const input = e.currentTarget;
+                const file = input.files?.[0];
                 if (file) await handleImport(file);
-                e.currentTarget.value = "";
+                input.value = "";
               }}
             />
             <label htmlFor="sku-import-input" className="hidden sm:block">
