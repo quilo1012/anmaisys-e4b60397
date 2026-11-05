@@ -188,3 +188,11 @@ that the 44 tests did not catch. Each one now has its own test.
 | R6 | A non-numeric sequence or the browser's locale could change the job order | Code-point ordering, and the job goes last with `BAD_SEQUENCE` | R6 |
 
 The page also hid every per-job warning and the confidence level. Both are shown now.
+
+## Measuring the forecasts (05/11/2026, Q27a–Q30a)
+
+- **Kept once per shift (BLOCO 148, `smart_target_forecasts`).** The first time the page has a complete forecast while a shift runs, it saves one row per planned line. "Complete" means rates known and the iTouch queue read, or known to be unavailable. The first save per line wins, so a forecast never changes after it is made.
+- **Shadow lines.** Lines 1, 3 and 6 are saved too. They are forecast with their own factor and flagged `shown = false`, so there is evidence for switching them on.
+- **What counts.** Only forecasts frozen in the **first two hours** of their shift are scored. Later ones are kept and listed as "made late".
+- **The actual.** It is what operators logged for that line and shift, labelled provisional. It is read at view time and never stored with the forecast, so changing to iTouch filling events later re-scores the whole history.
+- **The accuracy card.** Over the last four weeks it shows, per line: shifts measured, median absolute error, share within ±10% and ±20%, and what was not counted and why.

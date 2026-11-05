@@ -58,7 +58,7 @@ const historyOn = (line: number) => {
   return { sessions, items: sessions.map((h) => ({ session_id: h.id, display_order: 1, sku_id: "sku-col", sku_code_text: null, actual_qty: 6362 })) };
 };
 
-async function stub(page: Page, cycles: unknown[] = [], history = false, items: unknown[] = ITEMS, historyLine = 2, queue: unknown[] = []) {
+async function stub(page: Page, cycles: unknown[] = [], history = false, items: unknown[] = ITEMS, historyLine = 2, queue: unknown[] = [], forecasts: unknown[] = []) {
   const { sessions: HISTORY_SESSIONS, items: HISTORY_ITEMS } = historyOn(historyLine);
   await page.addInitScript(([ref, session]) => {
     window.localStorage.setItem(`sb-${ref}-auth-token`, JSON.stringify(session));
@@ -74,6 +74,7 @@ async function stub(page: Page, cycles: unknown[] = [], history = false, items: 
     if (url.includes("/profiles")) return json([{ id: FAKE_SESSION.user.id, name: "Fixture Admin", email: FAKE_SESSION.user.email, active: true }]);
     // The forecast reads up to DATE itself; the eight-week history stops the day before.
     if (url.includes("/smart_target_queue_snapshots")) return json(queue);
+    if (url.includes("/smart_target_forecasts")) return json(forecasts);
     if (url.includes("/production_sessions")) return json(url.includes(`session_date=lte.${DATE}`) ? SESSIONS : history ? HISTORY_SESSIONS : []);
     if (url.includes("/production_items")) return json(url.includes("actual_qty") ? (history ? HISTORY_ITEMS : []) : items);
     if (url.includes("/sku_products")) return json(SKUS);
@@ -264,4 +265,74 @@ test("reads iTouch once for the shift running now, saves it, and then reads only
   await page.waitForTimeout(1500);
   expect(calls).toEqual({ itouch: 1, save: 1 });
   expect(saved).toEqual([expect.objectContaining({ line: "Line 5", seq: 1, sku: "MMMG2V", order_qty: 900, done_qty: 0 })]);
+});
+
+test("shows how close the kept forecasts were, against what was logged", async ({ page }) => {
+  const at = "2026-11-04T20:16:00Z";
+  const errors = await stub(page, [
+    { machine: "Filler Line 2", sku: "COL165SR", cycle_seconds: 2.9, cavities: null, source: "test", imported_at: at },
+  ], true, ITEMS, 2, [], [
+    // History has 6362 logged on Line 2 each of 01–05/10 (DAY).
+    { session_date: "2026-10-01", shift: "DAY", line: 2, shown: true, expected_total: 6000, frozen_at: "2026-10-01T05:10:00Z" }, // −5.7%
+    { session_date: "2026-10-02", shift: "DAY", line: 2, shown: true, expected_total: 7600, frozen_at: "2026-10-02T05:20:00Z" }, // +19.5%
+    { session_date: "2026-10-03", shift: "DAY", line: 2, shown: true, expected_total: 6400, frozen_at: "2026-10-03T12:00:00Z" }, // made late
+  ]);
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await open(page);
+  const card = page.getByTestId("smart-target-accuracy");
+  const row2 = card.getByRole("row", { name: /^Line 2/ });
+  await expect(row2).toContainText("2"); // shifts measured
+  await expect(row2).toContainText("12.6%"); // median of 5.7 and 19.5
+  await expect(row2).toContainText("50%"); // within ±10%
+  await expect(row2).toContainText("100%"); // within ±20%
+  await expect(row2).toContainText("1 made late");
+  await expect(card.getByRole("row", { name: /^Line 1 \(not shown\)/ })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("keeps the running shift's forecast once, shown and held-back lines alike", async ({ page }) => {
+  await page.addInitScript(([ref, session]) => {
+    window.localStorage.setItem(`sb-${ref}-auth-token`, JSON.stringify(session));
+  }, [PROJECT_REF, FAKE_SESSION] as const);
+  const saves: { p_rows: { line: number; shown: boolean; expected_total: number | null }[] }[] = [];
+  const hist = historyOn(2);
+  await page.route(/supabase\.co/, async (route: Route) => {
+    const url = route.request().url();
+    const json = (data: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(data) });
+    if (url.includes("/auth/v1/user")) return json(FAKE_SESSION.user);
+    if (url.includes("/auth/v1/token")) return json(FAKE_SESSION);
+    if (url.includes("/rpc/get_user_role")) return json("admin");
+    if (url.includes("/rpc/has_role") || url.includes("/rpc/is_owner")) return json(true);
+    if (url.includes("/rpc/save_smart_target_forecasts")) { saves.push(route.request().postDataJSON()); return json({ saved: 2 }); }
+    if (url.includes("/functions/v1/intouch-list-scheduled-jobs")) return json({ sections: [] });
+    if (url.includes("/itouch_cycle_times")) return json([
+      { machine: "Filler Line 2", sku: "COL165SR", cycle_seconds: 2.9, cavities: null, source: "t", imported_at: "2026-11-01T00:00:00Z" },
+      { machine: "Filler Line 1", sku: "COL165SR", cycle_seconds: 2.9, cavities: null, source: "t", imported_at: "2026-11-01T00:00:00Z" },
+    ]);
+    if (url.includes("/production_sessions")) {
+      if (url.includes("order=id")) return json([...hist.sessions, ...hist.sessions.map((h) => ({ ...h, id: `${h.id}b`, line: "Line 1" }))]);
+      const today = /session_date=lte\.(\d{4}-\d{2}-\d{2})/.exec(url)?.[1] ?? "";
+      return json(["DAY", "NIGHT"].flatMap((sh) => [
+        { id: `t2${sh}`, line: "Line 2", session_date: today, shift: sh },
+        { id: `t1${sh}`, line: "Line 1", session_date: today, shift: sh },
+      ]));
+    }
+    if (url.includes("/production_items")) {
+      if (url.includes("actual_qty")) return json([...hist.items, ...hist.items.map((i) => ({ ...i, session_id: `${i.session_id}b` }))]);
+      return json(["DAY", "NIGHT"].flatMap((sh) => [
+        { id: `i2${sh}`, session_id: `t2${sh}`, display_order: 1, sku_id: "sku-col", sku_code_text: null, planned_qty: 0 },
+        { id: `i1${sh}`, session_id: `t1${sh}`, display_order: 1, sku_id: "sku-col", sku_code_text: null, planned_qty: 0 },
+      ]));
+    }
+    if (url.includes("/sku_products")) return json(SKUS);
+    if (url.includes("/rpc/") && /single|maybe/.test(url)) return json(null);
+    if (url.includes("/profiles")) return json([{ id: FAKE_SESSION.user.id, name: "Fixture Admin", email: FAKE_SESSION.user.email, active: true }]);
+    return json([]);
+  });
+  await page.goto("/dashboard/smart-target");
+  await expect.poll(() => saves.length, { timeout: 15000 }).toBe(1);
+  await page.waitForTimeout(1500);
+  expect(saves).toHaveLength(1);
+  const rows = saves[0].p_rows.sort((a, b) => a.line - b.line);
+  expect(rows.map((r) => [r.line, r.shown, r.expected_total !== null])).toEqual([[1, false, true], [2, true, true]]);
 });

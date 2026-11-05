@@ -13,6 +13,8 @@ import { useItouchCycles } from "@/hooks/useItouchCycles";
 import { useSmartTargetHistory } from "@/hooks/useSmartTargetHistory";
 import { useSmartTargetQueue, type QueueState } from "@/hooks/useSmartTargetQueue";
 import { fillFromQueue } from "@/lib/smartTargetQueue";
+import { useSmartTargetForecastLog, type LineToFreeze } from "@/hooks/useSmartTargetForecastLog";
+import { accuracyByLine, actualTotals, ON_TIME_MINUTES, type LineAccuracy } from "@/lib/smartTargetAccuracy";
 import { FORECAST_LINES, HELD_BACK_REASON, historyFromSessions } from "@/lib/smartTargetHistory";
 import { cleanCycles, lineFactors, ratesForLine, type LineFactor } from "@/lib/smartTargetRates";
 import { ItouchCyclesCard } from "@/components/smartTarget/ItouchCyclesCard";
@@ -257,6 +259,69 @@ function LineCard({ line, result, notes, basis }: { line: number; result: ShiftF
   );
 }
 
+const pct = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : "—");
+
+/** How the frozen forecasts did against what was logged, per line, over four weeks. */
+function AccuracyCard({ accuracy, installed }: { accuracy: LineAccuracy[] | null; installed: boolean }) {
+  return (
+    <Card data-testid="smart-target-accuracy">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">How close the forecasts were</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Last four weeks. Each shift's forecast is kept as it was first made; only those made in the first{" "}
+          {ON_TIME_MINUTES / 60} hours of the shift count. Actual is what operators logged (provisional until iTouch's
+          filling events are confirmed). Lines 1, 3 and 6 are measured too, though not shown above.
+        </p>
+      </CardHeader>
+      <CardContent>
+        {!installed ? (
+          <p className="text-sm">Keeping forecasts needs BLOCO 148 pasted in the PMSYSTEM SQL editor.</p>
+        ) : !accuracy ? (
+          <Skeleton className="h-24" />
+        ) : accuracy.every((a) => a.scored === 0) ? (
+          <p className="text-sm text-muted-foreground">
+            No closed shift has a forecast made in its first {ON_TIME_MINUTES / 60} hours yet. Open this page early in each shift
+            and the first figures appear the day after.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-muted-foreground">
+                <tr>
+                  <th className="py-1 pr-3 font-medium">Line</th>
+                  <th className="py-1 pr-3 text-right font-medium">Shifts measured</th>
+                  <th className="py-1 pr-3 text-right font-medium">Median error</th>
+                  <th className="py-1 pr-3 text-right font-medium">Within ±10%</th>
+                  <th className="py-1 pr-3 text-right font-medium">Within ±20%</th>
+                  <th className="py-1 font-medium">Not counted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {accuracy.map((a) => (
+                  <tr key={a.line} className="border-t">
+                    <td className="py-1.5 pr-3">Line {a.line}{FORECAST_LINES.includes(a.line) ? "" : " (not shown)"}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{a.scored}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{a.medianAbsPctError === null ? "—" : `${a.medianAbsPctError}%`}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{pct(a.within10, a.scored)}</td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">{pct(a.within20, a.scored)}</td>
+                    <td className="py-1.5 text-xs text-muted-foreground">
+                      {[
+                        a.frozenLate && `${a.frozenLate} made late`,
+                        a.noNumber && `${a.noNumber} without a number`,
+                        a.noActual && `${a.noActual} with nothing logged`,
+                      ].filter(Boolean).join(", ") || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SmartTargetPage() {
   const now = getCurrentFactoryShift();
   const [date, setDate] = useState(now.sessionDate);
@@ -305,7 +370,10 @@ export default function SmartTargetPage() {
       lines: inputs.lines.map((l) => {
         const factor = rateBasis?.factors.find((f) => f.line === l.line) ?? null;
         const shown = FORECAST_LINES.includes(l.line);
-        const rates = rateBasis && factor && shown ? ratesForLine(l.line, rateBasis.cycles, factor) : [];
+        // Every line gets its own rates for the forecast log. Only the shown lines put them
+        // on screen; lines 1, 3 and 6 are forecast in shadow so their error is measured too.
+        const lineRates = rateBasis && factor ? ratesForLine(l.line, rateBasis.cycles, factor) : [];
+        const rates = shown ? lineRates : [];
         const basis: RateBasis | null = rateBasis
           ? { factor, heldBack: shown ? null : HELD_BACK_REASON[l.line as LineNo] ?? null, from: rateBasis.from, to: rateBasis.to }
           : null;
@@ -315,10 +383,25 @@ export default function SmartTargetPage() {
         const notes = fromQueue.filled
           ? [...l.notes, `Order quantity for ${fromQueue.filled} job${fromQueue.filled === 1 ? "" : "s"} from the iTouch queue read at ${londonTime(queue.rows[0].fetched_at)}: what was left to make then.`]
           : l.notes;
-        return { ...l, notes, basis, result: forecastShift({ ...l.input, jobs: fromQueue.jobs, rates }) };
+        const result = forecastShift({ ...l.input, jobs: fromQueue.jobs, rates });
+        const shadow = shown ? result : forecastShift({ ...l.input, jobs: fromQueue.jobs, rates: lineRates });
+        return { ...l, notes, basis, result, shadow, shown, factor };
       }),
     };
   }, [data, date, shift, catalogue, rateBasis, queue.rows]);
+
+  const toFreeze = useMemo<LineToFreeze[] | null>(
+    () => built?.lines.map((l) => ({ line: l.line, shown: l.shown, forecast: l.shadow, factor: l.factor })) ?? null,
+    [built],
+  );
+  // Freeze only a complete forecast: rates known, and the iTouch queue read (or known to be unavailable).
+  const readyToFreeze = !!rateBasis && !!queue.state && queue.state.kind !== "reading";
+  const forecastLog = useSmartTargetForecastLog(date, shift, toFreeze, readyToFreeze);
+  const accuracy = useMemo(() => {
+    if (!forecastLog.data?.installed || !historyQuery.data) return null;
+    const history = historyFromSessions(historyQuery.data.sessions, historyQuery.data.items, catalogue);
+    return accuracyByLine(forecastLog.data.rows, actualTotals(history));
+  }, [forecastLog.data, historyQuery.data, catalogue]);
 
   const loading = isLoading || skusLoading;
   const assumptions = built?.lines[0]?.result.assumptions ?? [];
@@ -404,6 +487,8 @@ export default function SmartTargetPage() {
             </ul>
           </CardContent>
         </Card>
+
+        <AccuracyCard accuracy={accuracy} installed={forecastLog.data?.installed ?? true} />
 
         <ItouchCyclesCard />
 
