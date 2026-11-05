@@ -14,9 +14,15 @@
  *   slot, never as what was made.
  *
  * Left empty on purpose:
- * - Planned windows. The only times on an item are the Production Control
- *   start/finish an operator types, and those are not reliable enough to place
- *   a job in the shift.
+ * - Planned windows, and on purpose for good (decided 05/11). The only times on
+ *   an item are the Production Control start/finish an operator types, which are
+ *   not reliable. iTouch's Work To List has "Expected Start/End Time", but those
+ *   are iTouch's own estimate, not a plan: every job gets a fixed 90-minute setup
+ *   plus order × ideal cycle, with no breaks, mixing or stops (checked against the
+ *   25/06 export: BCAA1400BR, CARBBM, ISO850WCH all match to the minute). Using
+ *   them would bring a second model in disguised as a schedule. A job's time comes
+ *   from its order quantity at the line's rate instead, so windows are not listed
+ *   as missing.
  * - Rates. `sku_products.target_per_hour` is 0 for 208 SKUs and a line-class
  *   default for the rest (`skuStandardRate.ts`), so it is not used. iTouch's
  *   ideal cycles are stored in `itouch_cycle_times` (ItouchCyclesCard), but they
@@ -64,7 +70,7 @@ export interface SmartTargetItem {
 
 /** An input the engine needs that the app does not have yet. */
 export interface MissingInput {
-  key: "rates" | "events" | "windows" | "breaks" | "previous_sku" | "downtime";
+  key: "rates" | "events" | "breaks" | "previous_sku" | "downtime";
   label: string;
   why: string;
   /** Who can supply it. */
@@ -83,12 +89,6 @@ export const MISSING_INPUTS: MissingInput[] = [
     label: "Filling events (actual containers)",
     why: "It has not been confirmed that iTouch records one event per completed container.",
     owner: "iTouch support",
-  },
-  {
-    key: "windows",
-    label: "Planned start and end of each job",
-    why: "Production Control start/finish times are typed by operators and not reliable enough to place a job.",
-    owner: "iTouch schedule (to confirm)",
   },
   {
     key: "breaks",
@@ -205,7 +205,7 @@ export function lineGaps(result: ShiftForecast): string[] {
   const noSku = result.jobs.filter((j) => !j.sku).length;
   if (noSku) out.push(`${noSku} job${noSku === 1 ? " has" : "s have"} no SKU.`);
   if (result.jobs.some((j) => !j.allocation)) {
-    out.push("Job times cannot be worked out without a rate or planned start and end times.");
+    out.push("Job times cannot be worked out without a rate.");
   }
   return out;
 }
