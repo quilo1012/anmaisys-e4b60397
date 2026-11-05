@@ -23,19 +23,20 @@
 
 ## Which database you are looking at
 
-Production is the Supabase project **AN Maintenance**, `apblxaaktftinstoidvp`, reached with
-the Supabase MCP (`execute_sql` with that project_id). It took over from Lovable Cloud on the
-day this change was merged.
+**Production is, for now, still the Lovable Cloud database `ybtrzqzliepknpzqdajx`**, reached
+only through the Lovable MCP `query_database` with project_id `091e038b-48fc-421f-9245-b03e63c99308`.
 
-The database the site talks to is fixed in `vite.config.ts` (`PRODUCTION_SUPABASE`, applied
-through `define`), not in `.env`. Lovable Cloud rewrites `.env` to its own project every time
-the Lovable agent runs — that is what sent the factory back to the old database on 05/11/2026 —
-so never "fix" the database by editing `.env`, and never remove the `define` block.
+The switch to the Supabase project **AN Maintenance** (`apblxaaktftinstoidvp`) was made on
+05/11/2026 and undone the same evening without anyone choosing to: when the Lovable agent ran
+at 19:36, Lovable Cloud rewrote `.env` back to its own project (commit `d849f3e`), and the
+publish at 20:48 sent the whole factory back to the old database. The crons were switched back
+on there at 22:54 and are off in AN Maintenance. The definitive switch fixes the database in
+`vite.config.ts`, where nothing rewrites it — never in `.env` again.
 
-Other databases, none of them production:
+Until that switch is merged and published:
 
-- `ybtrzqzliepknpzqdajx` (Lovable Cloud, via Lovable `query_database`) — the old production,
-  kept as a fallback. Its crons are off. Nothing it shows after the switch is current.
+- `apblxaaktftinstoidvp` (AN Maintenance) holds a full copy of production as of 05/11 19:21 and
+  nothing after it. Do not judge production by it.
 - `bjwwtusdcwjqfwtoxzcq` (AN PMSYSTEM), `ammlyqnjlhioukpgldgc` (PM System, a 12/09 copy) and
   `zljsksshbauwbdgaavpi` — paused or unused copies.
 
@@ -45,8 +46,8 @@ history: nothing reads them, and they are not part of the app.
 
 Before acting on any finding that came from a database:
 
-1. Say which database it came from. If it did not come from `apblxaaktftinstoidvp`, it is
-   not about production.
+1. Say which database it came from. Until the definitive switch, if it did not come from
+   `query_database` with that project_id, it is not about production.
 2. Count the rows. An empty table leaks nothing, whatever its columns are called.
 3. Only then decide.
 
