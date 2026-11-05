@@ -9,7 +9,7 @@ import { test, expect, type Page, type Route } from "@playwright/test";
  * connect, which is also how the screen must behave when it cannot.
  */
 
-const PROJECT_REF = "ybtrzqzliepknpzqdajx";
+const PROJECT_REF = "apblxaaktftinstoidvp";
 const ME = "00000000-0000-4000-8000-0000000000ad";
 const ANA = "11111111-1111-4111-8111-111111111111";
 const GROUP = "22222222-2222-4222-8222-222222222222";

@@ -24,7 +24,7 @@ import { test, expect, type Page, type Route } from "@playwright/test";
  * Nothing here reaches the network.
  */
 
-const PROJECT_REF = "ybtrzqzliepknpzqdajx";
+const PROJECT_REF = "apblxaaktftinstoidvp";
 
 const FAKE_SESSION = {
   access_token: "fixture-access-token",

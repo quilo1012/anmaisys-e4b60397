@@ -7,7 +7,7 @@ import { FileSpreadsheet, Mail, Copy, Loader2 } from "lucide-react";
 import { invokeFunction } from "@/lib/invokeFunction";
 import { toast } from "sonner";
 
-const PROJECT_URL = "https://ybtrzqzliepknpzqdajx.supabase.co";
+const PROJECT_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
 export function ExcelExportCard() {
   const [email, setEmail] = useState("");

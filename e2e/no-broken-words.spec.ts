@@ -13,7 +13,7 @@ import { test, expect, type Page, type Route } from "@playwright/test";
  * Same empty-data fixture as every-screen-empty. Nothing reaches the network.
  */
 
-const PROJECT_REF = "ybtrzqzliepknpzqdajx";
+const PROJECT_REF = "apblxaaktftinstoidvp";
 const SESSION = {
   access_token: "fixture", refresh_token: "fixture", token_type: "bearer", expires_in: 3600, expires_at: 4_102_444_800,
   user: { id: "00000000-0000-4000-8000-0000000000ad", aud: "authenticated", role: "authenticated", email: "fixture-admin@fixture.local", app_metadata: {}, user_metadata: {}, created_at: "2026-01-01T00:00:00Z" },

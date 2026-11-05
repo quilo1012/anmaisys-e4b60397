@@ -34,7 +34,7 @@ select 'último envio aceite pelo send-push (informação)',
 -- 2a. Correr sozinho e guardar o número que devolve:
 --
 --   select net.http_post(
---     url := 'https://ybtrzqzliepknpzqdajx.supabase.co/functions/v1/send-push',
+--     url := 'https://apblxaaktftinstoidvp.supabase.co/functions/v1/send-push',
 --     headers := jsonb_build_object(
 --       'Content-Type', 'application/json',
 --       'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'CRON_SECRET' limit 1)),

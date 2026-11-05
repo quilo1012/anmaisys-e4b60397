@@ -11,7 +11,7 @@ import { test, expect, type Page, type Route } from "@playwright/test";
  * Nada aqui vai à rede: todos os pedidos ao Supabase são respondidos pelo fixture.
  */
 
-const PROJECT_REF = "ybtrzqzliepknpzqdajx";
+const PROJECT_REF = "apblxaaktftinstoidvp";
 
 const FAKE_SESSION = {
   access_token: "fixture-access-token",

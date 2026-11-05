@@ -10,7 +10,7 @@ import { readFile } from "node:fs/promises";
  * answered here; nothing reaches the network.
  */
 
-const PROJECT_REF = "ybtrzqzliepknpzqdajx";
+const PROJECT_REF = "apblxaaktftinstoidvp";
 const NOW = new Date("2026-10-29T14:30:00Z"); // GMT: London = UTC
 
 const FAKE_SESSION = {
