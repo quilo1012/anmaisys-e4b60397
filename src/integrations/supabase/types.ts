@@ -14,6 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      _bkp_attendance_days_20261104: {
+        Row: {
+          absence_name: string | null
+          balance_minutes: number | null
+          employee_id: string | null
+          end_time: string | null
+          id: string | null
+          imported_at: string | null
+          on_date: string | null
+          overtime_adj_minutes: number | null
+          remarks: string | null
+          scheduled_minutes: number | null
+          source: string | null
+          start_time: string | null
+          worked_minutes: number | null
+        }
+        Insert: {
+          absence_name?: string | null
+          balance_minutes?: number | null
+          employee_id?: string | null
+          end_time?: string | null
+          id?: string | null
+          imported_at?: string | null
+          on_date?: string | null
+          overtime_adj_minutes?: number | null
+          remarks?: string | null
+          scheduled_minutes?: number | null
+          source?: string | null
+          start_time?: string | null
+          worked_minutes?: number | null
+        }
+        Update: {
+          absence_name?: string | null
+          balance_minutes?: number | null
+          employee_id?: string | null
+          end_time?: string | null
+          id?: string | null
+          imported_at?: string | null
+          on_date?: string | null
+          overtime_adj_minutes?: number | null
+          remarks?: string | null
+          scheduled_minutes?: number | null
+          source?: string | null
+          start_time?: string | null
+          worked_minutes?: number | null
+        }
+        Relationships: []
+      }
+      _bkp_gel_20261104: {
+        Row: {
+          action: string
+          old: Json | null
+          row_id: string
+          saved_at: string
+          tbl: string
+        }
+        Insert: {
+          action: string
+          old?: Json | null
+          row_id: string
+          saved_at?: string
+          tbl: string
+        }
+        Update: {
+          action?: string
+          old?: Json | null
+          row_id?: string
+          saved_at?: string
+          tbl?: string
+        }
+        Relationships: []
+      }
       _bkp_gel_machine_20261030: {
         Row: {
           action: string
@@ -59,6 +131,72 @@ export type Database = {
           row_id?: string
           saved_at?: string
           tbl?: string
+        }
+        Relationships: []
+      }
+      _bkp_gel_machines_20261104: {
+        Row: {
+          category: Database["public"]["Enums"]["machine_category"] | null
+          code: string | null
+          created_at: string | null
+          current_line: string | null
+          current_location: string | null
+          external_id: string | null
+          fixed_line: string | null
+          health_score: number | null
+          id: string | null
+          last_maintenance_date: string | null
+          line: string | null
+          line_id: string | null
+          machine_type: string | null
+          name: string | null
+          saved_at: string | null
+          sector: string | null
+          side: string | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          category?: Database["public"]["Enums"]["machine_category"] | null
+          code?: string | null
+          created_at?: string | null
+          current_line?: string | null
+          current_location?: string | null
+          external_id?: string | null
+          fixed_line?: string | null
+          health_score?: number | null
+          id?: string | null
+          last_maintenance_date?: string | null
+          line?: string | null
+          line_id?: string | null
+          machine_type?: string | null
+          name?: string | null
+          saved_at?: string | null
+          sector?: string | null
+          side?: string | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["machine_category"] | null
+          code?: string | null
+          created_at?: string | null
+          current_line?: string | null
+          current_location?: string | null
+          external_id?: string | null
+          fixed_line?: string | null
+          health_score?: number | null
+          id?: string | null
+          last_maintenance_date?: string | null
+          line?: string | null
+          line_id?: string | null
+          machine_type?: string | null
+          name?: string | null
+          saved_at?: string | null
+          sector?: string | null
+          side?: string | null
+          status?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -6185,6 +6323,99 @@ export type Database = {
         }
         Relationships: []
       }
+      smart_target_forecasts: {
+        Row: {
+          confidence: string
+          engine_version: string
+          expected_total: number | null
+          factor: number | null
+          factor_shifts: number | null
+          frozen_at: string
+          frozen_by: string | null
+          id: string
+          jobs: Json
+          line: number
+          session_date: string
+          shift: string
+          shown: boolean
+          status: string
+        }
+        Insert: {
+          confidence: string
+          engine_version: string
+          expected_total?: number | null
+          factor?: number | null
+          factor_shifts?: number | null
+          frozen_at?: string
+          frozen_by?: string | null
+          id?: string
+          jobs?: Json
+          line: number
+          session_date: string
+          shift: string
+          shown: boolean
+          status: string
+        }
+        Update: {
+          confidence?: string
+          engine_version?: string
+          expected_total?: number | null
+          factor?: number | null
+          factor_shifts?: number | null
+          frozen_at?: string
+          frozen_by?: string | null
+          id?: string
+          jobs?: Json
+          line?: number
+          session_date?: string
+          shift?: string
+          shown?: boolean
+          status?: string
+        }
+        Relationships: []
+      }
+      smart_target_queue_snapshots: {
+        Row: {
+          done_qty: number | null
+          fetched_at: string
+          fetched_by: string | null
+          id: string
+          line: string
+          order_qty: number | null
+          seq: number
+          session_date: string
+          shift: string
+          sku: string
+          status: string | null
+        }
+        Insert: {
+          done_qty?: number | null
+          fetched_at?: string
+          fetched_by?: string | null
+          id?: string
+          line: string
+          order_qty?: number | null
+          seq: number
+          session_date: string
+          shift: string
+          sku: string
+          status?: string | null
+        }
+        Update: {
+          done_qty?: number | null
+          fetched_at?: string
+          fetched_by?: string | null
+          id?: string
+          line?: string
+          order_qty?: number | null
+          seq?: number
+          session_date?: string
+          shift?: string
+          sku?: string
+          status?: string | null
+        }
+        Relationships: []
+      }
       suppliers: {
         Row: {
           active: boolean
@@ -8402,6 +8633,16 @@ export type Database = {
         Args: { p_message: string; p_request_id: string }
         Returns: string
       }
+      migr_export: {
+        Args: {
+          p_after?: string
+          p_arg?: string
+          p_kind: string
+          p_limit?: number
+          p_token: string
+        }
+        Returns: Json
+      }
       move_machine_to_line: {
         Args: { _machine_id: string; _new_line: string; _notes?: string }
         Returns: undefined
@@ -8727,6 +8968,14 @@ export type Database = {
       save_session_notes: {
         Args: { _notes: string; _session_id: string }
         Returns: undefined
+      }
+      save_smart_target_forecasts: {
+        Args: { p_date: string; p_rows: Json; p_shift: string }
+        Returns: Json
+      }
+      save_smart_target_queue: {
+        Args: { p_date: string; p_rows: Json; p_shift: string }
+        Returns: Json
       }
       scorecard_derived_volume: {
         Args: { _leader_id?: string; _line_id: string; _week_ending: string }
