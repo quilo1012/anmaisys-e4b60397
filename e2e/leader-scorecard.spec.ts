@@ -14,7 +14,7 @@ import { test, expect, type Page, type Route } from "@playwright/test";
  * touched and no real PIN is ever sent.
  */
 
-const PROJECT_REF = "ybtrzqzliepknpzqdajx";
+const PROJECT_REF = "apblxaaktftinstoidvp";
 const LEADER = "Kleyve";
 
 /** Far enough out that supabase-js never tries to refresh it over the network. */

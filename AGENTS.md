@@ -23,18 +23,26 @@
 
 ## Which database you are looking at
 
-Production is the Lovable Cloud database `ybtrzqzliepknpzqdajx`, reached **only** through
-the Lovable MCP `query_database` with project_id `091e038b-48fc-421f-9245-b03e63c99308`.
+Production is the Supabase project **AN Maintenance**, `apblxaaktftinstoidvp`, reached through
+the Supabase connector (`execute_sql`, `list_tables`, advisors) with that project id. It took
+over from Lovable Cloud on the day this change was merged; see `docs/migracao-supabase-proprio.md`.
 
-The Supabase connector cannot see it. `list_projects` returns three other databases — a
-migration target, a paused old copy, and an unused one — and none of them is production.
-So **every Supabase advisor or security report is, by construction, about a database the
-factory does not use.**
+The other databases are not production:
+
+- `ybtrzqzliepknpzqdajx` — the old Lovable Cloud database, reached through the Lovable MCP
+  `query_database` (project_id `091e038b-48fc-421f-9245-b03e63c99308`). Kept untouched for
+  30 days after the switch as the fallback, then retired. Nothing writes to it after the switch.
+- `bjwwtusdcwjqfwtoxzcq` (AN PMSYSTEM), `ammlyqnjlhioukpgldgc` (PM System, a 12/09 copy) and
+  `zljsksshbauwbdgaavpi` — paused or unused copies.
+
+In AN Maintenance, the schemas `arquivo_2026_09` and `arquivo_dbpush_20261105` hold what was
+there before the migration (an earlier attempt and a stray `supabase db push`). They are
+history: nothing reads them, and they are not part of the app.
 
 Before acting on any finding that came from a database:
 
-1. Say which database it came from. If it did not come from `query_database` with that
-   project_id, it is not about production.
+1. Say which database it came from. If it did not come from `apblxaaktftinstoidvp`, it is
+   not about production.
 2. Count the rows. An empty table leaks nothing, whatever its columns are called.
 3. Only then decide.
 
@@ -68,10 +76,15 @@ and confirmation the database tried to push since BLOCO 117 stopped at the last 
 bell showed them all the while. Every change to `send-push` merged since then (21/10 and
 26/10) was in the repository and nowhere else.
 
-- `.github/workflows/deploy-functions.yml` points at production, but its only run (10/10)
-  failed at the Deploy step. Do not count on it.
-- Production functions are published by the Lovable agent, at the owner's request. It
-  spends workspace credits, so ask first.
+- Production functions are published with the Supabase CLI from a clean checkout of `main`
+  (`supabase functions deploy --project-ref apblxaaktftinstoidvp`), or by
+  `.github/workflows/deploy-functions.yml`, which reads the project from `supabase/config.toml`.
+  The Lovable agent no longer publishes them: it only reaches the old Lovable Cloud project.
+- These functions are called by cron or by database triggers with `x-cron-secret`, or by
+  outside webhooks, and must be deployed with `--no-verify-jwt`, or the gateway answers 401
+  before the code runs: `send-push`, `intouch-poll`, `intouch-sync-production`,
+  `calculate-shift-targets`, `safetyculture-sync`, `intouch-webhook`, `safetyculture-webhook`
+  (and `wallboard-lines`, which `config.toml` already marks).
 - A PR that touches `supabase/functions/` says in its description which functions need
   publishing. The work is not done until they are published and checked.
 - A bell row is not a delivery. To see whether a push left, read

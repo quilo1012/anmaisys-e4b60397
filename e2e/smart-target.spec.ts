@@ -10,7 +10,7 @@ import { test, expect, type Page, type Route } from "@playwright/test";
  * network: every Supabase call is answered from the fixtures below.
  */
 
-const PROJECT_REF = "ybtrzqzliepknpzqdajx";
+const PROJECT_REF = "apblxaaktftinstoidvp";
 const FAKE_SESSION = {
   access_token: "fixture-access-token",
   refresh_token: "fixture-refresh-token",

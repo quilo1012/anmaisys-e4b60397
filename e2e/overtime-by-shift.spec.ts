@@ -8,7 +8,7 @@ import { test, expect, type Page, type Route } from "@playwright/test";
  * is answered here — nothing reaches the production database.
  */
 
-const REF = "ybtrzqzliepknpzqdajx";
+const REF = "apblxaaktftinstoidvp";
 const SESSION = {
   access_token: "t", refresh_token: "r", token_type: "bearer", expires_in: 3600, expires_at: 4_102_444_800,
   user: { id: "00000000-0000-4000-8000-000000000001", aud: "authenticated", role: "authenticated", email: "a@f.local", app_metadata: {}, user_metadata: {}, created_at: "2026-01-01T00:00:00Z" },

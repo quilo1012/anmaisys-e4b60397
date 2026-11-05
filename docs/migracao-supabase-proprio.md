@@ -1,5 +1,34 @@
 # Sair do Lovable Cloud: o PMSYSTEM num Supabase próprio
 
+## Estado a 05/11/2026 — destino mudou para AN Maintenance (`apblxaaktftinstoidvp`)
+
+O dono decidiu usar o projeto **AN Maintenance** em vez de um projeto novo. O que lá estava
+(uma tentativa de setembro e um `supabase db push` de 05/11) ficou guardado nos schemas
+`arquivo_2026_09` e `arquivo_dbpush_20261105`; nada foi apagado.
+
+Feito e verificado por fora a 05/11:
+
+- Esquema copiado da produção (não das migrações): 182 tabelas, 18 views, 345 funções,
+  148 triggers, 493 políticas, 426 índices, 495 constraints, permissões de tabela, coluna e
+  função, realtime. O md5 de cada grupo é igual nas duas bases.
+- Dados: 184 tabelas, 361 639 linhas; 181 tabelas iguais e 3 do iTouching com 1-2 linhas a
+  mais na produção (escritas depois da cópia). Os 115 logins vieram com as palavras-passe.
+- Histórico de migrações: as 591 versões do repositório ficam registadas como aplicadas.
+- 48 edge functions publicadas a partir do `main` (654ef8e); as 7 chamadas por cron, trigger
+  ou webhook com `--no-verify-jwt`.
+- 18 crons criados com o URL novo e **desligados** até à troca (`migr.cron_prod` guarda quais
+  estavam ligados na produção).
+- `notification_push` e `overtime_booking_notice_send` já chamam o `send-push` do AN Maintenance.
+- `send-rag-report`, `intouch-discover` e `generate-vapid-keys` ficam para trás: nada no código
+  as chama.
+
+Falta (dono): segredos das funções e `CRON_SECRET` no vault; Site URL, Redirect URLs e SMTP
+(Resend); a função temporária que copia os 53 ficheiros do storage; a troca numa hora calma.
+Na troca: parar os crons antigos, voltar a sincronizar os dados com os triggers desligados,
+ligar os crons novos, fazer merge do PR que aponta o `.env` e o `config.toml` para o AN
+Maintenance, mudar os webhooks do iTouching e do SafetyCulture, e apagar `public.migr_export`
+na produção e o schema `migr` no AN Maintenance.
+
 Decidido a 08/10/2026 e confirmado a 12/10/2026. Este documento é o plano e a lista de
 verificação. Cada fase acaba com uma verificação feita **por fora**, e nada avança sem
 ela.

@@ -191,7 +191,7 @@ var create_work_order_default = defineTool5({
 });
 
 // src/lib/mcp/index.ts
-var projectRef = "ybtrzqzliepknpzqdajx";
+var projectRef = "apblxaaktftinstoidvp";
 var mcp_default = defineMcp({
   name: "an-maintenance-mcp",
   title: "AN Maintenance MCP",
