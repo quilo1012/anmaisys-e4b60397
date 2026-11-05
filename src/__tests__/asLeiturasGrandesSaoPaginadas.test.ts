@@ -110,10 +110,14 @@ const NARROW: Record<string, string> = {
   "production_items @ src/pages/dashboard/ControlCenterPage.tsx":
     "The items of the sessions of ONE date and ONE shift — a handful of sessions, so "
     + "a handful of ids in the `.in(...)` and a few dozen rows back.",
+  "production_sessions @ src/pages/dashboard/SmartTargetPage.tsx":
+    "Two dates exactly: the forecast date and the day before (Q17), both bounded by the "
+    + "same date picker. About thirty sessions across every line and both shifts, against "
+    + "a cap of a thousand. The eight-week read lives in useSmartTargetHistory and is paged.",
   "production_items @ src/pages/dashboard/SmartTargetPage.tsx":
-    "The items of the sessions of ONE date — both shifts, every line — keyed on the ids "
-    + "that read returned. Same shape as Control Center's read, a few dozen rows. The date "
-    + "picker moves the day; nothing on the page widens it to a range.",
+    "The items of the sessions of TWO dates — the forecast date and the day before, for "
+    + "the starting SKU (Q17) — keyed on the ids that read returned. A few dozen rows. The "
+    + "date picker moves the pair; nothing on the page widens it to a range.",
   "production_items @ src/pages/dashboard/LineDisplayScreen.tsx":
     "One line, one date, one shift: the session on the screen in front of somebody. "
     + "185 items was the busiest week for the whole factory.",

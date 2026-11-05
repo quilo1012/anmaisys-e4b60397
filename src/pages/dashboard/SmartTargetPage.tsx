@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { forecastShift, type JobForecast, type LineNo, type ShiftForecast, type ShiftType } from "@/lib/smartTargetEngine";
 import {
   buildShiftInputs,
+  previousShiftOf,
   lineGaps,
   setupMinutes,
   MISSING_INPUTS,
@@ -166,7 +167,7 @@ function LineCard({ line, result, notes, basis }: { line: number; result: ShiftF
     ...notes,
     ...new Set(
       result.warnings
-        .filter((w) => w.code !== "PREVIOUS_SKU_UNKNOWN" && w.code !== "DURATION_FROM_ORDER_QTY")
+        .filter((w) => w.code !== "DURATION_FROM_ORDER_QTY")
         .map((w) => w.message),
     ),
   ];
@@ -258,7 +259,9 @@ export default function SmartTargetPage() {
       const { data: sessions, error: sErr } = await supabase
         .from("production_sessions")
         .select("id, line, session_date, shift, started_at")
-        .eq("session_date", date);
+        // The shift being forecast and the one before it, for the starting SKU (Q17).
+        .gte("session_date", previousShiftOf(date, "DAY").date)
+        .lte("session_date", date);
       if (sErr) throw sErr;
       const ids = (sessions ?? []).map((s) => s.id);
       if (!ids.length) return { sessions: [] as SmartTargetSession[], items: [] as SmartTargetItem[] };

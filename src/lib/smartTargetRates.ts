@@ -41,7 +41,7 @@ export interface CycleLimits {
   maxSeconds: number;
 }
 
-/** Provisional, awaiting Production (Q21). */
+/** Decided 05/11/2026 (Q21). A cycle outside these is listed for Production, never used. */
 export const DEFAULT_CYCLE_LIMITS: CycleLimits = { minSeconds: 1.5, maxSeconds: 20 };
 
 export interface CleanCycle {
