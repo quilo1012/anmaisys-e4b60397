@@ -342,13 +342,21 @@ describe("T12 order quantity differing from observed quantity", () => {
     expect(r.jobs[0].observedPerHour).toBe(450);
   });
 
-  it("places a job without a window by order ÷ rate, but does not forecast the order back", () => {
+  it("places a job without a window by order ÷ rate, and forecasts the order when the rate says it fits", () => {
     const r = forecastShift(input({ jobs: [job("J1", "SKU-A", 1, { orderQty: 300 })] }), NO_BREAK);
-    expect(r.jobs[0].allocation).toMatchObject({ start: 0, end: 30, productiveMinutes: 30, basis: "order_qty_at_rate" });
-    expect(r.jobs[0].expectedContainers).toBeNull();
-    expect(r.jobs[0].reasons[0]).toMatch(/would only repeat the order/);
-    expect(r.expectedTotal).toBeNull();
-    expect(r.warnings.map((w) => w.code)).toEqual(expect.arrayContaining(["DURATION_FROM_ORDER_QTY", "UNPLANNED_TIME"]));
+    expect(r.jobs[0].allocation).toMatchObject({ start: 0, end: 30, productiveMinutes: 30, basis: "order_qty_at_rate", completesOrder: true });
+    expect(r.jobs[0].expectedContainers).toBe(300);
+    expect(r.expectedTotal).toBe(300);
+    expect(r.confidence).toBe("low");
+    expect(r.warnings.map((w) => w.code)).toEqual(expect.arrayContaining(["DURATION_FROM_ORDER_QTY", "ORDER_COMPLETES", "UNPLANNED_TIME"]));
+  });
+
+  it("Q23: a plan's total is the orders that fit plus what the time allows of the one cut off", () => {
+    // 600/h: J1 2000 needs 200 min and completes. J2 is a SKU change (25 + 30 min),
+    // then 9000 needs 900 min but only 720 − 255 = 465 are left → 4650.
+    const r = forecastShift(input({ jobs: [job("J1", "SKU-A", 1, { orderQty: 2000 }), job("J2", "SKU-B", 2, { orderQty: 9000 })] }), NO_BREAK);
+    expect(r.jobs.map((j) => [j.expectedContainers, j.allocation?.completesOrder])).toEqual([[2000, true], [4650, false]]);
+    expect(r.expectedTotal).toBe(6650);
   });
 
   it("forecasts the part of an order-sized job that the shift cuts off", () => {

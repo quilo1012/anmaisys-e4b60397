@@ -56,10 +56,12 @@ source code.
 5. **Job time.** Each job gets its time from one of two sources:
    - its planned window in the schedule
    - if there is no window: order quantity ÷ rate, labelled provisional
-     (`DURATION_FROM_ORDER_QTY`). This only places the job. A job sized this way that
-     finishes its order gets **no forecast**, because the number would just be the order
-     quantity again. It gets one only if it is cut, at the end of the shift or at the
-     next job's planned start, and then the forecast is rate × the time it actually has.
+     (`DURATION_FROM_ORDER_QTY`). A job sized this way that finishes its order at the
+     line's rate forecasts **the order** (`ORDER_COMPLETES`, decided 05/11, Q23): the
+     rate decided it fits, and the planner's question is what the plan delivers in the
+     time there is. A job cut short, at the end of the shift or at the next planned
+     start, forecasts rate × the time it actually has. Time left after the last job is
+     reported as unplanned minutes, never turned into containers.
    - A window that is incomplete, unreadable or reversed is not used, and the warning
      `WINDOW_IGNORED` says so.
 
@@ -166,7 +168,7 @@ that the 44 tests did not catch. Each one now has its own test.
 | # | Defect | Fix | Test |
 |---|---|---|---|
 | R1 | With no break times, setup and downtime absorbed part of the 75-minute break (one whole-shift job with a SKU change gave 5957 instead of 5900) | Each job carries its break share by slot length, taken after setup and downtime | R1 (×2) |
-| R2 | A job sized from its order quantity always "forecast" exactly that quantity | No forecast unless the job is cut short | T12 |
+| R2 | A job sized from its order quantity always "forecast" exactly that quantity, with nothing saying so | Superseded by Q23 (05/11): it forecasts the order only when the rate says it completes, and the screen labels it "Order completes at this rate" | T12 |
 | R3 | An order-sized job could run over the next job's planned window | It stops at the next planned start (`ORDER_RUNS_INTO_NEXT_JOB`), and an unusable window is reported (`WINDOW_IGNORED`) | R3 (×2) |
 | R4 | A job with no SKU counted as a SKU change, and the job after it as "same SKU" | New transition `sku_unknown`, with nothing charged | R4 |
 | R5 | Two sessions on one line had their jobs interleaved | Sessions are ordered by start, then jobs within each | input test |

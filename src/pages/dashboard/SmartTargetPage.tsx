@@ -115,7 +115,9 @@ function JobBlock({ job }: { job: JobForecast }) {
       <div className="truncate font-mono text-xs font-medium" title={job.sku ?? "No SKU"}>{job.sku ?? "No SKU"}</div>
       <div className="text-2xs text-muted-foreground">Order {fmt(job.orderQty)}</div>
       {job.allocation?.basis === "order_qty_at_rate" && (
-        <div className="text-2xs text-warning-strong">Time sized from the order</div>
+        <div className="text-2xs text-warning-strong">
+          {job.allocation.completesOrder ? "Order completes at this rate" : "Cut short: rate × time left"}
+        </div>
       )}
     </div>
   );
