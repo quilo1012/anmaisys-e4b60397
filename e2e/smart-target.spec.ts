@@ -51,7 +51,12 @@ const SKUS = [
   { id: "sku-mm", code: "MMMG2V", name: "MUSCLE MOOSE", target_per_hour: 600 },
 ];
 
-async function stub(page: Page, cycles: unknown[] = []) {
+// Five closed Line 2 shifts before DATE: 6362 × COL165SR at 2.9 s = 307.5 ideal min of
+// 645 − 30 available, so Line 2 runs at 50% of iTouch's ideal speed.
+const HISTORY_SESSIONS = [1, 2, 3, 4, 5].map((d) => ({ id: `h${d}`, line: "Line 2", session_date: `2026-10-0${d}`, shift: "DAY" }));
+const HISTORY_ITEMS = HISTORY_SESSIONS.map((h) => ({ session_id: h.id, display_order: 1, sku_id: "sku-col", sku_code_text: null, actual_qty: 6362 }));
+
+async function stub(page: Page, cycles: unknown[] = [], history = false) {
   await page.addInitScript(([ref, session]) => {
     window.localStorage.setItem(`sb-${ref}-auth-token`, JSON.stringify(session));
   }, [PROJECT_REF, FAKE_SESSION] as const);
@@ -64,8 +69,8 @@ async function stub(page: Page, cycles: unknown[] = []) {
     if (url.includes("/rpc/has_role") || url.includes("/rpc/is_owner")) return json(true);
     if (url.includes("/rpc/") && /single|maybe/.test(url)) return json(null);
     if (url.includes("/profiles")) return json([{ id: FAKE_SESSION.user.id, name: "Fixture Admin", email: FAKE_SESSION.user.email, active: true }]);
-    if (url.includes("/production_sessions")) return json(SESSIONS);
-    if (url.includes("/production_items")) return json(ITEMS);
+    if (url.includes("/production_sessions")) return json(url.includes("session_date=gte") ? (history ? HISTORY_SESSIONS : []) : SESSIONS);
+    if (url.includes("/production_items")) return json(url.includes("actual_qty") ? (history ? HISTORY_ITEMS : []) : ITEMS);
     if (url.includes("/sku_products")) return json(SKUS);
     if (url.includes("/itouch_cycle_times")) return json(cycles);
     return json([]);
@@ -151,8 +156,31 @@ test("shows the iTouch cycles it holds and lists the ones Production must fix", 
   await expect(page.getByRole("cell", { name: /below 1\.5 s/ })).toBeVisible();
   // Capsules are outside v1: left out, not reported as a fault.
   await expect(page.getByText("CAPS1")).toHaveCount(0);
-  // A cycle is not a forecast: Line 1 still has no rate.
-  await expect(page.getByTestId("smart-target-line-1")).toContainText("No rate for ABEENG, COL165SR.");
+  // A cycle is not a forecast. Line 1 is also one of the lines held back (Q24).
+  await expect(page.getByTestId("smart-target-line-1")).toContainText("Line 1 varies too much from shift to shift");
   await expect(page.getByRole("button", { name: "Import iTouch cycles" })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("forecasts Line 2 from its own last eight weeks, and holds Line 1 back with the reason", async ({ page }) => {
+  const at = "2026-11-04T20:16:00Z";
+  const src = "iTouch Product Details (test)";
+  const errors = await stub(page, [
+    { machine: "Filler Line 2", sku: "COL165SR", cycle_seconds: 2.9, cavities: null, source: src, imported_at: at },
+    { machine: "Filler Line 1", sku: "ABEENG", cycle_seconds: 3.5, cavities: null, source: src, imported_at: at },
+  ], true);
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await open(page);
+
+  const line2 = page.getByTestId("smart-target-line-2");
+  await expect(line2).toContainText("iTouch ideal × 50%, this line's performance over 5 shifts");
+  await expect(line2).toContainText("Order completes at this rate");
+  await expect(line2).toContainText("Low confidence");
+  await expect(line2).toContainText("3,000");
+
+  const line1 = page.getByTestId("smart-target-line-1");
+  await expect(line1).toContainText("Line 1 varies too much from shift to shift");
+  await expect(line1).toContainText("Not enough data");
+  await page.screenshot({ path: "e2e/.results/smart-target-forecast.png", fullPage: true });
   expect(errors).toEqual([]);
 });

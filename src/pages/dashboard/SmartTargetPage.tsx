@@ -9,10 +9,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSkuCatalogue } from "@/hooks/useSkuCatalogue";
+import { useItouchCycles } from "@/hooks/useItouchCycles";
+import { useSmartTargetHistory } from "@/hooks/useSmartTargetHistory";
+import { FORECAST_LINES, HELD_BACK_REASON, historyFromSessions } from "@/lib/smartTargetHistory";
+import { cleanCycles, lineFactors, ratesForLine, type LineFactor } from "@/lib/smartTargetRates";
 import { ItouchCyclesCard } from "@/components/smartTarget/ItouchCyclesCard";
 import { getCurrentFactoryShift } from "@/lib/shifts";
 import { cn } from "@/lib/utils";
-import { forecastShift, type JobForecast, type ShiftForecast, type ShiftType } from "@/lib/smartTargetEngine";
+import { forecastShift, type JobForecast, type LineNo, type ShiftForecast, type ShiftType } from "@/lib/smartTargetEngine";
 import {
   buildShiftInputs,
   lineGaps,
@@ -42,6 +46,13 @@ const STATUS: Record<ShiftForecast["status"], { label: string; className: string
   partial: { label: "Partial", className: "bg-warning/15 text-warning-strong border-warning/30" },
   insufficient_data: { label: "Not enough data", className: "bg-muted text-muted-foreground border-border" },
   invalid_input: { label: "Invalid input", className: "bg-destructive/10 text-destructive border-destructive/30" },
+};
+
+/** The rates item once factors are computed: what is live, and what is held back. */
+const RATES_LIVE = {
+  label: "Rates on Lines 1, 3 and 6",
+  why: "Lines 2, 4 and 5 use iTouch's ideal speed × each line's performance over the last eight weeks (provisional). Lines 1, 3 and 6 vary too much from shift to shift and stay at \"—\" until Production sets the error it accepts.",
+  owner: "Production: the acceptable error",
 };
 
 const fmt = (n: number | null | undefined) => (n === null || n === undefined ? "—" : n.toLocaleString());
@@ -123,7 +134,15 @@ function JobBlock({ job }: { job: JobForecast }) {
   );
 }
 
-function LineCard({ line, result, notes }: { line: number; result: ShiftForecast; notes: string[] }) {
+interface RateBasis {
+  factor: LineFactor | null;
+  /** Null when the line is shown; otherwise why its number is held back. */
+  heldBack: string | null;
+  from: string;
+  to: string;
+}
+
+function LineCard({ line, result, notes, basis }: { line: number; result: ShiftForecast; notes: string[]; basis: RateBasis | null }) {
   const status = STATUS[result.status];
   if (!result.jobs.length) {
     return (
@@ -138,12 +157,18 @@ function LineCard({ line, result, notes }: { line: number; result: ShiftForecast
       </Card>
     );
   }
-  const gaps = lineGaps(result);
-  // Every warning the engine raised for this line, once each. The previous-SKU one is
-  // the same on every line and is listed once at the bottom of the page instead.
+  const gaps = basis?.heldBack ? [basis.heldBack] : lineGaps(result);
+  // Every warning the engine raised for this line, once each. Two are left out because
+  // they would say the same on every line: the previous SKU is listed once at the bottom
+  // of the page, and every job is sized from its order since iTouch's expected times
+  // are not used (Q20); the job block itself says which ones complete.
   const warnings = [
     ...notes,
-    ...new Set(result.warnings.filter((w) => w.code !== "PREVIOUS_SKU_UNKNOWN").map((w) => w.message)),
+    ...new Set(
+      result.warnings
+        .filter((w) => w.code !== "PREVIOUS_SKU_UNKNOWN" && w.code !== "DURATION_FROM_ORDER_QTY")
+        .map((w) => w.message),
+    ),
   ];
   const setup = setupMinutes(result);
   return (
@@ -177,6 +202,14 @@ function LineCard({ line, result, notes }: { line: number; result: ShiftForecast
           </div>
         </div>
         <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
+          <dt className="text-muted-foreground">Rate</dt>
+          <dd>
+            {basis?.factor?.factor != null
+              ? `iTouch ideal × ${Math.round(basis.factor.factor * 100)}%, this line's performance over ${basis.factor.shiftsUsed} shifts (${basis.from} to ${basis.to})${basis.heldBack ? ", not shown" : ""}`
+              : basis
+                ? `No performance factor yet: ${basis.factor?.shiftsUsed ?? 0} measurable shifts between ${basis.from} and ${basis.to}, 5 needed.`
+                : "Loading the last eight weeks…"}
+          </dd>
           <dt className="text-muted-foreground">Changeover and mixing</dt>
           <dd className="tabular-nums">{setup} min <span className="text-muted-foreground">(provisional durations)</span></dd>
           {gaps.length > 0 && (
@@ -206,6 +239,18 @@ export default function SmartTargetPage() {
   const [date, setDate] = useState(now.sessionDate);
   const [shift, setShift] = useState<ShiftType>(now.shiftCode === "day" ? "DAY" : "NIGHT");
   const { catalogue, isLoading: skusLoading } = useSkuCatalogue();
+  const cyclesQuery = useItouchCycles();
+  const historyQuery = useSmartTargetHistory(date);
+
+  // Each line's performance over the eight weeks before `date`, against iTouch's ideal.
+  const rateBasis = useMemo(() => {
+    if (!cyclesQuery.data || !historyQuery.data) return null;
+    const { cycles } = cleanCycles(cyclesQuery.data.records);
+    // No cycles loaded: there is no ideal to scale, so no factor and no rate to show.
+    if (!cycles.length) return null;
+    const factors = lineFactors(historyFromSessions(historyQuery.data.sessions, historyQuery.data.items, catalogue), cycles);
+    return { cycles, factors, from: historyQuery.data.from, to: historyQuery.data.to };
+  }, [cyclesQuery.data, historyQuery.data, catalogue]);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["smart_target_inputs", date],
@@ -231,9 +276,17 @@ export default function SmartTargetPage() {
     const inputs = buildShiftInputs(date, shift, data.sessions, data.items, catalogue);
     return {
       otherLines: inputs.otherLines,
-      lines: inputs.lines.map((l) => ({ ...l, result: forecastShift(l.input) })),
+      lines: inputs.lines.map((l) => {
+        const factor = rateBasis?.factors.find((f) => f.line === l.line) ?? null;
+        const shown = FORECAST_LINES.includes(l.line);
+        const rates = rateBasis && factor && shown ? ratesForLine(l.line, rateBasis.cycles, factor) : [];
+        const basis: RateBasis | null = rateBasis
+          ? { factor, heldBack: shown ? null : HELD_BACK_REASON[l.line as LineNo] ?? null, from: rateBasis.from, to: rateBasis.to }
+          : null;
+        return { ...l, basis, result: forecastShift({ ...l.input, rates }) };
+      }),
     };
-  }, [data, date, shift, catalogue]);
+  }, [data, date, shift, catalogue, rateBasis]);
 
   const loading = isLoading || skusLoading;
   const assumptions = built?.lines[0]?.result.assumptions ?? [];
@@ -282,8 +335,8 @@ export default function SmartTargetPage() {
                 : `${planned.length} of 6 lines have a plan. ${forecast.length} can be forecast.`}
             </p>
             <div className="space-y-3">
-              {built.lines.map(({ line, result, notes }) => (
-                <LineCard key={line} line={line} result={result} notes={notes} />
+              {built.lines.map(({ line, result, notes, basis }) => (
+                <LineCard key={line} line={line} result={result} notes={notes} basis={basis} />
               ))}
             </div>
             {built.otherLines.length > 0 && (
@@ -303,7 +356,9 @@ export default function SmartTargetPage() {
           </CardHeader>
           <CardContent>
             <ul className="grid gap-3 md:grid-cols-2">
-              {MISSING_INPUTS.map((m) => (
+              {MISSING_INPUTS.map((m) =>
+                m.key === "rates" && rateBasis ? { ...m, ...RATES_LIVE } : m,
+              ).map((m) => (
                 <li key={m.key} className="rounded-md border p-3">
                   <div className="flex items-start justify-between gap-2">
                     <span className="font-medium">{m.label}</span>

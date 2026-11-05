@@ -81,8 +81,8 @@ export const MISSING_INPUTS: MissingInput[] = [
   {
     key: "rates",
     label: "Rate per line and SKU",
-    why: "iTouch's ideal cycle per product and line can be loaded below, but it is the ideal speed. Each line's performance factor, measured from past shifts, is not calculated yet, so no rate is used.",
-    owner: "iTouch cycles (loaded here) × performance from shift history (next step)",
+    why: "No iTouch cycle times are loaded yet, so there is no ideal speed to scale by each line's performance.",
+    owner: "iTouch Product Details export, uploaded below",
   },
   {
     key: "events",

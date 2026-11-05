@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { Download, FileSpreadsheet, RefreshCw, Upload } from "lucide-react";
 import { toast } from "sonner";
@@ -12,7 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cleanCycles, type CycleRecord } from "@/lib/smartTargetRates";
+import { useItouchCycles } from "@/hooks/useItouchCycles";
+import { cleanCycles } from "@/lib/smartTargetRates";
 import {
   parseProductDetails,
   rejectedCyclesCsv,
@@ -21,41 +22,8 @@ import {
   type ProductDetailsImport,
 } from "@/lib/itouchCycleImport";
 
-const PAGE = 1000;
 /** Rows drawn in the list; the CSV always has all of them. */
 const LIST_LIMIT = 300;
-
-interface StoredCycles {
-  records: CycleRecord[];
-  source: string | null;
-  importedAt: string | null;
-}
-
-/** Every stored row, a page at a time: PostgREST returns at most 1000 per request. */
-async function fetchStoredCycles(): Promise<StoredCycles> {
-  const rows: { machine: string; sku: string; cycle_seconds: number | null; cavities: number | null; source: string; imported_at: string }[] = [];
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase
-      .from("itouch_cycle_times")
-      .select("machine, sku, cycle_seconds, cavities, source, imported_at")
-      .order("id")
-      .range(from, from + PAGE - 1);
-    if (error) throw error;
-    rows.push(...(data ?? []));
-    if (!data || data.length < PAGE) break;
-  }
-  return {
-    records: rows.map((r) => ({
-      line: r.machine,
-      sku: r.sku,
-      cycleSeconds: r.cycle_seconds === null ? null : Number(r.cycle_seconds),
-      cavities: r.cavities === null ? null : Number(r.cavities),
-      source: r.source,
-    })),
-    source: rows[0]?.source ?? null,
-    importedAt: rows.reduce<string | null>((max, r) => (max && max > r.imported_at ? max : r.imported_at), null),
-  };
-}
 
 function downloadCsv(name: string, body: string) {
   const url = URL.createObjectURL(new Blob([body], { type: "text/csv;charset=utf-8" }));
@@ -85,10 +53,7 @@ export function ItouchCyclesCard() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ["itouch_cycle_times"],
-    queryFn: fetchStoredCycles,
-  });
+  const { data, isLoading, error, refetch, isFetching } = useItouchCycles();
 
   const clean = useMemo(() => (data ? cleanCycles(data.records) : null), [data]);
   const summary = useMemo(() => (clean ? summariseCycles(clean.cycles, clean.rejected) : []), [clean]);
