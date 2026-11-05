@@ -82,7 +82,7 @@ describe("buildShiftInputs", () => {
   });
 
   it("lists every input it leaves empty, with who can supply it", () => {
-    expect(MISSING_INPUTS.map((m) => m.key)).toEqual(["rates", "events", "windows", "breaks", "previous_sku", "downtime"]);
+    expect(MISSING_INPUTS.map((m) => m.key)).toEqual(["rates", "events", "breaks", "previous_sku", "downtime"]);
     for (const m of MISSING_INPUTS) expect(m.owner.length).toBeGreaterThan(0);
   });
 });
@@ -97,7 +97,7 @@ describe("lineGaps and setupMinutes", () => {
     const r = run([item("a", "s", 1, { sku_id: "sku-a" }), item("b", "s", 2, { sku_id: "sku-a" }), item("c", "s", 3, { sku_id: "sku-b" })]);
     expect(lineGaps(r)).toEqual([
       "No rate for ABEENG, COL165SR.",
-      "Job times cannot be worked out without a rate or planned start and end times.",
+      "Job times cannot be worked out without a rate.",
     ]);
   });
 
