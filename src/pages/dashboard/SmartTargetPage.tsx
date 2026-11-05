@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSkuCatalogue } from "@/hooks/useSkuCatalogue";
+import { ItouchCyclesCard } from "@/components/smartTarget/ItouchCyclesCard";
 import { getCurrentFactoryShift } from "@/lib/shifts";
 import { cn } from "@/lib/utils";
 import { forecastShift, type JobForecast, type ShiftForecast, type ShiftType } from "@/lib/smartTargetEngine";
@@ -313,6 +314,8 @@ export default function SmartTargetPage() {
             </ul>
           </CardContent>
         </Card>
+
+        <ItouchCyclesCard />
 
         {assumptions.length > 0 && (
           <details className="rounded-lg border bg-card p-4 text-sm">

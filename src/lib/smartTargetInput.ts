@@ -18,8 +18,10 @@
  *   start/finish an operator types, and those are not reliable enough to place
  *   a job in the shift.
  * - Rates. `sku_products.target_per_hour` is 0 for 208 SKUs and a line-class
- *   default for the rest (`skuStandardRate.ts`). There is no approved rate
- *   source yet.
+ *   default for the rest (`skuStandardRate.ts`), so it is not used. iTouch's
+ *   ideal cycles are stored in `itouch_cycle_times` (ItouchCyclesCard), but they
+ *   become rates only with each line's performance factor from shift history
+ *   (`lineFactors()` in `smartTargetRates.ts`), which is not read yet.
  * - Filling events. No per-fill endpoint has been confirmed with iTouch.
  * - Break times, the previous SKU and known downtime. Production has not
  *   answered these yet.
@@ -73,8 +75,8 @@ export const MISSING_INPUTS: MissingInput[] = [
   {
     key: "rates",
     label: "Rate per line and SKU",
-    why: "No approved source. sku_products.target_per_hour is 0 for most SKUs and a line default for the rest, so it is not used.",
-    owner: "Built from verified filling events once iTouch confirms them",
+    why: "iTouch's ideal cycle per product and line can be loaded below, but it is the ideal speed. Each line's performance factor, measured from past shifts, is not calculated yet, so no rate is used.",
+    owner: "iTouch cycles (loaded here) × performance from shift history (next step)",
   },
   {
     key: "events",
