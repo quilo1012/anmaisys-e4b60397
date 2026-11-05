@@ -69,7 +69,8 @@ async function stub(page: Page, cycles: unknown[] = [], history = false) {
     if (url.includes("/rpc/has_role") || url.includes("/rpc/is_owner")) return json(true);
     if (url.includes("/rpc/") && /single|maybe/.test(url)) return json(null);
     if (url.includes("/profiles")) return json([{ id: FAKE_SESSION.user.id, name: "Fixture Admin", email: FAKE_SESSION.user.email, active: true }]);
-    if (url.includes("/production_sessions")) return json(url.includes("session_date=gte") ? (history ? HISTORY_SESSIONS : []) : SESSIONS);
+    // The forecast reads up to DATE itself; the eight-week history stops the day before.
+    if (url.includes("/production_sessions")) return json(url.includes(`session_date=lte.${DATE}`) ? SESSIONS : history ? HISTORY_SESSIONS : []);
     if (url.includes("/production_items")) return json(url.includes("actual_qty") ? (history ? HISTORY_ITEMS : []) : ITEMS);
     if (url.includes("/sku_products")) return json(SKUS);
     if (url.includes("/itouch_cycle_times")) return json(cycles);

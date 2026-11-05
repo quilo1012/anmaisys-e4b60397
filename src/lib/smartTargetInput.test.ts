@@ -82,7 +82,7 @@ describe("buildShiftInputs", () => {
   });
 
   it("lists every input it leaves empty, with who can supply it", () => {
-    expect(MISSING_INPUTS.map((m) => m.key)).toEqual(["rates", "events", "breaks", "previous_sku", "downtime"]);
+    expect(MISSING_INPUTS.map((m) => m.key)).toEqual(["rates", "events", "breaks", "downtime"]);
     for (const m of MISSING_INPUTS) expect(m.owner.length).toBeGreaterThan(0);
   });
 });
@@ -110,5 +110,38 @@ describe("lineGaps and setupMinutes", () => {
     // Previous SKU ABEENG: job 1 same SKU (0), job 2 same (0), job 3 change (25 + 30).
     const r = run([item("a", "s", 1, { sku_id: "sku-a" }), item("b", "s", 2, { sku_id: "sku-a" }), item("c", "s", 3, { sku_id: "sku-b" })], "ABEENG");
     expect(setupMinutes(r)).toBe(55);
+  });
+});
+
+describe("previous SKU from the shift before (Q17)", () => {
+  it("takes a DAY's starting SKU from the last job logged on the previous date's NIGHT", () => {
+    const { lines } = buildShiftInputs("2026-11-03", "DAY", [
+      session("d", "Line 1"),
+      session("n", "Line 1", { session_date: "2026-11-02", shift: "NIGHT" }),
+      session("old", "Line 1", { session_date: "2026-11-02", shift: "DAY" }),
+    ], [
+      item("j", "d", 1, { sku_id: "sku-a" }),
+      item("n1", "n", 1, { sku_id: "sku-a" }),
+      item("n2", "n", 2, { sku_code_text: "COL165SR" }),
+      item("o1", "old", 9, { sku_id: "sku-a" }),
+    ], catalogue);
+    expect(lines[0].input.previousSku).toBe("COL165SR");
+    expect(lines[0].notes).toContain("SKU at shift start: COL165SR, the last job logged on the previous shift (provisional).");
+    const r = forecastShift(lines[0].input);
+    expect(r.jobs[0].transition).toBe("sku_change"); // COL165SR → ABEENG
+  });
+
+  it("takes a NIGHT's starting SKU from the same date's DAY", () => {
+    const { lines } = buildShiftInputs("2026-11-03", "NIGHT", [
+      session("n", "Line 2", { shift: "NIGHT" }),
+      session("d", "Line 2"),
+    ], [item("x", "n", 1, { sku_id: "sku-a" }), item("y", "d", 1, { sku_id: "sku-a" })], catalogue);
+    expect(lines[1].input.previousSku).toBe("ABEENG");
+    expect(forecastShift(lines[1].input).jobs[0].transition).toBe("same_sku");
+  });
+
+  it("stays unknown when the previous shift logged nothing", () => {
+    const { lines } = buildShiftInputs("2026-11-03", "DAY", [session("d", "Line 3")], [item("j", "d", 1, { sku_id: "sku-a" })], catalogue);
+    expect(lines[2].input.previousSku).toBeUndefined();
   });
 });

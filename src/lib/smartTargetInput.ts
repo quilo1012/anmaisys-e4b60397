@@ -70,7 +70,7 @@ export interface SmartTargetItem {
 
 /** An input the engine needs that the app does not have yet. */
 export interface MissingInput {
-  key: "rates" | "events" | "breaks" | "previous_sku" | "downtime";
+  key: "rates" | "events" | "breaks" | "downtime";
   label: string;
   why: string;
   /** Who can supply it. */
@@ -97,12 +97,6 @@ export const MISSING_INPUTS: MissingInput[] = [
     owner: "Production",
   },
   {
-    key: "previous_sku",
-    label: "SKU running at shift start",
-    why: "Unknown, so no changeover is charged before the first job.",
-    owner: "Production",
-  },
-  {
     key: "downtime",
     label: "Known downtime",
     why: "Which stop codes count as planned downtime has not been agreed.",
@@ -123,6 +117,13 @@ export interface ShiftInputs {
   otherLines: string[];
 }
 
+/** The shift before: a DAY follows the previous date's NIGHT, a NIGHT follows its own date's DAY. */
+export function previousShiftOf(date: string, shift: ShiftType): { date: string; shift: ShiftType } {
+  if (shift === "NIGHT") return { date, shift: "DAY" };
+  const d = new Date(`${date}T00:00:00Z`);
+  return { date: new Date(d.getTime() - 86_400_000).toISOString().slice(0, 10), shift: "NIGHT" };
+}
+
 export function buildShiftInputs(
   date: string,
   shift: ShiftType,
@@ -135,13 +136,37 @@ export function buildShiftInputs(
   );
   const otherLines = [...new Set(forShift.filter((s) => parseLineNo(s.line) === null).map((s) => s.line.trim()))].sort(cmp);
 
+  const prev = previousShiftOf(date, shift);
+  const forPrevious = sessions.filter(
+    (s) => s.session_date === prev.date && String(s.shift).trim().toUpperCase() === prev.shift,
+  );
+  const bySessionOrder = (a: SmartTargetSession, b: SmartTargetSession) =>
+    cmp(a.started_at ?? "", b.started_at ?? "") || cmp(a.id, b.id);
+
   const lines = SMART_TARGET_LINES.map((line): LineShiftInput => {
+    // What ran last on the shift before (decided 05/11, Q17): the last job logged there,
+    // in session order then display order. It is the last job LOGGED, which is usually
+    // but not certainly the product on the line at handover, so it is provisional and
+    // said so on the card. No previous session: unknown, as before.
+    const before = forPrevious.filter((s) => parseLineNo(s.line) === line).sort(bySessionOrder);
+    const beforeRank = new Map(before.map((s, i) => [s.id, i]));
+    const lastBefore = items
+      .filter((i) => beforeRank.has(i.session_id))
+      .sort((a, b) =>
+        beforeRank.get(a.session_id)! - beforeRank.get(b.session_id)! || a.display_order - b.display_order || cmp(a.id, b.id))
+      .map((i) => identifyItemSku({ sku_id: i.sku_id, sku_code_text: i.sku_code_text, actual: 0, started_at: null, finished_at: null }, catalogue)?.code ?? null)
+      .filter((c): c is string => c !== null)
+      .pop();
+
     const own = forShift
       .filter((s) => parseLineNo(s.line) === line)
       .sort((a, b) => cmp(a.started_at ?? "", b.started_at ?? "") || cmp(a.id, b.id));
     const notes: string[] = [];
     if (own.length > 1) {
       notes.push(`${own.length} production sessions exist for this line and shift; their jobs are read together.`);
+    }
+    if (lastBefore) {
+      notes.push(`SKU at shift start: ${lastBefore}, the last job logged on the previous shift (provisional).`);
     }
     // Session first, then the order inside it: two sessions' jobs must not interleave.
     const rank = new Map(own.map((s, i) => [s.id, i]));
@@ -172,7 +197,8 @@ export function buildShiftInputs(
         shift,
         line,
         jobs,
-        // previousSku left undefined: unknown, not "line was empty".
+        // Undefined when the previous shift has nothing logged: unknown, not "line was empty".
+        previousSku: lastBefore,
         breaks: null,
         downtime: [],
         rates: [],
