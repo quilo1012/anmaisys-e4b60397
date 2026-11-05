@@ -21,6 +21,18 @@ export const PRODUCT_DETAILS_COLUMNS = {
   cavities: "Cavities",
 } as const;
 
+/**
+ * Every name iTouch has been seen to give each column. The part code is "SKU" in one
+ * export and "Part Number" in another (the 02/11 Product Details export the factory
+ * uses), and refusing the second one stopped the first real import.
+ */
+const COLUMN_NAMES: Record<keyof typeof PRODUCT_DETAILS_COLUMNS, readonly string[]> = {
+  sku: ["SKU", "Part Number"],
+  machine: ["Machine"],
+  cycleSeconds: ["Standard Cycle Time"],
+  cavities: ["Cavities"],
+};
+
 /** How far down the sheet the header row is looked for. */
 const HEADER_SEARCH_ROWS = 10;
 
@@ -52,12 +64,14 @@ export function parseItouchNumber(v: unknown): number | null {
 }
 
 export function parseProductDetails(rows: unknown[][], source: string): ProductDetailsImport {
-  const wanted = Object.entries(PRODUCT_DETAILS_COLUMNS) as [keyof typeof PRODUCT_DETAILS_COLUMNS, string][];
+  const wanted = Object.entries(COLUMN_NAMES) as [keyof typeof PRODUCT_DETAILS_COLUMNS, readonly string[]][];
+  const indexIn = (keys: string[], names: readonly string[]) =>
+    names.map((n) => keys.indexOf(n.toLowerCase())).find((i) => i >= 0) ?? -1;
   let headerRow = -1;
   let col: Record<keyof typeof PRODUCT_DETAILS_COLUMNS, number> | null = null;
   for (let r = 0; r < Math.min(rows.length, HEADER_SEARCH_ROWS); r++) {
     const keys = (rows[r] ?? []).map(headerKey);
-    const found = Object.fromEntries(wanted.map(([k, name]) => [k, keys.indexOf(name.toLowerCase())]));
+    const found = Object.fromEntries(wanted.map(([k, names]) => [k, indexIn(keys, names)]));
     if (Object.values(found).every((i) => i >= 0)) {
       headerRow = r;
       col = found as typeof col;
@@ -66,7 +80,9 @@ export function parseProductDetails(rows: unknown[][], source: string): ProductD
   }
   if (!col) {
     const first = (rows[0] ?? []).map(headerKey);
-    const missing = wanted.filter(([, name]) => !first.includes(name.toLowerCase())).map(([, name]) => `"${name}"`);
+    const missing = wanted
+      .filter(([, names]) => indexIn(first, names) < 0)
+      .map(([, names]) => names.map((n) => `"${n}"`).join(" or "));
     return {
       records: [],
       problems: [

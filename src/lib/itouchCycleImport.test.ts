@@ -19,6 +19,15 @@ describe("parseProductDetails", () => {
     ]);
   });
 
+  it('reads the part code from "Part Number", as the 02/11 export names it', () => {
+    const header = HEADER.map((h) => (h === "SKU" ? "Part Number" : h));
+    const out = parseProductDetails([header, row("ABEENG", "Filler Line 1", 3.5, 1)], "Itouch 02.11.2026.xlsx");
+    expect(out.problems).toEqual([]);
+    expect(out.records).toEqual([
+      { line: "Filler Line 1", sku: "ABEENG", cycleSeconds: 3.5, cavities: 1, source: "Itouch 02.11.2026.xlsx" },
+    ]);
+  });
+
   it("finds a header that is not on the first row", () => {
     const out = parseProductDetails([["Product Details"], [], HEADER, row("A", "Filler Line 2", 4)], "f");
     expect(out.records).toHaveLength(1);
