@@ -27,12 +27,10 @@ export interface LineToFreeze {
 
 const ACCURACY_DAYS = 28;
 
-export function useSmartTargetForecastLog(date: string, shift: ShiftType, toFreeze: LineToFreeze[] | null, ready: boolean) {
-  const qc = useQueryClient();
-  const saved = useRef<string | null>(null);
+/** The last four weeks of kept forecasts, up to `date`. */
+export function useSmartTargetForecastRows(date: string) {
   const from = new Date(Date.parse(`${date}T00:00:00Z`) - ACCURACY_DAYS * 86_400_000).toISOString().slice(0, 10);
-
-  const log = useQuery({
+  return useQuery({
     queryKey: ["smart_target_forecasts", from, date],
     queryFn: async () => {
       // Not in the generated types until BLOCO 148 is applied and types.ts regenerated.
@@ -50,6 +48,17 @@ export function useSmartTargetForecastLog(date: string, shift: ShiftType, toFree
       return { installed: true, rows: (data ?? []) as StoredForecast[] };
     },
   });
+}
+
+type ForecastRows = ReturnType<typeof useSmartTargetForecastRows>;
+
+/**
+ * Saves the running shift's forecasts once. Separate from the read because which lines
+ * are shown comes from those rows (Q45a), and the forecasts to save depend on it.
+ */
+export function useFreezeSmartTargetForecasts(date: string, shift: ShiftType, toFreeze: LineToFreeze[] | null, ready: boolean, log: ForecastRows) {
+  const qc = useQueryClient();
+  const saved = useRef<string | null>(null);
 
   useEffect(() => {
     const id = `${date}|${shift}`;
@@ -82,6 +91,4 @@ export function useSmartTargetForecastLog(date: string, shift: ShiftType, toFree
       if (!error) await qc.invalidateQueries({ queryKey: ["smart_target_forecasts"] });
     })();
   }, [ready, toFreeze, log.data, date, shift, qc]);
-
-  return log;
 }

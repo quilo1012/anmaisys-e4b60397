@@ -107,6 +107,8 @@ export interface HistoryShift {
   line: LineNo;
   /** What was made, per SKU, as the operator logged it. */
   made: { sku: string | null; qty: number }[];
+  /** What was logged as made under typed text that is not in the product list (Q44). */
+  unidentified?: { text: string; qty: number }[];
   /** Net minutes of the shift (gross − breaks). */
   netMinutes: number;
   /** Changeover + mixing the engine models for that shift's sequence. */
@@ -180,3 +182,116 @@ export function ratesForLine(line: LineNo, cycles: CleanCycle[], factor: LineFac
       source: `${c.source}: ${c.cycleSeconds} s ideal × Line ${line} performance ${Math.round(factor.factor! * 100)}% (${factor.shiftsUsed} shifts)`,
     }));
 }
+
+/** Fewest single-product shifts an observed rate rests on (Q43). */
+export const OBSERVED_MIN_SHIFTS = 3;
+export const OBSERVED_SOURCE = "Observed on this line";
+
+/**
+ * A rate for each product the line has filled on its own for a whole shift, at least
+ * OBSERVED_MIN_SHIFTS times: the median of containers ÷ (net minutes − setup) over those
+ * shifts (decided 05/11, Q43a). It is the second choice, used only where iTouch has no
+ * usable cycle for the product on this line. It is measured, not made up, and it says
+ * so: the source starts with OBSERVED_SOURCE.
+ */
+export function observedRates(line: LineNo, history: HistoryShift[], minShifts = OBSERVED_MIN_SHIFTS): RateRecord[] {
+  const bySku = new Map<string, number[]>();
+  for (const h of history) {
+    if (h.line !== line) continue;
+    const made = h.made.filter((m) => m.qty > 0);
+    if (made.length !== 1) continue;
+    const sku = normaliseSku(made[0].sku);
+    const available = h.netMinutes - h.setupMinutes;
+    if (!sku || available <= 0) continue;
+    bySku.set(sku, [...(bySku.get(sku) ?? []), (made[0].qty / available) * 60]);
+  }
+  const out: RateRecord[] = [];
+  for (const [sku, perHour] of bySku) {
+    if (perHour.length < minShifts) continue;
+    out.push({
+      line,
+      sku,
+      value: Math.round(median(perHour) * 10) / 10,
+      unit: "containers/hour",
+      status: "provisional",
+      sampleShifts: perHour.length,
+      source: `${OBSERVED_SOURCE}: median of ${perHour.length} shifts that filled only ${sku}`,
+    });
+  }
+  return out;
+}
+
+/**
+ * Every rate the line has: iTouch's ideal × the line's factor first, and the rate
+ * observed on the line for the products iTouch has no usable cycle for.
+ */
+export function lineRates(line: LineNo, cycles: CleanCycle[], factor: LineFactor | null, history: HistoryShift[]): RateRecord[] {
+  const fromItouch = factor ? ratesForLine(line, cycles, factor) : [];
+  const covered = new Set(fromItouch.map((r) => normaliseSku(r.sku)));
+  return [...fromItouch, ...observedRates(line, history).filter((r) => !covered.has(normaliseSku(r.sku)))];
+}
+
+export interface CycleToFix {
+  line: LineNo;
+  sku: string;
+  /** What iTouch holds, when it holds something unusable. */
+  itouchSeconds: number | null;
+  problem: string;
+  madeQty: number;
+  shifts: number;
+  /** True when the line has an observed rate for it in the meantime. */
+  coveredByObserved: boolean;
+}
+
+/**
+ * The short list for iTouch (Q44a): products the line actually filled in the window
+ * that have no usable iTouch cycle, biggest first. The full rejected list is far longer
+ * and mostly products nobody makes.
+ */
+export function cyclesToFix(history: HistoryShift[], cycles: CleanCycle[], rejected: RejectedCycle[]): CycleToFix[] {
+  const usable = new Set(cycles.map((c) => `${c.line}|${c.sku}`));
+  const made = new Map<string, { line: LineNo; sku: string; qty: number; shifts: number }>();
+  for (const h of history) {
+    for (const m of h.made) {
+      const sku = normaliseSku(m.sku);
+      if (!sku || m.qty <= 0) continue;
+      const k = `${h.line}|${sku}`;
+      const cur = made.get(k) ?? { line: h.line, sku, qty: 0, shifts: 0 };
+      cur.qty += m.qty;
+      cur.shifts += 1;
+      made.set(k, cur);
+    }
+  }
+  const observed = new Map<LineNo, Set<string>>();
+  const out: CycleToFix[] = [];
+  for (const [k, m] of made) {
+    if (usable.has(k)) continue;
+    if (!observed.has(m.line)) observed.set(m.line, new Set(observedRates(m.line, history).map((r) => r.sku)));
+    const bad = rejected.find((r) => parseLineNo(r.line) === m.line && normaliseSku(r.sku) === m.sku);
+    out.push({
+      line: m.line,
+      sku: m.sku,
+      itouchSeconds: bad?.cycleSeconds ?? null,
+      problem: bad ? bad.reason : "No cycle time for this product on this line in iTouch.",
+      madeQty: m.qty,
+      shifts: m.shifts,
+      coveredByObserved: observed.get(m.line)!.has(m.sku),
+    });
+  }
+  return out.sort((a, b) => b.madeQty - a.madeQty || a.line - b.line);
+}
+
+/** Typed products that are not in the product list, per line, biggest first (Q44a). */
+export function productsWithoutCode(history: HistoryShift[]): { line: LineNo; text: string; qty: number }[] {
+  const by = new Map<string, { line: LineNo; text: string; qty: number }>();
+  for (const h of history) {
+    for (const u of h.unidentified ?? []) {
+      const k = `${h.line}|${u.text}`;
+      const cur = by.get(k) ?? { line: h.line, text: u.text, qty: 0 };
+      cur.qty += u.qty;
+      by.set(k, cur);
+    }
+  }
+  return [...by.values()].sort((a, b) => b.qty - a.qty);
+}
+

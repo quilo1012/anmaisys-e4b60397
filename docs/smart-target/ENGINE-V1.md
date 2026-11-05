@@ -208,3 +208,12 @@ The operator must find the target when the shift begins. The page could only mak
 - **On the tablet (Q34a, Q39a).** The new action `smarttarget.line_target` (operator by default) reads `smart_target_line_targets()`, which leaves the numbers out for lines still held back. The block sits in the same leader-PIN popover as the RAG target, because the tablet has always kept targets locked.
 - **Frozen (Q40a).** The number never changes during the shift. When a product that was not in the plan is logged, the tablet says "Plan changed since HH:MM" next to it.
 - **Measured the same way.** A target made before the shift counts as on time. `source` says whether it came from the server (`ahead`) or the page (`page`), and `queue_read_at` says when the queue it used was read.
+
+## Every line with a number (05/11/2026, Q42–Q45)
+
+Line 4 showed "No rate for PERUCRE500". iTouch holds 0.31 s for CRE500 and PERUCRE500 on Filler Line 4, below the 1.5 s floor (Q21). The decimal point is in the wrong place: Line 4 filled those products alone at 5.06 and 5.14 s a container, and dividing by its 62% factor gives about 3.1 s. CRE250's 2.1 s matches the same check. Those two products were 13% of Line 4's output over eight weeks.
+
+- **Q42a. Correct it in iTouch.** Set 3.1 s, export Product Details again and load it in the iTouch cycles card. iTouch stays the only source of cycles.
+- **Q43a. Observed rate as second choice.** Where iTouch has no usable cycle for a product on a line, the rate is the median of containers ÷ (net − setup) over the shifts in which that line filled only that product, with at least 3 such shifts. It is labelled "Rate observed on this line (N shifts)". iTouch × factor always comes first.
+- **Q44a. Fix in iTouch.** A card lists only the products the lines actually filled in the eight weeks that have no usable cycle, biggest first, and whether an observed rate covers them meanwhile. Under it are the products typed in Production Control that are not in the product list; these count for no line's performance.
+- **Q45a. Lines show themselves.** Until a line has 10 measured shifts, the starting choice stands: Lines 2, 4 and 5 shown, 1, 3 and 6 in shadow. From then on, each line is shown while its median miss is 15% or less, and goes back to shadow when it is not. The page, the pre-shift run and the tablet use the same rule (`lineVisibility`).

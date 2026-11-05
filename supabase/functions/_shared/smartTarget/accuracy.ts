@@ -1,0 +1,150 @@
+/**
+ * How far Smart Target's frozen forecasts were from what was logged (decided 05/11,
+ * Q27a–Q30a).
+ *
+ * Two rules decide what counts:
+ *
+ * - Only forecasts frozen in the first two hours of their shift (Q29a). A forecast made
+ *   at 14:00 already knows half the answer. That is the flaw that made the RAG plan
+ *   useless to measure against (431 of 904 written after the shift).
+ * - The actual is what operators logged for that line and shift (Q30a), labelled as such.
+ *   It is read at view time, never stored next to the forecast, so switching to iTouch
+ *   events later re-scores the whole history at once.
+ *
+ * A forecast without a number (insufficient data) and a shift with nothing logged are
+ * listed as not measurable, never scored as a 100% miss.
+ */
+
+import { shiftWindow, type LineNo, type ShiftType } from "./engine.ts";
+import type { HistoryShift } from "./rates.ts";
+
+/** Forecasts frozen later than this after the shift starts are kept but not scored. */
+export const ON_TIME_MINUTES = 120;
+
+export interface StoredForecast {
+  session_date: string;
+  shift: ShiftType;
+  line: number;
+  shown: boolean;
+  expected_total: number | null;
+  frozen_at: string;
+}
+
+export interface LineAccuracy {
+  line: LineNo;
+  /** Closed shifts with an on-time forecast and a logged actual. */
+  scored: number;
+  frozenLate: number;
+  noNumber: number;
+  noActual: number;
+  medianAbsPctError: number | null;
+  within10: number;
+  within20: number;
+  /** Most recent scored shifts, newest first. */
+  recent: { date: string; shift: ShiftType; forecast: number; actual: number; errorPct: number }[];
+}
+
+/** Total logged per `${date}|${shift}|${line}`, from the same history the factor reads. */
+export function actualTotals(history: HistoryShift[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const h of history) {
+    const total = h.made.reduce((s, m) => s + (m.qty > 0 ? m.qty : 0), 0);
+    if (total > 0) out.set(h.key, total);
+  }
+  return out;
+}
+
+export function frozenOnTime(f: StoredForecast): boolean {
+  const w = shiftWindow(f.session_date, f.shift);
+  const t = Date.parse(f.frozen_at);
+  if (!w || !Number.isFinite(t)) return false;
+  return t - w.startMs <= ON_TIME_MINUTES * 60_000;
+}
+
+const median = (v: number[]) => {
+  if (!v.length) return null;
+  const s = [...v].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+
+/**
+ * Per line, over the forecasts given. A forecast is scored only once its shift is in
+ * `actuals`, so a shift still running is simply not there yet.
+ */
+export function accuracyByLine(forecasts: StoredForecast[], actuals: Map<string, number>, recentCount = 5): LineAccuracy[] {
+  return ([1, 2, 3, 4, 5, 6] as LineNo[]).map((line) => {
+    const own = forecasts
+      .filter((f) => f.line === line)
+      .sort((a, b) => (a.session_date === b.session_date ? (a.shift < b.shift ? 1 : -1) : a.session_date < b.session_date ? 1 : -1));
+    const acc: LineAccuracy = { line, scored: 0, frozenLate: 0, noNumber: 0, noActual: 0, medianAbsPctError: null, within10: 0, within20: 0, recent: [] };
+    const errors: number[] = [];
+    for (const f of own) {
+      if (!frozenOnTime(f)) { acc.frozenLate++; continue; }
+      if (f.expected_total === null) { acc.noNumber++; continue; }
+      const actual = actuals.get(`${f.session_date}|${f.shift}|${line}`);
+      if (!actual) { acc.noActual++; continue; }
+      const errorPct = ((f.expected_total - actual) / actual) * 100;
+      errors.push(Math.abs(errorPct));
+      if (acc.recent.length < recentCount) {
+        acc.recent.push({ date: f.session_date, shift: f.shift, forecast: f.expected_total, actual, errorPct: Math.round(errorPct * 10) / 10 });
+      }
+    }
+    acc.scored = errors.length;
+    const m = median(errors);
+    acc.medianAbsPctError = m === null ? null : Math.round(m * 10) / 10;
+    acc.within10 = errors.filter((e) => e <= 10).length;
+    acc.within20 = errors.filter((e) => e <= 20).length;
+    return acc;
+  });
+}
+
+/** Shifts a line must have measured before its own record decides whether it is shown (Q45a). */
+export const SHOW_MIN_SCORED = 10;
+/** Median absolute error, in percent, at or under which a measured line is shown (Q45a). */
+export const SHOW_MAX_MEDIAN_ERROR = 15;
+
+export interface LineVisibility {
+  line: LineNo;
+  shown: boolean;
+  /** Why the number is held back; null when shown. */
+  heldBack: string | null;
+}
+
+/**
+ * Which lines show their number (decided 05/11, Q45a).
+ *
+ * Until a line has SHOW_MIN_SCORED measured shifts, the starting choice stands (`initial`:
+ * Lines 2, 4 and 5 shown, 1, 3 and 6 in shadow, from the October backtest). From then on
+ * its own record decides, both ways: shown while its median error is at most
+ * SHOW_MAX_MEDIAN_ERROR, back in shadow when it is not. Accuracy counts shadow forecasts
+ * too, so a held-back line can earn its way on.
+ */
+export function lineVisibility(
+  accuracy: LineAccuracy[] | null,
+  initial: readonly LineNo[],
+  initialReason: Partial<Record<LineNo, string>>,
+): LineVisibility[] {
+  return ([1, 2, 3, 4, 5, 6] as LineNo[]).map((line) => {
+    const a = accuracy?.find((x) => x.line === line);
+    if (!a || a.scored < SHOW_MIN_SCORED || a.medianAbsPctError === null) {
+      const shown = initial.includes(line);
+      const progress = `${a?.scored ?? 0} of ${SHOW_MIN_SCORED} shifts measured so far`;
+      return {
+        line,
+        shown,
+        heldBack: shown
+          ? null
+          : `${initialReason[line] ?? `Line ${line} is forecast in shadow.`} Shown by itself once ${SHOW_MIN_SCORED} measured shifts miss by a median of ${SHOW_MAX_MEDIAN_ERROR}% or less (${progress}).`,
+      };
+    }
+    const shown = a.medianAbsPctError <= SHOW_MAX_MEDIAN_ERROR;
+    return {
+      line,
+      shown,
+      heldBack: shown
+        ? null
+        : `Over its last ${a.scored} measured shifts Line ${line} missed by a median ${a.medianAbsPctError}%. Shown again once that is ${SHOW_MAX_MEDIAN_ERROR}% or less.`,
+    };
+  });
+}
