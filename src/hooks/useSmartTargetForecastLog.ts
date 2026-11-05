@@ -1,0 +1,86 @@
+import { useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { ENGINE_VERSION, type LineNo, type ShiftForecast, type ShiftType } from "@/lib/smartTargetEngine";
+import type { LineFactor } from "@/lib/smartTargetRates";
+import { isCurrentShift } from "@/lib/smartTargetQueue";
+import type { StoredForecast } from "@/lib/smartTargetAccuracy";
+
+/**
+ * Freezing each shift's forecasts, and reading back the last four weeks of them
+ * (Q27a–Q30a, BLOCO 148).
+ *
+ * While a shift runs, the first time this page has a complete forecast it is saved:
+ * one row per planned line, the shown lines and the held-back ones (in shadow). The
+ * database keeps the first save per line and ignores later ones, so a forecast never
+ * changes after it is made. Nothing is saved for a past or future shift, and nothing
+ * while the iTouch queue is still being read, because the quantities would be missing.
+ */
+
+export interface LineToFreeze {
+  line: LineNo;
+  shown: boolean;
+  /** The forecast with the line's own rates, shown or not. */
+  forecast: ShiftForecast;
+  factor: LineFactor | null;
+}
+
+const ACCURACY_DAYS = 28;
+
+export function useSmartTargetForecastLog(date: string, shift: ShiftType, toFreeze: LineToFreeze[] | null, ready: boolean) {
+  const qc = useQueryClient();
+  const saved = useRef<string | null>(null);
+  const from = new Date(Date.parse(`${date}T00:00:00Z`) - ACCURACY_DAYS * 86_400_000).toISOString().slice(0, 10);
+
+  const log = useQuery({
+    queryKey: ["smart_target_forecasts", from, date],
+    queryFn: async () => {
+      // Not in the generated types until BLOCO 148 is applied and types.ts regenerated.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("smart_target_forecasts")
+        .select("session_date, shift, line, shown, expected_total, frozen_at")
+        .gte("session_date", from)
+        .lte("session_date", date)
+        .order("session_date");
+      if (error) {
+        if (error.code === "PGRST205" || error.code === "42P01") return { installed: false, rows: [] as StoredForecast[] };
+        throw error;
+      }
+      return { installed: true, rows: (data ?? []) as StoredForecast[] };
+    },
+  });
+
+  useEffect(() => {
+    const id = `${date}|${shift}`;
+    if (!ready || !toFreeze || !log.data?.installed || saved.current === id || !isCurrentShift(date, shift)) return;
+    const already = new Set(log.data.rows.filter((r) => r.session_date === date && r.shift === shift).map((r) => r.line));
+    const rows = toFreeze
+      .filter((l) => l.forecast.jobs.length > 0 && !already.has(l.line))
+      .map((l) => ({
+        line: l.line,
+        shown: l.shown,
+        expected_total: l.forecast.expectedTotal,
+        status: l.forecast.status,
+        confidence: l.forecast.confidence,
+        factor: l.factor?.factor ?? null,
+        factor_shifts: l.factor?.shiftsUsed ?? null,
+        jobs: l.forecast.jobs.map((j) => ({
+          sku: j.sku,
+          order: j.orderQty,
+          expected: j.expectedContainers,
+          basis: j.allocation?.basis ?? null,
+        })),
+        engine_version: ENGINE_VERSION,
+      }));
+    saved.current = id;
+    if (!rows.length) return;
+    (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).rpc("save_smart_target_forecasts", { p_date: date, p_shift: shift, p_rows: rows });
+      if (!error) await qc.invalidateQueries({ queryKey: ["smart_target_forecasts"] });
+    })();
+  }, [ready, toFreeze, log.data, date, shift, qc]);
+
+  return log;
+}
