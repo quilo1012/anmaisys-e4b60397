@@ -69,6 +69,12 @@ source code.
      stay unknown.
    - Consecutive plan rows of the same SKU are one run, so they become one job. Its order
      is their sum only when every row has one.
+   - A plan row with no quantity takes **what was left of iTouch's order** for the same
+     SKU on that line when the queue was read (Q26b): order − made. The queue is read once
+     per shift, by the first person to open the page while the shift runs, through the
+     Planner's own `intouch-list-scheduled-jobs`, and kept in
+     `smart_target_queue_snapshots` (BLOCO 147). The first read wins. A past or future
+     shift is never read from iTouch, because the queue only describes now.
    - A window that is incomplete, unreadable or reversed is not used, and the warning
      `WINDOW_IGNORED` says so.
 
