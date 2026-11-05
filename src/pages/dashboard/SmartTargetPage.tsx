@@ -131,6 +131,9 @@ function JobBlock({ job }: { job: JobForecast }) {
           {job.allocation.completesOrder ? "Order completes at this rate" : "Cut short: rate × time left"}
         </div>
       )}
+      {job.allocation?.basis === "runs_to_shift_end" && (
+        <div className="text-2xs text-warning-strong">No order quantity: runs to the end of the shift</div>
+      )}
     </div>
   );
 }
@@ -167,7 +170,8 @@ function LineCard({ line, result, notes, basis }: { line: number; result: ShiftF
     ...notes,
     ...new Set(
       result.warnings
-        .filter((w) => w.code !== "DURATION_FROM_ORDER_QTY")
+        // The job block already says how its time was set.
+        .filter((w) => w.code !== "DURATION_FROM_ORDER_QTY" && w.code !== "RUNS_TO_SHIFT_END")
         .map((w) => w.message),
     ),
   ];

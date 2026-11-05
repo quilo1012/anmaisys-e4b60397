@@ -183,7 +183,7 @@ export interface JobForecast {
     end: number;
     setupEnd: number;
     productiveMinutes: number;
-    basis: "planned_window" | "order_qty_at_rate";
+    basis: "planned_window" | "order_qty_at_rate" | "runs_to_shift_end";
     /**
      * Order-sized jobs only: at the line's rate the order finishes inside the slot.
      * The forecast is then the order, and the screen says so (decided 05/11, Q23).
@@ -624,6 +624,18 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
         warnings.push({ code: "ORDER_COMPLETES", jobId: job.jobId, message: "At the line's rate the order completes in its slot, so the forecast for this job is the order." });
       }
       cursor = run.end;
+    } else if (cursor !== null && resolved.rate && !(job.orderQty && job.orderQty > 0) && index === jobs.length - 1) {
+      // The last job with no order quantity runs until the shift ends (decided 05/11,
+      // Q26). Its forecast is the line's capacity for that product in the time left,
+      // and it says so. Only the LAST job: an earlier job with no quantity has no end,
+      // so everything after it stays unknown rather than guessed.
+      const nextWindow = jobs.slice(index + 1).map(windowOf).find((w) => w !== null);
+      const end = Math.min(G, nextWindow ? Math.max(cursor, nextWindow.start) : G);
+      const setup = placeSetup(cursor, end);
+      productive = productiveOf(cursor, setup.end, end);
+      allocation = { start: cursor, end, setupEnd: setup.end, productiveMinutes: round1(productive), basis: "runs_to_shift_end", completesOrder: false };
+      warnings.push({ code: "RUNS_TO_SHIFT_END", jobId: job.jobId, message: "No order quantity: the last job is taken to run until the shift ends, so its forecast is the line's capacity for it." });
+      cursor = end;
     } else {
       reasons.push(
         cursor === null
@@ -679,7 +691,7 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
 
   const lowSignals =
     !positioned ||
-    out.some((j) => j.rateStatus === "provisional" || j.transition === "first_unknown" || j.transition === "sku_unknown" || j.allocation?.basis === "order_qty_at_rate");
+    out.some((j) => j.rateStatus === "provisional" || j.transition === "first_unknown" || j.transition === "sku_unknown" || j.allocation?.basis === "order_qty_at_rate" || j.allocation?.basis === "runs_to_shift_end");
   base.confidence = base.expectedTotal === null ? "none" : lowSignals ? "low" : "medium";
 
   return finishEvents(base, input, line, win, out, blocked, verified, warnings);

@@ -145,3 +145,25 @@ describe("previous SKU from the shift before (Q17)", () => {
     expect(lines[2].input.previousSku).toBeUndefined();
   });
 });
+
+describe("consecutive rows of one SKU are one run", () => {
+  it("merges them, adding the orders only when every row has one", () => {
+    const { lines } = buildShiftInputs("2026-11-03", "DAY", [session("s", "Line 5")], [
+      item("a", "s", 1, { sku_id: "sku-a", planned_qty: 1000 }),
+      item("b", "s", 2, { sku_code_text: "ABEENG", planned_qty: 500 }),
+      item("c", "s", 3, { sku_id: "sku-b", planned_qty: 0 }),
+      item("d", "s", 4, { sku_id: "sku-b", planned_qty: 300 }),
+      item("e", "s", 5, { sku_id: "sku-a", planned_qty: 200 }),
+    ], catalogue);
+    expect(lines[4].input.jobs.map((j) => [j.jobId, j.sku, j.sequence, j.orderQty])).toEqual([
+      ["a", "ABEENG", 1, 1500],
+      ["c", "COL165SR", 2, null],
+      ["e", "ABEENG", 3, 200],
+    ]);
+  });
+
+  it("never merges rows with no SKU", () => {
+    const { lines } = buildShiftInputs("2026-11-03", "DAY", [session("s", "Line 6")], [item("x", "s", 1), item("y", "s", 2)], catalogue);
+    expect(lines[5].input.jobs).toHaveLength(2);
+  });
+});

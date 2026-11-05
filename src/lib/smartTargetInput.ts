@@ -170,23 +170,32 @@ export function buildShiftInputs(
     }
     // Session first, then the order inside it: two sessions' jobs must not interleave.
     const rank = new Map(own.map((s, i) => [s.id, i]));
-    const jobs: PlannedJob[] = items
+    const rows = items
       .filter((i) => rank.has(i.session_id))
       .sort((a, b) =>
         rank.get(a.session_id)! - rank.get(b.session_id)! || a.display_order - b.display_order || cmp(a.id, b.id))
-      .map((i, idx) => {
+      .map((i) => {
         const sku = identifyItemSku(
           { sku_id: i.sku_id, sku_code_text: i.sku_code_text, actual: 0, started_at: null, finished_at: null },
           catalogue,
         );
         const qty = Number(i.planned_qty);
-        return {
-          jobId: i.id,
-          sku: sku?.code ?? null,
-          sequence: idx + 1,
-          orderQty: Number.isFinite(qty) && qty > 0 ? qty : null,
-        };
+        return { id: i.id, sku: sku?.code ?? null, qty: Number.isFinite(qty) && qty > 0 ? qty : null };
       });
+    // Rows of the same SKU one after another are one run on the line: the same product
+    // keeps filling with no changeover. They become one job, and its order is their sum
+    // only if every row has one. A run with any row unquantified is unquantified as a
+    // whole, because adding the known part would understate it. A row with no SKU is
+    // never merged: nobody can say it is the same product.
+    const jobs: PlannedJob[] = [];
+    for (const r of rows) {
+      const last = jobs[jobs.length - 1];
+      if (last && r.sku !== null && last.sku === r.sku) {
+        last.orderQty = last.orderQty !== null && last.orderQty !== undefined && r.qty !== null ? last.orderQty + r.qty : null;
+        continue;
+      }
+      jobs.push({ jobId: r.id, sku: r.sku, sequence: jobs.length + 1, orderQty: r.qty });
+    }
 
     return {
       line,
