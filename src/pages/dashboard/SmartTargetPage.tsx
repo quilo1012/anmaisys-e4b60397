@@ -13,10 +13,27 @@ import { useItouchCycles } from "@/hooks/useItouchCycles";
 import { useSmartTargetHistory } from "@/hooks/useSmartTargetHistory";
 import { useSmartTargetQueue, type QueueState } from "@/hooks/useSmartTargetQueue";
 import { fillFromQueue } from "@/lib/smartTargetQueue";
-import { useSmartTargetForecastLog, type LineToFreeze } from "@/hooks/useSmartTargetForecastLog";
-import { accuracyByLine, actualTotals, ON_TIME_MINUTES, type LineAccuracy } from "@/lib/smartTargetAccuracy";
+import { useFreezeSmartTargetForecasts, useSmartTargetForecastRows, type LineToFreeze } from "@/hooks/useSmartTargetForecastLog";
+import {
+  accuracyByLine,
+  actualTotals,
+  lineVisibility,
+  ON_TIME_MINUTES,
+  SHOW_MAX_MEDIAN_ERROR,
+  SHOW_MIN_SCORED,
+  type LineAccuracy,
+} from "@/lib/smartTargetAccuracy";
 import { FORECAST_LINES, HELD_BACK_REASON, historyFromSessions } from "@/lib/smartTargetHistory";
-import { cleanCycles, lineFactors, ratesForLine, type LineFactor } from "@/lib/smartTargetRates";
+import {
+  cleanCycles,
+  cyclesToFix,
+  lineFactors,
+  lineRates,
+  OBSERVED_SOURCE,
+  productsWithoutCode,
+  type CycleToFix,
+  type LineFactor,
+} from "@/lib/smartTargetRates";
 import { ItouchCyclesCard } from "@/components/smartTarget/ItouchCyclesCard";
 import { getCurrentFactoryShift } from "@/lib/shifts";
 import { cn } from "@/lib/utils";
@@ -55,9 +72,9 @@ const STATUS: Record<ShiftForecast["status"], { label: string; className: string
 
 /** The rates item once factors are computed: what is live, and what is held back. */
 const RATES_LIVE = {
-  label: "Rates on Lines 1, 3 and 6",
-  why: "Lines 2, 4 and 5 use iTouch's ideal speed × each line's performance over the last eight weeks (provisional). Lines 1, 3 and 6 vary too much from shift to shift and stay at \"—\" until Production sets the error it accepts.",
-  owner: "Production: the acceptable error",
+  label: "Rates: every line, shown once it proves itself",
+  why: `Rates are iTouch's ideal speed × each line's performance over the last eight weeks, or, where iTouch has no usable cycle, the rate the line itself reached on shifts that filled only that product (provisional). A line's number is shown while its last ${SHOW_MIN_SCORED}+ measured shifts miss by a median of ${SHOW_MAX_MEDIAN_ERROR}% or less; until then Lines 2, 4 and 5 are shown and 1, 3 and 6 are forecast in shadow.`,
+  owner: "Production: correct the cycles listed under Fix in iTouch",
 };
 
 const londonTime = (iso: string) =>
@@ -149,6 +166,11 @@ function JobBlock({ job }: { job: JobForecast }) {
       {job.allocation?.basis === "order_qty_at_rate" && (
         <div className="text-2xs text-warning-strong">
           {job.allocation.completesOrder ? "Order completes at this rate" : "Cut short: rate × time left"}
+        </div>
+      )}
+      {job.rate?.source.startsWith(OBSERVED_SOURCE) && (
+        <div className="text-2xs text-muted-foreground" title={job.rate.source}>
+          Rate observed on this line ({job.rate.sampleShifts} shifts)
         </div>
       )}
       {job.allocation?.basis === "runs_to_shift_end" && (
@@ -262,7 +284,7 @@ function LineCard({ line, result, notes, basis }: { line: number; result: ShiftF
 const pct = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : "—");
 
 /** How the frozen forecasts did against what was logged, per line, over four weeks. */
-function AccuracyCard({ accuracy, installed }: { accuracy: LineAccuracy[] | null; installed: boolean }) {
+function AccuracyCard({ accuracy, installed, shown }: { accuracy: LineAccuracy[] | null; installed: boolean; shown: ReadonlySet<number> }) {
   return (
     <Card data-testid="smart-target-accuracy">
       <CardHeader className="pb-2">
@@ -270,7 +292,8 @@ function AccuracyCard({ accuracy, installed }: { accuracy: LineAccuracy[] | null
         <p className="text-sm text-muted-foreground">
           Last four weeks. Each shift's forecast is kept as it was first made; only those made in the first{" "}
           {ON_TIME_MINUTES / 60} hours of the shift count. Actual is what operators logged (provisional until iTouch's
-          filling events are confirmed). Lines 1, 3 and 6 are measured too, though not shown above.
+          filling events are confirmed). Lines not shown above are measured too. A line is shown while it has at least{" "}
+          {SHOW_MIN_SCORED} measured shifts and a median miss of {SHOW_MAX_MEDIAN_ERROR}% or less.
         </p>
       </CardHeader>
       <CardContent>
@@ -299,7 +322,7 @@ function AccuracyCard({ accuracy, installed }: { accuracy: LineAccuracy[] | null
               <tbody>
                 {accuracy.map((a) => (
                   <tr key={a.line} className="border-t">
-                    <td className="py-1.5 pr-3">Line {a.line}{FORECAST_LINES.includes(a.line) ? "" : " (not shown)"}</td>
+                    <td className="py-1.5 pr-3">Line {a.line}{shown.has(a.line) ? "" : " (not shown)"}</td>
                     <td className="py-1.5 pr-3 text-right tabular-nums">{a.scored}</td>
                     <td className="py-1.5 pr-3 text-right tabular-nums">{a.medianAbsPctError === null ? "—" : `${a.medianAbsPctError}%`}</td>
                     <td className="py-1.5 pr-3 text-right tabular-nums">{pct(a.within10, a.scored)}</td>
@@ -322,6 +345,82 @@ function AccuracyCard({ accuracy, installed }: { accuracy: LineAccuracy[] | null
   );
 }
 
+/**
+ * The short list for iTouch (Q44a): only the products the lines actually filled in the
+ * last eight weeks that have no usable cycle, so the fix is a handful of rows instead of
+ * every rejected record. Under it, what was typed instead of picked from the product list.
+ */
+function FixInItouchCard({ fix, noCode }: { fix: CycleToFix[] | null; noCode: { line: number; text: string; qty: number }[] }) {
+  if (!fix) return null;
+  return (
+    <Card data-testid="smart-target-fix-itouch">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Fix in iTouch</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Products filled in the last eight weeks that have no usable cycle time in iTouch for that line. Correct them in
+          iTouch's Product Details, export it again and load it in the iTouch cycles card below.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {fix.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Every product filled in the last eight weeks has a usable cycle time.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-muted-foreground">
+                <tr>
+                  <th className="py-1.5 pr-3 font-medium">Line</th>
+                  <th className="py-1.5 pr-3 font-medium">Product</th>
+                  <th className="py-1.5 pr-3 font-medium">In iTouch now</th>
+                  <th className="py-1.5 pr-3 text-right font-medium">Filled, 8 weeks</th>
+                  <th className="py-1.5 font-medium">Meanwhile</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fix.map((f) => (
+                  <tr key={`${f.line}|${f.sku}`} className="border-t align-top">
+                    <td className="py-1.5 pr-3">Line {f.line}</td>
+                    <td className="py-1.5 pr-3 font-mono text-xs">{f.sku}</td>
+                    <td className="py-1.5 pr-3">
+                      {f.itouchSeconds !== null ? `${f.itouchSeconds} s` : "—"}
+                      <div className="text-xs text-muted-foreground">{f.problem}</div>
+                    </td>
+                    <td className="py-1.5 pr-3 text-right tabular-nums">
+                      {f.madeQty.toLocaleString()}
+                      <div className="text-xs text-muted-foreground">{f.shifts} shifts</div>
+                    </td>
+                    <td className="py-1.5 text-xs text-muted-foreground">
+                      {f.coveredByObserved ? "Uses the rate observed on this line" : "No number for jobs of this product"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {noCode.length > 0 && (
+          <details className="text-sm">
+            <summary className="cursor-pointer font-medium">
+              Logged with a product that is not in the product list ({noCode.length})
+            </summary>
+            <p className="mt-1 text-muted-foreground">
+              Typed in Production Control instead of picked from the list, so these shifts count for no line's performance.
+              Pick the product from the list, or add the missing code to the product list.
+            </p>
+            <ul className="mt-2 space-y-0.5">
+              {noCode.slice(0, 20).map((n) => (
+                <li key={`${n.line}|${n.text}`}>
+                  Line {n.line}: {n.text} <span className="tabular-nums text-muted-foreground">({n.qty.toLocaleString()})</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SmartTargetPage() {
   const now = getCurrentFactoryShift();
   const [date, setDate] = useState(now.sessionDate);
@@ -334,12 +433,24 @@ export default function SmartTargetPage() {
   // Each line's performance over the eight weeks before `date`, against iTouch's ideal.
   const rateBasis = useMemo(() => {
     if (!cyclesQuery.data || !historyQuery.data) return null;
-    const { cycles } = cleanCycles(cyclesQuery.data.records);
+    const { cycles, rejected } = cleanCycles(cyclesQuery.data.records);
     // No cycles loaded: there is no ideal to scale, so no factor and no rate to show.
     if (!cycles.length) return null;
-    const factors = lineFactors(historyFromSessions(historyQuery.data.sessions, historyQuery.data.items, catalogue), cycles);
-    return { cycles, factors, from: historyQuery.data.from, to: historyQuery.data.to };
+    const history = historyFromSessions(historyQuery.data.sessions, historyQuery.data.items, catalogue);
+    const factors = lineFactors(history, cycles);
+    return { cycles, factors, history, fix: cyclesToFix(history, cycles, rejected), noCode: productsWithoutCode(history), from: historyQuery.data.from, to: historyQuery.data.to };
   }, [cyclesQuery.data, historyQuery.data, catalogue]);
+
+  // Which lines are shown comes from their own measured record (Q45a), so the kept
+  // forecasts are read before the forecast is built.
+  const forecastRows = useSmartTargetForecastRows(date);
+  const accuracy = useMemo(() => {
+    if (!forecastRows.data?.installed || !historyQuery.data) return null;
+    const history = historyFromSessions(historyQuery.data.sessions, historyQuery.data.items, catalogue);
+    return accuracyByLine(forecastRows.data.rows, actualTotals(history));
+  }, [forecastRows.data, historyQuery.data, catalogue]);
+  const visibility = useMemo(() => lineVisibility(accuracy, FORECAST_LINES, HELD_BACK_REASON), [accuracy]);
+  const shownSet = useMemo(() => new Set(visibility.filter((v) => v.shown).map((v) => v.line as number)), [visibility]);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["smart_target_inputs", date],
@@ -369,13 +480,14 @@ export default function SmartTargetPage() {
       otherLines: inputs.otherLines,
       lines: inputs.lines.map((l) => {
         const factor = rateBasis?.factors.find((f) => f.line === l.line) ?? null;
-        const shown = FORECAST_LINES.includes(l.line);
+        const vis = visibility.find((v) => v.line === l.line);
+        const shown = vis?.shown ?? false;
         // Every line gets its own rates for the forecast log. Only the shown lines put them
         // on screen; lines 1, 3 and 6 are forecast in shadow so their error is measured too.
-        const lineRates = rateBasis && factor ? ratesForLine(l.line, rateBasis.cycles, factor) : [];
-        const rates = shown ? lineRates : [];
+        const ownRates = rateBasis ? lineRates(l.line, rateBasis.cycles, factor, rateBasis.history) : [];
+        const rates = shown ? ownRates : [];
         const basis: RateBasis | null = rateBasis
-          ? { factor, heldBack: shown ? null : HELD_BACK_REASON[l.line as LineNo] ?? null, from: rateBasis.from, to: rateBasis.to }
+          ? { factor, heldBack: shown ? null : vis?.heldBack ?? null, from: rateBasis.from, to: rateBasis.to }
           : null;
         // Plan rows with no quantity take what was left of iTouch's order for the same SKU
         // when the queue was read (Q26b).
@@ -384,11 +496,11 @@ export default function SmartTargetPage() {
           ? [...l.notes, `Order quantity for ${fromQueue.filled} job${fromQueue.filled === 1 ? "" : "s"} from the iTouch queue read at ${londonTime(queue.rows[0].fetched_at)}: what was left to make then.`]
           : l.notes;
         const result = forecastShift({ ...l.input, jobs: fromQueue.jobs, rates });
-        const shadow = shown ? result : forecastShift({ ...l.input, jobs: fromQueue.jobs, rates: lineRates });
+        const shadow = shown ? result : forecastShift({ ...l.input, jobs: fromQueue.jobs, rates: ownRates });
         return { ...l, notes, basis, result, shadow, shown, factor };
       }),
     };
-  }, [data, date, shift, catalogue, rateBasis, queue.rows]);
+  }, [data, date, shift, catalogue, rateBasis, queue.rows, visibility]);
 
   const toFreeze = useMemo<LineToFreeze[] | null>(
     () => built?.lines.map((l) => ({ line: l.line, shown: l.shown, forecast: l.shadow, factor: l.factor })) ?? null,
@@ -396,12 +508,7 @@ export default function SmartTargetPage() {
   );
   // Freeze only a complete forecast: rates known, and the iTouch queue read (or known to be unavailable).
   const readyToFreeze = !!rateBasis && !!queue.state && queue.state.kind !== "reading";
-  const forecastLog = useSmartTargetForecastLog(date, shift, toFreeze, readyToFreeze);
-  const accuracy = useMemo(() => {
-    if (!forecastLog.data?.installed || !historyQuery.data) return null;
-    const history = historyFromSessions(historyQuery.data.sessions, historyQuery.data.items, catalogue);
-    return accuracyByLine(forecastLog.data.rows, actualTotals(history));
-  }, [forecastLog.data, historyQuery.data, catalogue]);
+  useFreezeSmartTargetForecasts(date, shift, toFreeze, readyToFreeze, forecastRows);
 
   const loading = isLoading || skusLoading;
   const assumptions = built?.lines[0]?.result.assumptions ?? [];
@@ -488,7 +595,9 @@ export default function SmartTargetPage() {
           </CardContent>
         </Card>
 
-        <AccuracyCard accuracy={accuracy} installed={forecastLog.data?.installed ?? true} />
+        <AccuracyCard accuracy={accuracy} installed={forecastRows.data?.installed ?? true} shown={shownSet} />
+
+        <FixInItouchCard fix={rateBasis?.fix ?? null} noCode={rateBasis?.noCode ?? []} />
 
         <ItouchCyclesCard />
 

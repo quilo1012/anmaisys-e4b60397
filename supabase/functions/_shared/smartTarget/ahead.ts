@@ -31,8 +31,7 @@ import {
   type ShiftType,
 } from "./engine.ts";
 import type { QueueRow } from "./queue.ts";
-import { FORECAST_LINES } from "./history.ts";
-import { ratesForLine, type CleanCycle, type LineFactor } from "./rates.ts";
+import { lineRates, type CleanCycle, type HistoryShift, type LineFactor } from "./rates.ts";
 
 /** A run more than this before a shift starts does nothing. */
 export const AHEAD_FIRST_TRY_MINUTES = 40;
@@ -163,11 +162,15 @@ export interface AheadInput {
   /** Cleaned iTouch cycles; empty means no rates at all. */
   cycles: CleanCycle[];
   factors: LineFactor[];
+  /** The eight weeks the factor read, for the rates observed on each line (Q43a). */
+  history: HistoryShift[];
+  /** Lines whose number is shown, from lineVisibility() (Q45a). */
+  shownLines: readonly LineNo[];
 }
 
 /**
  * Every line's forecast from the queue. Lines with no queued jobs are left out, except
- * on the last run, where they are saved as NO_ITOUCH_JOBS. Lines 1, 3 and 6 are forecast
+ * on the last run, where they are saved as NO_ITOUCH_JOBS. Lines not shown are forecast
  * too, with `shown` false, as the page does (Q27).
  */
 export function forecastAhead(input: AheadInput): { rows: AheadRow[]; forecasts: Map<LineNo, ShiftForecast> } {
@@ -175,9 +178,9 @@ export function forecastAhead(input: AheadInput): { rows: AheadRow[]; forecasts:
   const forecasts = new Map<LineNo, ShiftForecast>();
   for (const line of LINES) {
     const factor = input.factors.find((f) => f.line === line) ?? null;
-    const rates = factor ? ratesForLine(line, input.cycles, factor) : [];
+    const rates = lineRates(line, input.cycles, factor, input.history);
     const plan = planFromQueue(line, input.queue, input.minutesToStart, rates);
-    const shown = FORECAST_LINES.includes(line);
+    const shown = input.shownLines.includes(line);
     if (!plan.jobs.length) {
       if (input.final) {
         rows.push({

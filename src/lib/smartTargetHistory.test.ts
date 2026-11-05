@@ -34,6 +34,8 @@ describe("historyFromSessions", () => {
       key: "2026-11-03|DAY|4",
       line: 4,
       made: [{ sku: "ABEENG", qty: 3500 }, { sku: "CRE250", qty: 4000 }],
+      // ABEENG was typed, but it is in the product list.
+      unidentified: [],
       netMinutes: 645,
       // Start: mix 30 (previous unknown, no changeover). ABEENG → CRE250: 25 + 30.
       setupMinutes: 85,
@@ -61,9 +63,9 @@ describe("historyFromSessions", () => {
   });
 });
 
-describe("which lines show a number", () => {
-  it("is Lines 2, 4 and 5, and every other line has its reason written down", () => {
+describe("which lines show a number before any has its own record", () => {
+  it("is Lines 2, 4 and 5, and every other line has its reason written down (then Q45a decides)", () => {
     expect(FORECAST_LINES).toEqual([2, 4, 5]);
-    for (const line of [1, 3, 6] as const) expect(HELD_BACK_REASON[line]).toMatch(/Production sets the error it accepts/);
+    for (const line of [1, 3, 6] as const) expect(HELD_BACK_REASON[line]).toMatch(/missed by a median \d+%\. Forecast in shadow\.$/);
   });
 });

@@ -70,7 +70,7 @@ describe("planFromQueue", () => {
 describe("forecastAhead", () => {
   const cycles: CleanCycle[] = [{ line: 2, sku: "A", idealPerHour: 1200, cycleSeconds: 3, source: "iTouch" }];
   const factors: LineFactor[] = [{ line: 2, factor: 0.5, shiftsUsed: 30, excluded: [] }];
-  const base = { date: "2026-11-05", shift: "DAY" as const, minutesToStart: 30, cycles, factors };
+  const base = { date: "2026-11-05", shift: "DAY" as const, minutesToStart: 30, cycles, factors, history: [], shownLines: [2, 4, 5] as const };
 
   it("forecasts the lines with jobs and leaves out empty ones before the last run", () => {
     const { rows } = forecastAhead({ ...base, final: false, queue: [q("Line 2", 1, "A", 100000, 0)] });
@@ -88,6 +88,11 @@ describe("forecastAhead", () => {
     expect(empty.map((r) => r.line)).toEqual([1, 3, 4, 5, 6]);
     expect(empty.every((r) => r.expected_total === null && r.jobs.length === 0)).toBe(true);
     expect(empty.find((r) => r.line === 1)?.shown).toBe(false);
+  });
+
+  it("shows the lines the visibility rule says, and forecasts the rest in shadow (Q45a)", () => {
+    const { rows } = forecastAhead({ ...base, shownLines: [1], final: false, queue: [q("Line 1", 1, "A", 1000, 0), q("Line 2", 1, "A", 1000, 0)] });
+    expect(rows.map((r) => [r.line, r.shown])).toEqual([[1, true], [2, false]]);
   });
 
   it("forecasts held-back lines in shadow", () => {

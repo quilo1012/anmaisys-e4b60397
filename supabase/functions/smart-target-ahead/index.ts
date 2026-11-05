@@ -5,8 +5,9 @@
 // hours cover GMT and BST. Each run:
 //   1. reads iTouch's queue for the coming shift, through intouch-list-scheduled-jobs;
 //   2. keeps the first read as the shift's queue snapshot (the page reads it later);
-//   3. works out each line's performance factor from the eight weeks before, exactly as
-//      the page does (the code is the same: _shared/smartTarget);
+//   3. works out each line's performance factor and observed rates from the eight weeks
+//      before, and which lines are shown, exactly as the page does (the code is the same:
+//      _shared/smartTarget);
 //   4. forecasts each line from the queue and saves it, first save per line wins.
 // A line with no jobs is saved as such only on the last run (Q36).
 //
@@ -20,7 +21,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aheadShift, forecastAhead } from "../_shared/smartTarget/ahead.ts";
 import { queueRowsFromSections, type QueueRow, type ScheduledJobItem } from "../_shared/smartTarget/queue.ts";
 import { cleanCycles, lineFactors, type CycleRecord } from "../_shared/smartTarget/rates.ts";
-import { factorWindow, historyFromSessions, type HistoryItem } from "../_shared/smartTarget/history.ts";
+import { FORECAST_LINES, HELD_BACK_REASON, factorWindow, historyFromSessions, type HistoryItem } from "../_shared/smartTarget/history.ts";
+import { accuracyByLine, actualTotals, lineVisibility, type StoredForecast } from "../_shared/smartTarget/accuracy.ts";
 import type { SmartTargetSession } from "../_shared/smartTarget/input.ts";
 import { buildSkuCatalogue } from "../_shared/production/lineSku.ts";
 
@@ -103,7 +105,20 @@ async function factorsFor(date: string) {
     (a, b) => admin.from("sku_products").select("id, code, name, target_per_hour").order("code").range(a, b),
   );
   const catalogue = buildSkuCatalogue(skus);
-  return { cycles, factors: cycles.length ? lineFactors(historyFromSessions(sessions, items, catalogue), cycles) : [] };
+  const history = historyFromSessions(sessions, items, catalogue);
+  return { cycles, history, factors: cycles.length ? lineFactors(history, cycles) : [] };
+}
+
+/** Lines shown on this date: the page's rule, from the last four weeks of kept forecasts (Q45a). */
+async function shownLinesFor(date: string, history: ReturnType<typeof historyFromSessions>) {
+  const from = new Date(Date.parse(`${date}T00:00:00Z`) - 28 * 86_400_000).toISOString().slice(0, 10);
+  const rows = await allRows<StoredForecast>(
+    (a, b) => admin.from("smart_target_forecasts").select("session_date, shift, line, shown, expected_total, frozen_at")
+      .gte("session_date", from).lte("session_date", date).order("id").range(a, b),
+  );
+  return lineVisibility(accuracyByLine(rows, actualTotals(history)), FORECAST_LINES, HELD_BACK_REASON)
+    .filter((v) => v.shown)
+    .map((v) => v.line);
 }
 
 Deno.serve(async (req) => {
@@ -138,8 +153,9 @@ Deno.serve(async (req) => {
       if (error) throw new Error(`Queue not saved: ${error.message}`);
     }
 
-    const { cycles, factors } = await factorsFor(date);
-    const { rows } = forecastAhead({ date, shift, minutesToStart, final, queue: queue.rows, cycles, factors });
+    const { cycles, factors, history } = await factorsFor(date);
+    const shownLines = await shownLinesFor(date, history);
+    const { rows } = forecastAhead({ date, shift, minutesToStart, final, queue: queue.rows, cycles, factors, history, shownLines });
     const toSave = rows
       .filter((r) => !done.has(r.line))
       .map((r) => ({ ...r, source: "ahead", queue_read_at: new Date().toISOString() }));

@@ -21,14 +21,17 @@ import type { HistoryShift } from "./rates.ts";
 /** How far back the factor looks. */
 export const FACTOR_WINDOW_DAYS = 56;
 
-/** Lines whose forecast is shown. The rest compute a factor but show "—". */
+/**
+ * Lines shown before any has its own measured record (October backtest). From 10
+ * measured shifts on, `lineVisibility()` in accuracy.ts decides per line (Q45a).
+ */
 export const FORECAST_LINES: readonly LineNo[] = [2, 4, 5];
 
 /** Why a line is held back, measured 05/11/2026 (factor from Aug–Sep, tested on Oct–4 Nov). */
 export const HELD_BACK_REASON: Partial<Record<LineNo, string>> = {
-  1: "Line 1 varies too much from shift to shift: forecasting October missed by a median 25%. Shown once Production sets the error it accepts.",
-  3: "Line 3 varies too much from shift to shift: forecasting October missed by a median 21%. Shown once Production sets the error it accepts.",
-  6: "Line 6 varies too much from shift to shift: forecasting October missed by a median 19%. Shown once Production sets the error it accepts.",
+  1: "Line 1 varies too much from shift to shift: forecasting October missed by a median 25%. Forecast in shadow.",
+  3: "Line 3 varies too much from shift to shift: forecasting October missed by a median 21%. Forecast in shadow.",
+  6: "Line 6 varies too much from shift to shift: forecasting October missed by a median 19%. Forecast in shadow.",
 };
 
 /** The first and last session dates the factor reads for a forecast on `date`. */
@@ -75,15 +78,19 @@ export function historyFromSessions(
       .filter((i) => g.ids.has(i.session_id))
       .sort((a, b) => a.display_order - b.display_order || (a.session_id < b.session_id ? -1 : 1));
     const made = new Map<string | null, number>();
+    const unidentified = new Map<string, number>();
     const order: string[] = [];
     for (const i of own) {
-      const sku = identifyItemSku(
+      const identity = identifyItemSku(
         { sku_id: i.sku_id, sku_code_text: i.sku_code_text, actual: 0, started_at: null, finished_at: null },
         catalogue,
-      )?.code ?? null;
+      );
+      const sku = identity?.code ?? null;
       const qty = Number(i.actual_qty);
       if (!Number.isFinite(qty) || qty <= 0) continue;
       made.set(sku, (made.get(sku) ?? 0) + qty);
+      // Typed text that is not in the product list (Q44a): listed so it can be fixed.
+      if (identity?.uncatalogued) unidentified.set(identity.code, (unidentified.get(identity.code) ?? 0) + qty);
       if (sku && !order.includes(sku)) order.push(sku);
     }
     const window = shiftWindow(g.date, g.shift);
@@ -98,6 +105,7 @@ export function historyFromSessions(
       key,
       line: g.line,
       made: [...made.entries()].map(([sku, qty]) => ({ sku, qty })),
+      unidentified: [...unidentified.entries()].map(([text, qty]) => ({ text, qty })),
       netMinutes: (window?.grossMinutes ?? 720) - 75,
       setupMinutes: setupMinutes(engine),
     });
