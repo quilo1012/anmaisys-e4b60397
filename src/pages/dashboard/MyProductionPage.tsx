@@ -29,6 +29,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { Navigate, useNavigate } from "react-router-dom";
 import { useLineShiftTarget } from "@/hooks/useLineShiftTarget";
+import { SmartTargetBlock } from "@/components/production/SmartTargetBlock";
 import { useLineTeamBoard } from "@/hooks/useLineTeamBoard";
 import { useConfirm } from "@/hooks/useConfirm";
 
@@ -271,7 +272,7 @@ function MyProductionContent() {
             <Button variant="outline" size="sm" onClick={() => navigate("/dashboard/operator/performance")}>
               View Performance
             </Button>
-            <TargetPinGate line={line} shiftLabel={shiftLabel} totalTarget={totalTarget} produced={items.reduce((s: number, i: any) => s + Number(i.actual_qty || 0), 0)} onUnlockChange={setTargetUnlocked} onLeaderAssignedChange={setLeaderAssigned} />
+            <TargetPinGate line={line} shiftLabel={shiftLabel} totalTarget={totalTarget} produced={items.reduce((s: number, i: any) => s + Number(i.actual_qty || 0), 0)} loggedCodes={items.map((i: any) => i.code).filter((c: string) => c && c !== "—")} onUnlockChange={setTargetUnlocked} onLeaderAssignedChange={setLeaderAssigned} />
           </div>
         </CardContent>
       </Card>
@@ -345,7 +346,7 @@ function MyProductionContent() {
   );
 }
 
-function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, onUnlockChange, onLeaderAssignedChange }: { line: string; shiftLabel: string; totalTarget: number; produced?: number; onUnlockChange?: (v: boolean) => void; onLeaderAssignedChange?: (v: boolean) => void }) {
+function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, loggedCodes = [], onUnlockChange, onLeaderAssignedChange }: { line: string; shiftLabel: string; totalTarget: number; produced?: number; loggedCodes?: string[]; onUnlockChange?: (v: boolean) => void; onLeaderAssignedChange?: (v: boolean) => void }) {
   const [pinOpen, setPinOpen] = useState(false);
   const [leader, setLeader] = useState<{ name: string; matched: boolean } | null>(null);
   const [open, setOpen] = useState(false);
@@ -424,6 +425,7 @@ function TargetPinGate({ line, shiftLabel, totalTarget, produced = 0, onUnlockCh
               )}
             </div>
           </div>
+          <SmartTargetBlock line={line} loggedCodes={loggedCodes} />
           {leader && <div className="text-2xs text-muted-foreground mt-2">Unlocked by {leader.name}</div>}
           <Button
             variant="secondary"
