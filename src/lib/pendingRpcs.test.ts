@@ -39,6 +39,13 @@ describe("isPendingRpc", () => {
     )).toBe(false);
   });
 
+  it("o alvo do Smart Target no tablet antes do BLOCO 149 não é falta", () => {
+    // Recebido do tablet da linha, 05/11 22:54 e 22:59, como API_ERROR.
+    expect(isPendingRpc(
+      "Could not find the function public.smart_target_line_targets(p_date, p_shift) in the schema cache",
+    )).toBe(true);
+  });
+
   it("aguenta mensagem ausente", () => {
     for (const nada of [null, undefined, ""]) expect(isPendingRpc(nada)).toBe(false);
   });
