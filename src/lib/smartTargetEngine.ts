@@ -184,6 +184,11 @@ export interface JobForecast {
     setupEnd: number;
     productiveMinutes: number;
     basis: "planned_window" | "order_qty_at_rate";
+    /**
+     * Order-sized jobs only: at the line's rate the order finishes inside the slot.
+     * The forecast is then the order, and the screen says so (decided 05/11, Q23).
+     */
+    completesOrder: boolean;
   } | null;
   rateStatus: RateStatus;
   rate: { perHour: number; sampleShifts: number; source: string } | null;
@@ -589,7 +594,7 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
         const setup = placeSetup(start, end);
         if (setup.short > 0) warnings.push({ code: "SETUP_EXCEEDS_WINDOW", jobId: job.jobId, message: "Changeover and mixing do not fit in the planned window." });
         productive = productiveOf(start, setup.end, end);
-        allocation = { start, end, setupEnd: setup.end, productiveMinutes: round1(productive), basis: "planned_window" };
+        allocation = { start, end, setupEnd: setup.end, productiveMinutes: round1(productive), basis: "planned_window", completesOrder: false };
       }
       cursor = allocation ? allocation.end : cursor;
     } else if (cursor !== null && resolved.rate && job.orderQty && job.orderQty > 0) {
@@ -613,10 +618,10 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
         );
       }
       productive = productiveOf(cursor, setup.end, run.end);
-      allocation = { start: cursor, end: run.end, setupEnd: setup.end, productiveMinutes: round1(productive), basis: "order_qty_at_rate" };
+      allocation = { start: cursor, end: run.end, setupEnd: setup.end, productiveMinutes: round1(productive), basis: "order_qty_at_rate", completesOrder };
       warnings.push({ code: "DURATION_FROM_ORDER_QTY", jobId: job.jobId, message: "No planned window: the slot is sized from order quantity ÷ rate (provisional)." });
       if (completesOrder) {
-        reasons.push("Its time was sized from its order quantity, so a forecast would only repeat the order.");
+        warnings.push({ code: "ORDER_COMPLETES", jobId: job.jobId, message: "At the line's rate the order completes in its slot, so the forecast for this job is the order." });
       }
       cursor = run.end;
     } else {
@@ -628,9 +633,15 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
       cursor = null;
     }
 
-    // A job sized from its order and finishing it has no forecast of its own: the
-    // number would be the order quantity again.
-    const expected = allocation && resolved.rate && !completesOrder ? Math.round((resolved.rate.perHour * productive) / 60) : null;
+    // A job sized from its order that finishes it forecasts the order. That is not the
+    // order standing in for a number: the line's rate is what decided the order fits,
+    // and the planner's question is what this plan delivers in the time there is
+    // (Q23, 05/11). A job the shift or the next planned start cuts short forecasts
+    // rate × the time it actually has.
+    const expected =
+      allocation && resolved.rate
+        ? completesOrder ? job.orderQty ?? null : Math.round((resolved.rate.perHour * productive) / 60)
+        : null;
     out.push({
       jobId: job.jobId,
       sequence: job.sequence,
