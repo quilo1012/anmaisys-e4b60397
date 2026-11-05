@@ -43,6 +43,14 @@ interface PendingRpc {
 
 const PENDING: readonly PendingRpc[] = [
   {
+    name: "smart_target_line_targets",
+    block: "BLOCO 149 — 20261105190000_smart_target_ahead.sql",
+    fallback:
+      "useSmartLineTarget turns PGRST202 into `not_installed`, and SmartTargetBlock draws " +
+      "nothing, so the operator's Target popover shows only the RAG target, as it did " +
+      "before Smart Target. BLOCO 149 waits for the switch to AN Maintenance (Q41a).",
+  },
+  {
     name: "login_link_candidates",
     block: "BLOCO 91 — 20261012170000_a_supervisor_links_a_login_to_its_person.sql",
     fallback:
