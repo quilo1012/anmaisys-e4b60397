@@ -61,6 +61,7 @@ export function useSmartTargetForecastLog(date: string, shift: ShiftType, toFree
         line: l.line,
         shown: l.shown,
         expected_total: l.forecast.expectedTotal,
+        expected_per_hour: l.forecast.expectedPerHour,
         status: l.forecast.status,
         confidence: l.forecast.confidence,
         factor: l.factor?.factor ?? null,

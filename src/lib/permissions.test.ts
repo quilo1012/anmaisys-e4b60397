@@ -63,6 +63,7 @@ const EXPECTED: Record<Action, Role[]> = {
   "scorecard.fill": ["admin", "manager", "quality_supervisor", "production_office_admin"],
   "scorecard.approve": ["admin", "manager", "quality_supervisor"],
   "smarttarget.view": ["admin", "production_office_admin"],
+  "smarttarget.line_target": ["admin", "manager", "maintenance_manager", "operator", "production_office_admin"],
   "quality.view": ["admin", "manager", "quality_supervisor", "production_office_admin"],
   "quality.manage": ["admin", "manager", "quality_supervisor", "production_office_admin"],
   "workforce.view": ["admin"],

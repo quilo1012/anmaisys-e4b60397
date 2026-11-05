@@ -29,3 +29,6 @@ verify_jwt = true
 
 [functions.wallboard-lines]
 verify_jwt = false
+
+[functions.smart-target-ahead]
+verify_jwt = false

@@ -456,13 +456,14 @@ describe("T15 deterministic repeated results", () => {
 });
 
 describe("T16 read-only: the engine cannot read or write anything", () => {
-  const source = readFileSync(resolve(__dirname, "smartTargetEngine.ts"), "utf8")
+  // The engine lives with the edge functions so the server-side run uses the same code.
+  const source = readFileSync(resolve(__dirname, "../../supabase/functions/_shared/smartTarget/engine.ts"), "utf8")
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/^\s*\/\/.*$/gm, "");
 
   it("imports only the shift clock", () => {
     const imports = [...source.matchAll(/^import .* from "(.*)";$/gm)].map((m) => m[1]);
-    expect(imports).toEqual(["./shifts"]);
+    expect(imports).toEqual(["../production/shifts.ts"]);
   });
 
   it("has no database, network, clock or random calls", () => {

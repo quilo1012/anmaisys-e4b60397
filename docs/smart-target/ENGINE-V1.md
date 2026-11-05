@@ -196,3 +196,15 @@ The page also hid every per-job warning and the confidence level. Both are shown
 - **What counts.** Only forecasts frozen in the **first two hours** of their shift are scored. Later ones are kept and listed as "made late".
 - **The actual.** It is what operators logged for that line and shift, labelled provisional. It is read at view time and never stored with the forecast, so changing to iTouch filling events later re-scores the whole history.
 - **The accuracy card.** Over the last four weeks it shows, per line: shifts measured, median absolute error, share within ±10% and ±20%, and what was not counted and why.
+
+## The target before the shift starts (05/11/2026, Q31–Q40)
+
+The operator must find the target when the shift begins. The page could only make one once someone opened it during the shift, from a plan (`production_items`) that only exists once the shift is opened.
+
+- **Plan source (Q32a).** Before the shift, the plan is iTouch's queue for each line: the running job first, then iTouch's order, each with what is left to make (order − made). The line comes from iTouch, never from a second mapping (Q35a); a Trello → SKU/ASM → line sheet is a planning tool for the Job Import, kept separate.
+- **Who makes it (Q33a, Q37a).** The edge function `smart-target-ahead`, called by pg_cron (BLOCO 149) at :30 and :50 of 04, 05, 16 and 17 UTC. Only the runs 20–40 and 0–20 minutes before a shift act, so the same schedule covers GMT and BST. The engine code is the page's own: it lives in `supabase/functions/_shared/smartTarget/`, and `src/lib/smartTarget*.ts` re-export it.
+- **Lines with no jobs (Q36a).** The first run saves only lines with jobs. The last run also saves `no_itouch_jobs` for each line still without any, so late imports are counted instead of guessed. Nothing is saved when iTouch does not answer.
+- **The job running when the queue is read (Q38a).** Its quantity is reduced by minutes-to-start × the line's rate for it, and the note says "estimated left at the start". If it would finish before the shift, it is dropped, and its SKU is still taken as what the line was last filling, so the next job pays the changeover.
+- **On the tablet (Q34a, Q39a).** The new action `smarttarget.line_target` (operator by default) reads `smart_target_line_targets()`, which leaves the numbers out for lines still held back. The block sits in the same leader-PIN popover as the RAG target, because the tablet has always kept targets locked.
+- **Frozen (Q40a).** The number never changes during the shift. When a product that was not in the plan is logged, the tablet says "Plan changed since HH:MM" next to it.
+- **Measured the same way.** A target made before the shift counts as on time. `source` says whether it came from the server (`ahead`) or the page (`page`), and `queue_read_at` says when the queue it used was read.

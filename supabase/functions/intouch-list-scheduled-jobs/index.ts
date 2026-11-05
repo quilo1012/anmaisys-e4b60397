@@ -275,12 +275,20 @@ function extractRowsForMachine(raw: unknown, allowedIds: Set<string>, allowedNam
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
-    if (!token) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    const authClient = createClient(SUPABASE_URL, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
-    const { data: claims, error: cErr } = await authClient.auth.getClaims(token);
-    const uid = claims?.claims?.sub as string | undefined;
-    if (cErr || !uid) return new Response(JSON.stringify({ error: "invalid_token" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    // smart-target-ahead reads the queue before each shift with the pg_cron secret
+    // (Q33a). Same secret names intouch-poll accepts; an empty secret never matches.
+    const presentedCron = (req.headers.get("x-cron-secret") ?? "").trim();
+    const fromCron = presentedCron.length > 0 && ["CRON_SECRET", "CRON_TRIGGER_TOKEN", "CRON_POLL_KEY"]
+      .map((k) => (Deno.env.get(k) ?? "").trim())
+      .some((s) => s.length > 0 && s === presentedCron);
+    if (!fromCron) {
+      const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+      if (!token) return new Response(JSON.stringify({ error: "unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const authClient = createClient(SUPABASE_URL, ANON, { auth: { persistSession: false, autoRefreshToken: false } });
+      const { data: claims, error: cErr } = await authClient.auth.getClaims(token);
+      const uid = claims?.claims?.sub as string | undefined;
+      if (cErr || !uid) return new Response(JSON.stringify({ error: "invalid_token" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
     const admin = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false } });
     // Any authenticated user may list scheduled jobs for the planner view.
 

@@ -60,6 +60,7 @@ export type Action =
   | "scorecard.approve"
   // Smart Target
   | "smarttarget.view"
+  | "smarttarget.line_target"
   // Quality
   | "quality.view"
   | "quality.manage"
@@ -231,6 +232,9 @@ const MATRIX: Record<Action, Role[]> = {
   "scorecard.approve": ["admin", "manager", "quality_supervisor"],
 
   "smarttarget.view": ["admin", "production_office_admin"],
+  // The shift's target on the line tablet, made before the shift (Q39a). Mirrored in
+  // smart_target_line_targets() (BLOCO 149).
+  "smarttarget.line_target": ["admin", "manager", "maintenance_manager", "operator", "production_office_admin"],
 
   // No `engineer` (19/10/2026): the engineer's sidebar is maintenance only.
   "quality.view": ["admin", "manager", "quality_supervisor", "production_office_admin"],
@@ -603,7 +607,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "planner", label: "Planner & SKU", actions: ["planner.view", "sku.view", "sku.manage"] },
   { key: "rag", label: "RAG Weekly", actions: ["rag.view", "rag.manage", "rag.comment"] },
   { key: "scorecard", label: "Leader Scorecard", actions: ["scorecard.fill", "scorecard.approve"] },
-  { key: "smart", label: "Smart Target", actions: ["smarttarget.view"] },
+  { key: "smart", label: "Smart Target", actions: ["smarttarget.view", "smarttarget.line_target"] },
   { key: "workforce", label: "Workforce & Overtime", actions: ["employees.view", "employees.manage", "workforce.view", "workforce.manage", "attendance.manage", "attendance.view_own", "overtime.manage", "overtime.respond"] },
   { key: "headcount", label: "Production Headcount", actions: ["headcount.view", "headcount.manage"] },
   { key: "quality", label: "Quality", actions: ["quality.view", "quality.manage", "quality.validate", "quality.close"] },
@@ -667,6 +671,7 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "scorecard.fill": "Fill in and submit a leader's weekly scorecard.",
   "scorecard.approve": "Approve a submitted week, including one carrying a CAPA.",
   "smarttarget.view": "Access the Smart Target analytics page.",
+  "smarttarget.line_target": "See the Smart Target for the shift on the line tablet.",
   "quality.view": "See quality actions and issues.",
   "quality.manage": "Create and edit quality actions.",
   "workforce.view": "See the Workforce / Overtime dashboard (headcount, overtime, attendance).",
