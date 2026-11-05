@@ -62,6 +62,13 @@ source code.
      time there is. A job cut short, at the end of the shift or at the next planned
      start, forecasts rate × the time it actually has. Time left after the last job is
      reported as unplanned minutes, never turned into containers.
+   - The **last** job with no order quantity runs to the end of the shift
+     (`RUNS_TO_SHIFT_END`, decided 05/11, Q26): its forecast is the line's capacity for
+     that product in the time left, labelled "No order quantity: runs to the end of the
+     shift". An earlier job with no quantity has no end, so it and everything after it
+     stay unknown.
+   - Consecutive plan rows of the same SKU are one run, so they become one job. Its order
+     is their sum only when every row has one.
    - A window that is incomplete, unreadable or reversed is not used, and the warning
      `WINDOW_IGNORED` says so.
 

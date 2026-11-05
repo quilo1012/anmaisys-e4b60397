@@ -563,3 +563,27 @@ describe("R regression: review of 04/11", () => {
     expect(a.warnings.map((w) => w.code)).toContain("BAD_SEQUENCE");
   });
 });
+
+describe("Q26: the last job with no order quantity runs to the end of the shift", () => {
+  it("forecasts the line's capacity for it in the time left", () => {
+    // 600/h; SKU change from SKU-A: 25 + 30 min → 665 productive → 6650.
+    const r = forecastShift(input({ jobs: [job("J1", "SKU-B", 1)] }), NO_BREAK);
+    expect(r.jobs[0].allocation).toMatchObject({ start: 0, end: 720, basis: "runs_to_shift_end", completesOrder: false });
+    expect(r.jobs[0].expectedContainers).toBe(6650);
+    expect(r.confidence).toBe("low");
+    expect(r.warnings.map((w) => w.code)).toContain("RUNS_TO_SHIFT_END");
+  });
+
+  it("takes the time after an order that completes", () => {
+    // J1 2000 at 600/h = 200 min, completes. J2 (no quantity) gets 720 − 200 − 55 = 465 → 4650.
+    const r = forecastShift(input({ jobs: [job("J1", "SKU-A", 1, { orderQty: 2000 }), job("J2", "SKU-B", 2)] }), NO_BREAK);
+    expect(r.jobs.map((j) => j.expectedContainers)).toEqual([2000, 4650]);
+    expect(r.expectedTotal).toBe(6650);
+  });
+
+  it("does not guess an earlier job's end: a job with no quantity before the last stays unknown, and so does the rest", () => {
+    const r = forecastShift(input({ jobs: [job("J1", "SKU-A", 1), job("J2", "SKU-B", 2)] }), NO_BREAK);
+    expect(r.jobs.map((j) => j.expectedContainers)).toEqual([null, null]);
+    expect(r.jobs[1].reasons[0]).toMatch(/earlier job's time is unknown/);
+  });
+});

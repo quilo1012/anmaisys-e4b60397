@@ -53,10 +53,13 @@ const SKUS = [
 
 // Five closed Line 2 shifts before DATE: 6362 × COL165SR at 2.9 s = 307.5 ideal min of
 // 645 − 30 available, so Line 2 runs at 50% of iTouch's ideal speed.
-const HISTORY_SESSIONS = [1, 2, 3, 4, 5].map((d) => ({ id: `h${d}`, line: "Line 2", session_date: `2026-10-0${d}`, shift: "DAY" }));
-const HISTORY_ITEMS = HISTORY_SESSIONS.map((h) => ({ session_id: h.id, display_order: 1, sku_id: "sku-col", sku_code_text: null, actual_qty: 6362 }));
+const historyOn = (line: number) => {
+  const sessions = [1, 2, 3, 4, 5].map((d) => ({ id: `h${d}`, line: `Line ${line}`, session_date: `2026-10-0${d}`, shift: "DAY" }));
+  return { sessions, items: sessions.map((h) => ({ session_id: h.id, display_order: 1, sku_id: "sku-col", sku_code_text: null, actual_qty: 6362 })) };
+};
 
-async function stub(page: Page, cycles: unknown[] = [], history = false) {
+async function stub(page: Page, cycles: unknown[] = [], history = false, items: unknown[] = ITEMS, historyLine = 2) {
+  const { sessions: HISTORY_SESSIONS, items: HISTORY_ITEMS } = historyOn(historyLine);
   await page.addInitScript(([ref, session]) => {
     window.localStorage.setItem(`sb-${ref}-auth-token`, JSON.stringify(session));
   }, [PROJECT_REF, FAKE_SESSION] as const);
@@ -71,7 +74,7 @@ async function stub(page: Page, cycles: unknown[] = [], history = false) {
     if (url.includes("/profiles")) return json([{ id: FAKE_SESSION.user.id, name: "Fixture Admin", email: FAKE_SESSION.user.email, active: true }]);
     // The forecast reads up to DATE itself; the eight-week history stops the day before.
     if (url.includes("/production_sessions")) return json(url.includes(`session_date=lte.${DATE}`) ? SESSIONS : history ? HISTORY_SESSIONS : []);
-    if (url.includes("/production_items")) return json(url.includes("actual_qty") ? (history ? HISTORY_ITEMS : []) : ITEMS);
+    if (url.includes("/production_items")) return json(url.includes("actual_qty") ? (history ? HISTORY_ITEMS : []) : items);
     if (url.includes("/sku_products")) return json(SKUS);
     if (url.includes("/itouch_cycle_times")) return json(cycles);
     return json([]);
@@ -183,5 +186,24 @@ test("forecasts Line 2 from its own last eight weeks, and holds Line 1 back with
   await expect(line1).toContainText("Line 1 varies too much from shift to shift");
   await expect(line1).toContainText("Not enough data");
   await page.screenshot({ path: "e2e/.results/smart-target-forecast.png", fullPage: true });
+  expect(errors).toEqual([]);
+});
+
+test("forecasts the last job with no order as the line's capacity to the end of the shift", async ({ page }) => {
+  const at = "2026-11-04T20:16:00Z";
+  const src = "iTouch Product Details (test)";
+  const errors = await stub(page, [
+    { machine: "Filler Line 5", sku: "MMMG2V", cycle_seconds: 7.8, cavities: null, source: src, imported_at: at },
+    { machine: "Filler Line 5", sku: "COL165SR", cycle_seconds: 2.9, cavities: null, source: src, imported_at: at },
+  ], true, [
+    { id: "i51", session_id: "s5", display_order: 1, sku_id: "sku-mm", sku_code_text: null, planned_qty: 0 },
+    { id: "i52", session_id: "s5", display_order: 2, sku_id: "sku-mm", sku_code_text: null, planned_qty: null },
+  ], 5);
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await open(page);
+  const line5 = page.getByTestId("smart-target-line-5");
+  await expect(line5).toContainText("No order quantity: runs to the end of the shift");
+  await expect(line5).toContainText("Forecast");
+  await expect(line5).not.toContainText("Not enough data");
   expect(errors).toEqual([]);
 });
