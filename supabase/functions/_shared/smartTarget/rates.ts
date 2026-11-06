@@ -223,6 +223,15 @@ export function observedRates(line: LineNo, history: HistoryShift[], minShifts =
 }
 
 export { BASE_LINES };
+
+/**
+ * For forecasts that use lineRates(). The engine's own floor of 5 history shifts is for a
+ * rate it knows nothing else about. Every rate here has already met its own rule: a factor
+ * rests on 5+ shifts, an observed rate on 3+, and a base row was tested as a whole, thin
+ * rows included. With the floor on, a base row with 1 shift hid the iTouch × factor rate
+ * behind it and the product read "no rate" (Line 6, CWBAG450V, 06/11).
+ */
+export const LINE_RATES_CONFIG = { minHistoryShifts: 0 };
 export const BASE_SOURCE = "Line base";
 
 const baseRows = RATE_BASE_ROWS.trim().split("\n").map((row) => {

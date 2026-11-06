@@ -121,6 +121,16 @@ describe("forecastAhead", () => {
     expect(rows.map((r) => [r.line, r.shown])).toEqual([[1, true], [2, false]]);
   });
 
+  it("gives a number for a product whose base row rests on few shifts, as on 06/11 (Line 6)", () => {
+    const { rows } = forecastAhead({ ...base, cycles: [], factors: [], shownLines: [6], final: false, queue: [
+      q("Line 6", 1, "CWBAG450V - B2", 3333, 0, "Scheduled"),
+      q("Line 6", 2, "CW825V - B3", 1818, 0, "Scheduled"),
+    ] });
+    expect(rows[0]).toMatchObject({ line: 6, status: "ok" });
+    expect(rows[0].expected_total).toBeGreaterThan(0);
+    expect(rows[0].jobs.every((j) => j.expected !== null)).toBe(true);
+  });
+
   it("forecasts held-back lines in shadow", () => {
     const { rows } = forecastAhead({ ...base, final: false, queue: [q("Line 1", 1, "A", 1000, 0)] });
     expect(rows).toEqual([expect.objectContaining({ line: 1, shown: false, expected_total: null })]);

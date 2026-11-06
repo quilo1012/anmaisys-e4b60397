@@ -32,6 +32,7 @@ import {
   lineRates,
   BASE_LINES,
   BASE_SOURCE,
+  LINE_RATES_CONFIG,
   OBSERVED_SOURCE,
   productsWithoutCode,
   type CycleToFix,
@@ -510,7 +511,7 @@ export default function SmartTargetPage() {
           : fromQueue.filled
           ? [...l.notes, `Order quantity for ${fromQueue.filled} job${fromQueue.filled === 1 ? "" : "s"} from the iTouch queue read at ${londonTime(queue.rows[0].fetched_at)}: what was left to make then.`]
           : l.notes;
-        const result = forecastShift({ ...input, rates: ownRates });
+        const result = forecastShift({ ...input, rates: ownRates }, LINE_RATES_CONFIG);
         return { ...l, notes, basis, result, shown, factor };
       }),
     };
