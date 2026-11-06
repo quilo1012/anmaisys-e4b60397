@@ -5,8 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Loader2, FileText, Download, Share2, History, ChevronDown } from "lucide-react";
+import { Loader2, FileText, Download, Share2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import {
@@ -14,7 +13,7 @@ import {
   type QuickShift, type ShiftReport,
 } from "@/lib/maintenanceShiftReport";
 import { reportToFile, type ReportFormat } from "@/lib/maintenanceReportExport";
-import { recordReportGenerated, useMaintenanceReportHistory } from "@/hooks/useMaintenanceReportHistory";
+import { recordReportGenerated } from "@/hooks/useMaintenanceReportHistory";
 import type { ShiftCode } from "@/lib/shifts";
 
 /** The chosen option has to read as chosen from arm's length on a line tablet. */
@@ -70,8 +69,6 @@ export function MaintenanceReportDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ report: ShiftReport; file: File; format: ReportFormat } | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const history = useMaintenanceReportHistory(open && historyOpen);
 
   // Re-anchor the quick choices every time the dialog opens: a tablet left on all
   // night must not offer yesterday's "current shift".
@@ -240,38 +237,6 @@ export function MaintenanceReportDialog({
               </div>
             </div>
           )}
-
-          <Collapsible open={historyOpen} onOpenChange={setHistoryOpen}>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-1 px-0 text-muted-foreground">
-                <History className="h-4 w-4" /> Report history
-                <ChevronDown className={cn("h-4 w-4 transition-transform", historyOpen && "rotate-180")} />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-1 pt-1 text-xs">
-              {history.isPending && <p className="text-muted-foreground">Loading…</p>}
-              {history.isError && <p className="text-destructive">History could not be read.</p>}
-              {history.isSuccess && history.data.length === 0 && (
-                <p className="text-muted-foreground">
-                  No reports recorded — or this account cannot see them. The history is visible to admins, managers and maintenance managers.
-                </p>
-              )}
-              {history.isSuccess && history.data.map((h) => (
-                <div key={h.id} className="flex flex-wrap items-center justify-between gap-x-3 border-b py-1 last:border-0">
-                  <span className="font-medium">
-                    {h.details?.shift === "night" ? "Night" : h.details?.shift === "day" ? "Day" : "?"} · {h.details?.session_date ? ddmmyyyy(h.details.session_date) : "—"}
-                  </span>
-                  <span className="text-muted-foreground">
-                    {londonStamp(new Date(h.created_at))} · {h.details?.engineer || h.user_name}
-                    {" · "}{(h.details?.format ?? "").toUpperCase()}
-                  </span>
-                  {h.details?.validated === false
-                    ? <Badge variant="destructive" className="h-5">Not validated</Badge>
-                    : <Badge variant="secondary" className="h-5">Checked</Badge>}
-                </div>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
         </div>
 
         {/* Pinned: on a line tablet (~600px tall) the form is taller than the screen,
