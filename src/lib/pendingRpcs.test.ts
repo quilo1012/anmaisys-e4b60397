@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { isPendingRpc, isSilentPendingRpc, PENDING_RPCS } from "./pendingRpcs";
+import { isPendingRpc, PENDING_RPCS } from "./pendingRpcs";
 
 const root = resolve(__dirname, "../..");
 
@@ -39,26 +39,14 @@ describe("isPendingRpc", () => {
     )).toBe(false);
   });
 
-  it("o alvo do Smart Target no tablet antes do BLOCO 149 não é falta", () => {
-    // Recebido do tablet da linha, 05/11 22:54 e 22:59, como API_ERROR.
+  it("o alvo do Smart Target já não está pendente: o BLOCO 149 foi aplicado a 06/11", () => {
     expect(isPendingRpc(
       "Could not find the function public.smart_target_line_targets(p_date, p_shift) in the schema cache",
-    )).toBe(true);
+    )).toBe(false);
   });
 
   it("aguenta mensagem ausente", () => {
     for (const nada of [null, undefined, ""]) expect(isPendingRpc(nada)).toBe(false);
-  });
-
-  it("só o alvo do Smart Target é silencioso, e diz porquê", () => {
-    expect(PENDING_RPCS.filter((p) => p.silent).map((p) => p.name)).toEqual(["smart_target_line_targets"]);
-    expect(isSilentPendingRpc(
-      "Could not find the function public.smart_target_line_targets(p_date, p_shift) in the schema cache",
-    )).toBe(true);
-    expect(isSilentPendingRpc(
-      "Could not find the function public.signup_invite_code without parameters in the schema cache",
-    )).toBe(false);
-    expect(isSilentPendingRpc(null)).toBe(false);
   });
 });
 
