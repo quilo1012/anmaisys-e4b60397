@@ -45,4 +45,12 @@ describe("freezing the running shift's forecasts", () => {
     rerender({ lines: [line(2)] });
     await waitFor(() => expect(savedLines()).toEqual([[2], [2]]));
   });
+
+  it("replaces a saved forecast only when it had no number and the new one has", async () => {
+    const saved = (line: number, expected_total: number | null) => ({ session_date: now.sessionDate, shift, line, shown: true, expected_total, frozen_at: "x" });
+    const logWith = { data: { installed: true, rows: [saved(1, 500), saved(2, null), saved(3, null)] } } as never;
+    const empty = { ...line(3), forecast: { ...line(3).forecast, expectedTotal: null } } as LineToFreeze;
+    renderHook(() => useFreezeSmartTargetForecasts(now.sessionDate, shift, [line(1), line(2), empty], true, logWith), { wrapper });
+    await waitFor(() => expect(savedLines()).toEqual([[2]]));
+  });
 });

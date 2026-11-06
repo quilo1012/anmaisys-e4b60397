@@ -240,3 +240,6 @@ Line 4 is the clearest gain (12–15% to 8–10%). Line 5 was not improved (15, 
 - **Q53a. Version 1 is done when:** lines with jobs in iTouch have a target saved before each shift without anyone opening the page; the operator sees it; each shift is measured by itself; the page no longer reads "Diagnostic"; and lines on the tablet have a median miss of 15% or less over 10 real shifts. The 10% goal comes after that.
 - **Q54a.** Version 2 holds the 48-hour horizon and batches. The Unleashed sheet with a Line column is analysed in Excel meanwhile. Batches need fill weights, and only 80 of 1,312 products have one.
 - **Q55a.** The base is rebuilt every four weeks with `scripts/smart-target-base`, delivered as a PR with the before and after. Next: 04/12/2026.
+
+- **Q56a (06/11).** A planned product with no rate anywhere takes the median of the line's rates, marked "Estimated". One tiny order used to leave every later job with no time and blank the line. A line with no rates at all still reads "—".
+- **Q57a (06/11, BLOCO 150).** A forecast saved without a number can be replaced by one with a number. One with a number never changes. A replacement takes its own save time, so a late one counts as made late.

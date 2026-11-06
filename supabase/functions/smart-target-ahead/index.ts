@@ -138,9 +138,12 @@ Deno.serve(async (req) => {
 
   try {
     const { data: saved, error: savedErr } = await admin
-      .from("smart_target_forecasts").select("line").eq("session_date", date).eq("shift", shift);
+      .from("smart_target_forecasts").select("line, expected_total").eq("session_date", date).eq("shift", shift);
     if (savedErr) throw new Error(savedErr.message);
-    const done = new Set((saved ?? []).map((r: { line: number }) => r.line));
+    // A line saved without a number can still get one (Q57a).
+    const rowsSaved = (saved ?? []) as { line: number; expected_total: number | null }[];
+    const done = new Set(rowsSaved.filter((r) => r.expected_total !== null).map((r) => r.line));
+    const saidNothing = new Set(rowsSaved.filter((r) => r.expected_total === null).map((r) => r.line));
     if (done.size >= 6) return json({ ok: true, date, shift, skipped: "Every line already has its forecast." });
 
     const queue = await readQueue(date, shift, presented);
@@ -157,7 +160,7 @@ Deno.serve(async (req) => {
     const shownLines = await shownLinesFor(date, history);
     const { rows } = forecastAhead({ date, shift, minutesToStart, final, queue: queue.rows, cycles, factors, history, shownLines });
     const toSave = rows
-      .filter((r) => !done.has(r.line))
+      .filter((r) => !done.has(r.line) && (r.expected_total !== null || !saidNothing.has(r.line)))
       .map((r) => ({ ...r, source: "ahead", queue_read_at: new Date().toISOString() }));
 
     if (dryRun) return json({ ok: true, dry_run: true, date, shift, minutesToStart, final, rows: toSave });

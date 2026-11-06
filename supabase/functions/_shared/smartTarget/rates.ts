@@ -271,6 +271,33 @@ export function lineRates(line: LineNo, cycles: CleanCycle[], factor: LineFactor
   return out;
 }
 
+export const ESTIMATED_SOURCE = "Estimated";
+
+/**
+ * A rate for each planned product the line has none for: the median of the line's other
+ * rates, marked as an estimate (decided 06/11, Q56a). One product with no rate anywhere
+ * used to leave every job after it with no time, so a tiny order could blank a whole
+ * line. A line with no rates at all gets none: there is nothing to estimate from.
+ */
+export function withEstimates(line: LineNo, skus: (string | null | undefined)[], rates: RateRecord[]): RateRecord[] {
+  if (!rates.length) return rates;
+  const known = new Set(rates.map((r) => normaliseSku(r.sku)));
+  const value = Math.round(median(rates.map((r) => r.value)) * 10) / 10;
+  const missing = [...new Set(skus.map((s) => normaliseSku(s)).filter((s): s is string => !!s && !known.has(s)))];
+  return [
+    ...rates,
+    ...missing.map((sku) => ({
+      line,
+      sku,
+      value,
+      unit: "containers/hour",
+      status: "provisional" as const,
+      sampleShifts: 0,
+      source: `${ESTIMATED_SOURCE}: no rate for ${sku} on Line ${line}, so the median of the line's rates`,
+    })),
+  ];
+}
+
 export interface CycleToFix {
   line: LineNo;
   sku: string;

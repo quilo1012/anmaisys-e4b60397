@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { BASE_SOURCE, baseRates, cyclesToFix, lineRates, observedRates, productsWithoutCode, OBSERVED_SOURCE, type HistoryShift } from "./smartTargetRates";
+import { ESTIMATED_SOURCE, withEstimates, BASE_SOURCE, baseRates, cyclesToFix, lineRates, observedRates, productsWithoutCode, OBSERVED_SOURCE, type HistoryShift } from "./smartTargetRates";
 import { lineVisibility, SHOW_MIN_SCORED, type LineAccuracy } from "./smartTargetAccuracy";
 import { historyFromSessions } from "./smartTargetHistory";
 import { buildSkuCatalogue } from "./lineSku";
@@ -74,6 +74,22 @@ describe("the line base", () => {
     const cycles = [{ line: 4 as const, sku: "NOSUCHSKU2", idealPerHour: 1000, cycleSeconds: 3.6, source: "iTouch" }];
     const r = lineRates(4, cycles, { line: 4, factor: 0.5, shiftsUsed: 9, excluded: [] }, []).find((x) => x.sku === "NOSUCHSKU2");
     expect(r?.value).toBe(500);
+  });
+});
+
+describe("a product with no rate anywhere (Q56a)", () => {
+  const rate = (sku: string, value: number) => ({ line: 2 as const, sku, value, unit: "containers/hour", status: "provisional" as const, sampleShifts: 9, source: "x" });
+
+  it("gets the median of the line's rates, marked as an estimate, and known rates stay", () => {
+    const out = withEstimates(2, ["A", "BLENDEDCOLX", "blendedcolx", null], [rate("A", 100), rate("B", 300), rate("C", 900)]);
+    expect(out).toHaveLength(4);
+    expect(out[3]).toMatchObject({ sku: "BLENDEDCOLX", value: 300, sampleShifts: 0 });
+    expect(out[3].source.startsWith(ESTIMATED_SOURCE)).toBe(true);
+    expect(out[0].value).toBe(100);
+  });
+
+  it("makes nothing up for a line with no rates at all", () => {
+    expect(withEstimates(2, ["BLENDEDCOLX"], [])).toEqual([]);
   });
 });
 

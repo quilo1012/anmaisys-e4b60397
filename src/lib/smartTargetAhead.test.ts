@@ -131,9 +131,18 @@ describe("forecastAhead", () => {
     expect(rows[0].jobs.every((j) => j.expected !== null)).toBe(true);
   });
 
+  it("a tiny product with no rate no longer blanks the line, as on Line 2 on 06/11 (Q56a)", () => {
+    const { rows } = forecastAhead({ ...base, cycles: [], factors: [], shownLines: [2], final: false, queue: [
+      q("Line 2", 1, "BLENDEDCOLDEBLOATLGT - B2", 80, 0, "Scheduled"),
+      q("Line 2", 2, "COL165SR", 1000, 0, "Scheduled"),
+    ] });
+    expect(rows[0].expected_total).toBeGreaterThan(0);
+    expect(rows[0].jobs.every((j) => j.expected !== null)).toBe(true);
+  });
+
   it("forecasts held-back lines in shadow", () => {
     const { rows } = forecastAhead({ ...base, final: false, queue: [q("Line 1", 1, "A", 1000, 0)] });
-    expect(rows).toEqual([expect.objectContaining({ line: 1, shown: false, expected_total: null })]);
+    expect(rows).toEqual([expect.objectContaining({ line: 1, shown: false })]);
   });
 });
 
