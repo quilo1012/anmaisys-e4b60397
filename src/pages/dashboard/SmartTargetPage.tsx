@@ -32,6 +32,9 @@ import {
   lineRates,
   BASE_LINES,
   BASE_SOURCE,
+  explainTarget,
+  fixSuggestion,
+  type FixSuggestion,
   ESTIMATED_SOURCE,
   withEstimates,
   LINE_RATES_CONFIG,
@@ -42,6 +45,7 @@ import {
 } from "@/lib/smartTargetRates";
 import { ItouchCyclesCard } from "@/components/smartTarget/ItouchCyclesCard";
 import { getCurrentFactoryShift } from "@/lib/shifts";
+import { identifyItemSku } from "@/lib/lineSku";
 import { cn } from "@/lib/utils";
 import { forecastShift, type JobForecast, type LineNo, type ShiftForecast, type ShiftType } from "@/lib/smartTargetEngine";
 import {
@@ -228,6 +232,7 @@ function LineCard({ line, result, notes, basis }: { line: number; result: ShiftF
     ),
   ];
   const setup = setupMinutes(result);
+  const reasons = explainTarget(result.jobs);
   return (
     <Card data-testid={`smart-target-line-${line}`}>
       <CardHeader className="flex-row items-start justify-between gap-3 space-y-0 pb-3">
@@ -272,6 +277,14 @@ function LineCard({ line, result, notes, basis }: { line: number; result: ShiftF
             <>
               <dt className="text-muted-foreground">Margin</dt>
               <dd>{basis.caution}</dd>
+            </>
+          )}
+          {reasons.length > 0 && (
+            <>
+              <dt className="text-muted-foreground">Why this target</dt>
+              <dd>
+                <ul className="space-y-0.5">{reasons.map((r) => <li key={r}>{r}</li>)}</ul>
+              </dd>
             </>
           )}
           <dt className="text-muted-foreground">Changeover and mixing</dt>
@@ -367,7 +380,7 @@ function AccuracyCard({ accuracy, installed }: { accuracy: LineAccuracy[] | null
  * last eight weeks that have no usable cycle, so the fix is a handful of rows instead of
  * every rejected record. Under it, what was typed instead of picked from the product list.
  */
-function FixInItouchCard({ fix, noCode }: { fix: CycleToFix[] | null; noCode: { line: number; text: string; qty: number }[] }) {
+function FixInItouchCard({ fix, noCode }: { fix: (CycleToFix & { description: string | null; suggestion: FixSuggestion })[] | null; noCode: { line: number; text: string; qty: number }[] }) {
   if (!fix) return null;
   return (
     <Card data-testid="smart-target-fix-itouch">
@@ -375,7 +388,7 @@ function FixInItouchCard({ fix, noCode }: { fix: CycleToFix[] | null; noCode: { 
         <CardTitle className="text-base">Fix in iTouch</CardTitle>
         <p className="text-sm text-muted-foreground">
           Products filled in the last eight weeks that have no usable cycle time in iTouch for that line. Correct them in
-          iTouch's Product Details, export it again and load it in the iTouch cycles card below.
+          iTouch's Product Details with the value under Solution, export it again and load it in the iTouch cycles card below.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -387,8 +400,9 @@ function FixInItouchCard({ fix, noCode }: { fix: CycleToFix[] | null; noCode: { 
               <thead className="text-left text-muted-foreground">
                 <tr>
                   <th className="py-1.5 pr-3 font-medium">Line</th>
-                  <th className="py-1.5 pr-3 font-medium">Product</th>
+                  <th className="py-1.5 pr-3 font-medium">SKU and product</th>
                   <th className="py-1.5 pr-3 font-medium">In iTouch now</th>
+                  <th className="py-1.5 pr-3 font-medium">Solution</th>
                   <th className="py-1.5 pr-3 text-right font-medium">Filled, 8 weeks</th>
                   <th className="py-1.5 font-medium">Meanwhile</th>
                 </tr>
@@ -397,10 +411,18 @@ function FixInItouchCard({ fix, noCode }: { fix: CycleToFix[] | null; noCode: { 
                 {fix.map((f) => (
                   <tr key={`${f.line}|${f.sku}`} className="border-t align-top">
                     <td className="py-1.5 pr-3">Line {f.line}</td>
-                    <td className="py-1.5 pr-3 font-mono text-xs">{f.sku}</td>
+                    <td className="py-1.5 pr-3">
+                      <div className="font-mono text-xs">{f.sku}</div>
+                      {f.description && <div className="text-xs text-muted-foreground">{f.description}</div>}
+                    </td>
                     <td className="py-1.5 pr-3">
                       {f.itouchSeconds !== null ? `${f.itouchSeconds} s` : "—"}
                       <div className="text-xs text-muted-foreground">{f.problem}</div>
+                    </td>
+                    <td className="py-1.5 pr-3">
+                      {f.suggestion.cycleSeconds !== null && <div className="font-medium">Enter {f.suggestion.cycleSeconds} s</div>}
+                      {f.suggestion.perHour !== null && <div className="text-xs">Target {f.suggestion.perHour.toLocaleString()}/h</div>}
+                      <div className="text-xs text-muted-foreground">{f.suggestion.why}</div>
                     </td>
                     <td className="py-1.5 pr-3 text-right tabular-nums">
                       {f.madeQty.toLocaleString()}
@@ -455,7 +477,11 @@ export default function SmartTargetPage() {
     if (!cycles.length) return null;
     const history = historyFromSessions(historyQuery.data.sessions, historyQuery.data.items, catalogue);
     const factors = lineFactors(history, cycles);
-    return { cycles, factors, history, fix: cyclesToFix(history, cycles, rejected), noCode: productsWithoutCode(history), from: historyQuery.data.from, to: historyQuery.data.to };
+    return { cycles, factors, history, fix: cyclesToFix(history, cycles, rejected).map((f) => ({
+      ...f,
+      description: identifyItemSku({ sku_id: null, sku_code_text: f.sku, actual: 0, started_at: null, finished_at: null }, catalogue)?.name ?? null,
+      suggestion: fixSuggestion(f.sku, lineRates(f.line, cycles, factors.find((x) => x.line === f.line) ?? null, history), factors.find((x) => x.line === f.line)?.factor ?? null),
+    })), noCode: productsWithoutCode(history), from: historyQuery.data.from, to: historyQuery.data.to };
   }, [cyclesQuery.data, historyQuery.data, catalogue]);
 
   // Which lines are shown comes from their own measured record (Q45a), so the kept

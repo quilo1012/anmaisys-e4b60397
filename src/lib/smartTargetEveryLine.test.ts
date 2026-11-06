@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ESTIMATED_SOURCE, withEstimates, BASE_SOURCE, baseRates, cyclesToFix, lineRates, observedRates, productsWithoutCode, OBSERVED_SOURCE, type HistoryShift } from "./smartTargetRates";
+import { explainTarget, fixSuggestion, ESTIMATED_SOURCE, withEstimates, BASE_SOURCE, baseRates, cyclesToFix, lineRates, observedRates, productsWithoutCode, OBSERVED_SOURCE, type HistoryShift } from "./smartTargetRates";
 import { lineCautions, SHOW_MIN_SCORED, type LineAccuracy } from "./smartTargetAccuracy";
 import { historyFromSessions } from "./smartTargetHistory";
 import { buildSkuCatalogue } from "./lineSku";
@@ -149,5 +149,33 @@ describe("cautions beside a line's number", () => {
     const c = lineCautions([acc(1, 12, 15), acc(2, 20, 18)], { 1: 22 });
     expect(c.find((x) => x.line === 1)?.caution).toBeNull();
     expect(c.find((x) => x.line === 2)?.caution).toMatch(/last 20 measured shifts Line 2 missed by a median 18%/);
+  });
+});
+
+describe("the solution and the reason shown for a target", () => {
+  const rate = (value: number, source: string, sampleShifts = 25) => ({ line: 4 as const, sku: "CRE500", value, unit: "containers/hour", status: "provisional" as const, sampleShifts, source });
+
+  it("turns the line's rate into the cycle to enter, as for Line 4's CRE500", () => {
+    const s = fixSuggestion("CRE500", [rate(720, `${BASE_SOURCE} of 06/11/2026: 25 shifts`)], 0.62);
+    expect(s).toMatchObject({ perHour: 720, cycleSeconds: 3.1 });
+    expect(s.why).toMatch(/25 shifts on this line.*720\/h at the line's 62% performance is a 3.1 s cycle/);
+  });
+
+  it("says to time a run when there is nothing to go on, and never suggests an impossible cycle", () => {
+    expect(fixSuggestion("CRE500", [], 0.62)).toMatchObject({ perHour: null, cycleSeconds: null });
+    expect(fixSuggestion("CRE500", [rate(5000, "x")], 0.5).cycleSeconds).toBeNull();
+    expect(fixSuggestion("CRE500", [rate(720, "x")], null).cycleSeconds).toBeNull();
+  });
+
+  it("explains each job's part: a whole order, or the rate over the time left", () => {
+    const job = (over: object) => ({ sku: "BEEFXPOM", expectedContainers: 1776, rate: { perHour: 292, sampleShifts: 0, source: "iTouch" }, allocation: { basis: "order_qty_at_rate", completesOrder: true, productiveMinutes: 400 }, ...over });
+    const [whole, cut, none] = explainTarget([
+      job({}),
+      job({ sku: "BEEFXPCA", expectedContainers: 729, allocation: { basis: "order_qty_at_rate", completesOrder: false, productiveMinutes: 150 } }),
+      job({ expectedContainers: null }),
+    ] as never);
+    expect(whole).toBe("BEEFXPOM: 1,776, the whole order, about 365 min at 292/h (iTouch's cycle × the line's performance).");
+    expect(cut).toBe("BEEFXPCA: 729 = 292/h × 150 min left in the shift (iTouch's cycle × the line's performance).");
+    expect(none).toBeUndefined();
   });
 });
