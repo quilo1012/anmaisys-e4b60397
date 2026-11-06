@@ -177,7 +177,7 @@ function useBoardTally(shift: Shift, day: string) {
   const tally = useMemo(
     () => tallyBoard({
       allocations: foldTrainingArea(allocations, allAreas), areas, roster, drawable: (id) => boardById.has(id),
-      overtimeAccepted: (a) => overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id)),
+      overtimeAccepted: (a) => overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id), boardById.get(a.employee_id)),
     }),
     [allocations, allAreas, areas, roster, boardById, confirmedAsks],
   );

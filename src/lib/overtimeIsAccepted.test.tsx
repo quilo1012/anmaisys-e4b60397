@@ -30,35 +30,64 @@ describe("before the floor had the app", () => {
   // nobody could say yes in the app. The owner, 04/11: up to 19/10 an overtime row on
   // the board is overtime; from 20/10 only one somebody accepted.
   it("counts an overtime row up to 19/10 with no ask behind it", () => {
-    expect(overtimeIsAccepted({ status: "overtime", overtime_request_id: null, on_date: "2026-10-13" }, [])).toBe(true);
-    expect(overtimeIsAccepted({ status: "overtime", overtime_request_id: null, on_date: "2026-10-19" }, undefined)).toBe(true);
+    expect(overtimeIsAccepted({ status: "overtime", overtime_request_id: null, on_date: "2026-10-13" }, [], undefined)).toBe(true);
+    expect(overtimeIsAccepted({ status: "overtime", overtime_request_id: null, on_date: "2026-10-19" }, undefined, undefined)).toBe(true);
   });
   it("does not from 20/10", () => {
-    expect(overtimeIsAccepted({ status: "overtime", overtime_request_id: null, on_date: "2026-10-20" }, [])).toBe(false);
+    expect(overtimeIsAccepted({ status: "overtime", overtime_request_id: null, on_date: "2026-10-20" }, [], undefined)).toBe(false);
   });
   it("never makes a working row overtime", () => {
-    expect(overtimeIsAccepted({ status: "assigned", overtime_request_id: null, on_date: "2026-10-13" }, [])).toBe(false);
+    expect(overtimeIsAccepted({ status: "assigned", overtime_request_id: null, on_date: "2026-10-13" }, [], undefined)).toBe(false);
   });
   it("is the same rule for screens that read many days", () => {
-    const accepted = overtimeAcceptedIn(new Set());
+    const accepted = overtimeAcceptedIn(new Set(), new Set());
     expect(accepted({ employee_id: "e1", on_date: "2026-10-13", shift: "Day", status: "overtime", overtime_request_id: null })).toBe(true);
     expect(accepted({ employee_id: "e1", on_date: "2026-10-20", shift: "Day", status: "overtime", overtime_request_id: null })).toBe(false);
   });
 });
 
+describe("somebody without the app", () => {
+  // 06/11/2026, the owner: not everybody has installed the app yet. Somebody with no
+  // login cannot say yes, so the board is the only record and being put on it as
+  // overtime counts. `user_id` undefined means the login was not read, which is not
+  // the same as having none, so it changes nothing.
+  const row = { status: "overtime", overtime_request_id: null, on_date: "2026-11-06" };
+
+  it("counts an overtime row for a person with no login", () => {
+    expect(overtimeIsAccepted(row, [], { user_id: null })).toBe(true);
+  });
+  it("still asks for a yes from a person who has a login", () => {
+    expect(overtimeIsAccepted(row, [], { user_id: "login-1" })).toBe(false);
+  });
+  it("does not guess when the login was not read", () => {
+    expect(overtimeIsAccepted(row, [], {})).toBe(false);
+    expect(overtimeIsAccepted(row, [], undefined)).toBe(false);
+  });
+  it("never makes a working row overtime", () => {
+    expect(overtimeIsAccepted({ ...row, status: "assigned" }, [], { user_id: null })).toBe(false);
+  });
+  it("is the same rule for screens that read many days", () => {
+    const accepted = overtimeAcceptedIn(new Set(), new Set(["e1"]));
+    const of = (employee_id: string) => ({ ...row, employee_id, shift: "Day" });
+    expect(accepted(of("e1"))).toBe(true);
+    expect(accepted(of("e2"))).toBe(false);
+    expect(accepted({ ...of("e1"), status: "assigned" })).toBe(false);
+  });
+});
+
 describe("overtimeIsAccepted", () => {
   it("accepted: a row the bridge wrote for the ask", () => {
-    expect(overtimeIsAccepted({ status: "overtime", overtime_request_id: "q1" }, undefined)).toBe(true);
+    expect(overtimeIsAccepted({ status: "overtime", overtime_request_id: "q1" }, undefined, undefined)).toBe(true);
   });
 
   it("accepted: placed by hand, with an accepted answer for this board", () => {
-    expect(overtimeIsAccepted({ status: "overtime", overtime_request_id: null }, ACCEPTED)).toBe(true);
+    expect(overtimeIsAccepted({ status: "overtime", overtime_request_id: null }, ACCEPTED, undefined)).toBe(true);
   });
 
   it("pending, no response, declined or cancelled: the rota's stamp alone is not accepted", () => {
     // None of those reach the confirmed list, which is all this reads.
-    expect(overtimeIsAccepted({ status: "overtime", overtime_request_id: null }, [])).toBe(false);
-    expect(overtimeIsAccepted({ status: "overtime", overtime_request_id: null }, undefined)).toBe(false);
+    expect(overtimeIsAccepted({ status: "overtime", overtime_request_id: null }, [], undefined)).toBe(false);
+    expect(overtimeIsAccepted({ status: "overtime", overtime_request_id: null }, undefined, undefined)).toBe(false);
   });
 
   it("the stamp it is guarding against: placing somebody off rota writes overtime without asking", () => {
@@ -67,7 +96,7 @@ describe("overtimeIsAccepted", () => {
 
   it("a normal shift is never overtime, accepted or not", () => {
     expect(statusForPlacement("assigned", null, onRota)).toBe("assigned");
-    expect(overtimeIsAccepted({ status: "assigned", overtime_request_id: null }, ACCEPTED)).toBe(false);
+    expect(overtimeIsAccepted({ status: "assigned", overtime_request_id: null }, ACCEPTED, undefined)).toBe(false);
   });
 });
 

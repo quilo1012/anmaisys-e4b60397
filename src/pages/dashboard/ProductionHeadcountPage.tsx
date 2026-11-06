@@ -1091,8 +1091,8 @@ function ShiftBoard({
         startTime: a.sheet_start_time ?? null,
         tag: a.sheet_tag ?? null,
         // The green mark is for overtime somebody accepted; the rota's own stamp is said apart.
-        overtime: overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id)),
-        overtimeNotAccepted: a.status === "overtime" && !overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id)),
+        overtime: overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id), employeeById.get(a.employee_id)),
+        overtimeNotAccepted: a.status === "overtime" && !overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id), employeeById.get(a.employee_id)),
         // Only the leader designated on this line, shift and date. A job title alone never leads.
         leader: a.is_leader === true,
       });
@@ -1124,7 +1124,7 @@ function ShiftBoard({
   const peopleWith = (status: AllocStatus) =>
     allocations
       .filter((a) => a.status === status && employeeById.has(a.employee_id))
-      .filter((a) => status !== "overtime" || !a.area_id || overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id)))
+      .filter((a) => status !== "overtime" || !a.area_id || overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id), employeeById.get(a.employee_id)))
       .map((a) => {
         const p = employeeById.get(a.employee_id)!;
         return Object.assign({}, p, {
@@ -1132,7 +1132,7 @@ function ShiftBoard({
           sheetName: a.sheet_name ?? null,
           startTime: a.sheet_start_time ?? null,
           tag: a.sheet_tag ?? null,
-          otNotAccepted: a.status === "overtime" && !overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id)),
+          otNotAccepted: a.status === "overtime" && !overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id), employeeById.get(a.employee_id)),
         });
       })
       .sort((a, b) => a.shown.localeCompare(b.shown))
@@ -1202,7 +1202,7 @@ function ShiftBoard({
   // The Overtime figure is overtime somebody accepted; a row the rota stamped is counted apart.
   const tally = tallyBoard({
     allocations, areas, roster, drawable: (id) => employeeById.has(id),
-    overtimeAccepted: (a) => overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id)),
+    overtimeAccepted: (a) => overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id), employeeById.get(a.employee_id)),
   });
   const totalStaff = tally.inProduction;
   const assignedCount = tally.working;

@@ -111,13 +111,13 @@ describe("boardTrend, overtime nobody accepted", () => {
       { on_date: "2026-11-03", employee_id: "desk", shift: "Night", status: "overtime", overtime_request_id: null },
       { on_date: "2026-11-03", employee_id: "stamp", shift: "Night", status: "overtime", overtime_request_id: null },
     ];
-    const accepted = overtimeAcceptedIn(new Set([slotKey("desk", "2026-11-03", "Night")]));
+    const accepted = overtimeAcceptedIn(new Set([slotKey("desk", "2026-11-03", "Night")]), new Set());
     const [day] = boardTrend(rows, "2026-11-03", "2026-11-03", () => true, accepted);
     expect(day).toMatchObject({ overtime: 2, working: 1 });
   });
 
   it("an accepted ask on the other board does not make it accepted", () => {
-    const accepted = overtimeAcceptedIn(new Set([slotKey("desk", "2026-11-03", "Day")]));
+    const accepted = overtimeAcceptedIn(new Set([slotKey("desk", "2026-11-03", "Day")]), new Set());
     expect(accepted({ on_date: "2026-11-03", employee_id: "desk", shift: "Night", status: "overtime", overtime_request_id: null })).toBe(false);
   });
 });

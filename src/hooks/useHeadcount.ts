@@ -39,6 +39,8 @@ export type HeadcountEmployee = {
   department: string | null;
   /** The job — "Team Leader" lives here, not in `department`. See `isTeamLeader`. */
   position?: string | null;
+  /** The linked login; null means no app to say yes in (`hasNoApp`). */
+  user_id?: string | null;
   /** Which rota they are on. Null means unrecorded, which is not the same as off. */
   shift_pattern_id: string | null;
   /** O número de funcionário. Separa no ecrã duas pessoas com o mesmo nome. */
@@ -317,7 +319,7 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
     queryFn: async (): Promise<HeadcountEmployee[]> => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,employee_ref,shift_group,department,position,shift_pattern_id,sheet_aliases")
+        .select("id,full_name,employee_ref,shift_group,department,position,shift_pattern_id,sheet_aliases,user_id")
         .eq("active", true)
         .order("full_name", { ascending: true });
       if (error) throw error;
@@ -383,7 +385,7 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
     queryFn: async (): Promise<HeadcountEmployee[]> => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,employee_ref,shift_group,department,position,shift_pattern_id,sheet_aliases,left_on")
+        .select("id,full_name,employee_ref,shift_group,department,position,shift_pattern_id,sheet_aliases,left_on,user_id")
         .eq("active", false)
         .not("left_on", "is", null);
       if (error) throw error;
@@ -417,7 +419,7 @@ export function useRotaCover() {
     queryFn: async (): Promise<HeadcountEmployee[]> => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,employee_ref,shift_group,department,position,shift_pattern_id,sheet_aliases")
+        .select("id,full_name,employee_ref,shift_group,department,position,shift_pattern_id,sheet_aliases,user_id")
         .eq("active", true)
         .order("full_name", { ascending: true });
       if (error) throw error;
@@ -1838,6 +1840,20 @@ export async function fetchAcceptedOvertimeSlots(from: string, to: string): Prom
   return out;
 }
 
+/** Everybody with no login, leavers included, for `overtimeAcceptedIn`. */
+export async function fetchPeopleWithoutApp(): Promise<Set<string>> {
+  const rows = await fetchAllRows<{ id: string }>({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    range: (a, b) => (supabase as any)
+      .from("employees")
+      .select("id")
+      .is("user_id", null)
+      .order("id", { ascending: true })
+      .range(a, b),
+  });
+  return new Set(rows.map((r) => r.id));
+}
+
 /**
  * Board rows over a period, and who the board can draw on each date.
  *
@@ -1877,7 +1893,8 @@ export function useBoardTrend(from: string, to: string, enabled: boolean) {
         if (!p) return false;
         return p.active || (!!p.left_on && onDate <= p.left_on);
       };
-      const accepted = overtimeAcceptedIn(await fetchAcceptedOvertimeSlots(from, to));
+      const [slots, withoutApp] = await Promise.all([fetchAcceptedOvertimeSlots(from, to), fetchPeopleWithoutApp()]);
+      const accepted = overtimeAcceptedIn(slots, withoutApp);
       return { rows, drawableOn, overtimeAccepted: accepted };
     },
   });

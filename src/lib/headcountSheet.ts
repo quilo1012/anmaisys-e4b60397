@@ -636,7 +636,7 @@ export function printSheetLayout(input: {
         // overtime staff (`overtimeIsAccepted`).
         label: "Overtime staff", tone: "overtime",
         names: ordered(known
-          .filter((a) => overtimeIsAccepted(a, input.confirmedAsks?.get(a.employee_id)))
+          .filter((a) => overtimeIsAccepted(a, input.confirmedAsks?.get(a.employee_id), input.employeeById.get(a.employee_id)))
           .map((a) => cell(a))),
       },
       ...(training.names.length ? [training] : []),
