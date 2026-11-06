@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { overtimeAcceptedIn } from "@/lib/boardOvertime";
-import { fetchAcceptedOvertimeSlots } from "@/hooks/useHeadcount";
+import { fetchAcceptedOvertimeSlots, fetchPeopleWithoutApp } from "@/hooks/useHeadcount";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, TrendingUp } from "lucide-react";
 import {
@@ -53,7 +53,7 @@ export function HeadcountOvertimePanel() {
       // due made every person on the payroll read short by the rest of the period.
       const to: string = periodElapsedTo(period?.end_date ?? today, today);
 
-      const [emp, allocs, acceptedSlots] = await Promise.all([
+      const [emp, allocs, acceptedSlots, withoutApp] = await Promise.all([
         db.from("employees")
           .select("id, full_name, department, shift_group, shift_patterns(name, days)")
           .eq("active", true),
@@ -71,11 +71,12 @@ export function HeadcountOvertimePanel() {
             .range(a, b),
         }),
         fetchAcceptedOvertimeSlots(from, to),
+        fetchPeopleWithoutApp(),
       ]);
       if (emp.error) throw emp.error;
       // The bars are overtime somebody said yes to. A row the rota stamped `overtime`
       // still counts as a day present below, but not here (`overtimeIsAccepted`).
-      const accepted = overtimeAcceptedIn(acceptedSlots);
+      const accepted = overtimeAcceptedIn(acceptedSlots, withoutApp);
 
       const shiftOf = new Map(((emp.data ?? []) as any[]).map((e) => [e.id, e.shift_group ?? "Not set"]));
       // The spellings were fixed in `employees` — "Prodcution" was on 28 records and
