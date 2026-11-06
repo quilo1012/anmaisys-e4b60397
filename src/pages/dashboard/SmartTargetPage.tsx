@@ -483,7 +483,7 @@ export default function SmartTargetPage() {
       if (!ids.length) return { sessions: [] as SmartTargetSession[], items: [] as SmartTargetItem[] };
       const { data: items, error: iErr } = await supabase
         .from("production_items")
-        .select("id, session_id, display_order, sku_id, sku_code_text, planned_qty")
+        .select("id, session_id, display_order, sku_id, sku_code_text, planned_qty, created_at")
         .in("session_id", ids);
       if (iErr) throw iErr;
       return { sessions: (sessions ?? []) as SmartTargetSession[], items: (items ?? []) as SmartTargetItem[] };
