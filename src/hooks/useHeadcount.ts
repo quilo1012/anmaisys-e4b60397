@@ -12,7 +12,7 @@ import { isOffRota, statusForPlacement, type RotaCover } from "@/lib/rotaStatus"
 import { useShiftPatterns, useShiftHistory, worksOn, resolveShiftOn, type ShiftPosition } from "./useWorkforce";
 import { planMatrixDelete, type MatrixSavePerson } from "@/lib/matrixSave";
 import type { PreviousPlace } from "@/lib/headcountSuggestions";
-import { boardSlotOf, slotKey, overtimeAcceptedIn, type CancelledAskRow, type ConfirmedAsk, type ReservePromotion } from "@/lib/boardOvertime";
+import { boardSlotOf, type CancelledAskRow, type ConfirmedAsk, type ReservePromotion } from "@/lib/boardOvertime";
 import { applyLineOrder, type LineOrder } from "@/lib/lineOrder";
 
 export type HeadcountArea = {
@@ -39,8 +39,6 @@ export type HeadcountEmployee = {
   department: string | null;
   /** The job — "Team Leader" lives here, not in `department`. See `isTeamLeader`. */
   position?: string | null;
-  /** The linked login; null means no app to say yes in (`hasNoApp`). */
-  user_id?: string | null;
   /** Which rota they are on. Null means unrecorded, which is not the same as off. */
   shift_pattern_id: string | null;
   /** O número de funcionário. Separa no ecrã duas pessoas com o mesmo nome. */
@@ -319,7 +317,7 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
     queryFn: async (): Promise<HeadcountEmployee[]> => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,employee_ref,shift_group,department,position,shift_pattern_id,sheet_aliases,user_id")
+        .select("id,full_name,employee_ref,shift_group,department,position,shift_pattern_id,sheet_aliases")
         .eq("active", true)
         .order("full_name", { ascending: true });
       if (error) throw error;
@@ -385,7 +383,7 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
     queryFn: async (): Promise<HeadcountEmployee[]> => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,employee_ref,shift_group,department,position,shift_pattern_id,sheet_aliases,left_on,user_id")
+        .select("id,full_name,employee_ref,shift_group,department,position,shift_pattern_id,sheet_aliases,left_on")
         .eq("active", false)
         .not("left_on", "is", null);
       if (error) throw error;
@@ -419,7 +417,7 @@ export function useRotaCover() {
     queryFn: async (): Promise<HeadcountEmployee[]> => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id,full_name,employee_ref,shift_group,department,position,shift_pattern_id,sheet_aliases,user_id")
+        .select("id,full_name,employee_ref,shift_group,department,position,shift_pattern_id,sheet_aliases")
         .eq("active", true)
         .order("full_name", { ascending: true });
       if (error) throw error;
@@ -1803,56 +1801,7 @@ export function useSetShiftPattern(onDate: string) {
   });
 }
 
-export interface TrendRow { on_date: string; employee_id: string; status: string; shift: string; overtime_request_id: string | null }
-
-/**
- * Who has an accepted ask on which board, over a range of dates — `useConfirmedOvertime`
- * for many boards at once, with the same rules: answer accepted, ask not cancelled, and
- * nobody who then dropped out. Keys are `slotKey`s, each on the board its hours belong
- * to (`boardSlotOf`), so a 02:00 start lands on the night before.
- */
-export async function fetchAcceptedOvertimeSlots(from: string, to: string): Promise<Set<string>> {
-  type Row = {
-    employee_id: string;
-    overtime_requests: { on_date: string; starts_at: string } | null;
-    overtime_outcomes: { outcome: string }[] | { outcome: string } | null;
-  };
-  const rows = await fetchAllRows<Row>({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    range: (a, b) => (supabase as any)
-      .from("overtime_responses")
-      .select("id,employee_id,overtime_requests!inner(on_date,starts_at,status),overtime_outcomes(outcome)")
-      .eq("decision", "accepted")
-      .gte("overtime_requests.on_date", from).lte("overtime_requests.on_date", plusOneDay(to))
-      .neq("overtime_requests.status", "cancelled")
-      .order("id", { ascending: true })
-      .range(a, b),
-  });
-  const out = new Set<string>();
-  for (const r of rows) {
-    const q = r.overtime_requests;
-    if (!q) continue;
-    const outcomes = Array.isArray(r.overtime_outcomes) ? r.overtime_outcomes : r.overtime_outcomes ? [r.overtime_outcomes] : [];
-    if (outcomes.some((o) => o.outcome !== "attended")) continue;
-    const slot = boardSlotOf(q.on_date, q.starts_at);
-    out.add(slotKey(r.employee_id, slot.date, slot.shift));
-  }
-  return out;
-}
-
-/** Everybody with no login, leavers included, for `overtimeAcceptedIn`. */
-export async function fetchPeopleWithoutApp(): Promise<Set<string>> {
-  const rows = await fetchAllRows<{ id: string }>({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    range: (a, b) => (supabase as any)
-      .from("employees")
-      .select("id")
-      .is("user_id", null)
-      .order("id", { ascending: true })
-      .range(a, b),
-  });
-  return new Set(rows.map((r) => r.id));
-}
+export interface TrendRow { on_date: string; employee_id: string; status: string }
 
 /**
  * Board rows over a period, and who the board can draw on each date.
@@ -1874,7 +1823,7 @@ export function useBoardTrend(from: string, to: string, enabled: boolean) {
         fetchAllRows<TrendRow>({
           range: (a, b) => supabase
             .from("daily_allocations")
-            .select("on_date,employee_id,status,shift,overtime_request_id")
+            .select("on_date,employee_id,status")
             .gte("on_date", from).lte("on_date", to)
             .order("on_date", { ascending: true }).order("id", { ascending: true })
             .range(a, b) as never,
@@ -1893,9 +1842,7 @@ export function useBoardTrend(from: string, to: string, enabled: boolean) {
         if (!p) return false;
         return p.active || (!!p.left_on && onDate <= p.left_on);
       };
-      const [slots, withoutApp] = await Promise.all([fetchAcceptedOvertimeSlots(from, to), fetchPeopleWithoutApp()]);
-      const accepted = overtimeAcceptedIn(slots, withoutApp);
-      return { rows, drawableOn, overtimeAccepted: accepted };
+      return { rows, drawableOn };
     },
   });
 }

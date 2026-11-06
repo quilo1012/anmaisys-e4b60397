@@ -39,8 +39,8 @@ describe("the Holidays column", () => {
     expect(col.mirrors.map((a) => a.employee_id)).toEqual(["murilo"]);
     expect(col.countLabel).toBe("2 + 1 half day");
 
-    const t = tallyBoard({ allocations: all, areas: AREAS, roster: [], drawable: () => true, overtimeAccepted: () => true });
-    const without = tallyBoard({ allocations: all.filter((a) => a !== murilo), areas: AREAS, roster: [], drawable: () => true, overtimeAccepted: () => true });
+    const t = tallyBoard({ allocations: all, areas: AREAS, roster: [], drawable: () => true });
+    const without = tallyBoard({ allocations: all.filter((a) => a !== murilo), areas: AREAS, roster: [], drawable: () => true });
     expect(t.inProduction).toBe(without.inProduction + 1); // Murilo once, on Line 1
     expect(t.away.holiday).toBe(2);                         // Karoline + Ana, not Murilo
     expect(t.away.total).toBe(without.away.total);

@@ -709,23 +709,6 @@ describe("the day laid out as the company's sheet", () => {
     expect(l.totalStaff).toBe(2);
   });
 
-  it("keeps the rota's overtime stamp on its line but not under Overtime staff", () => {
-    // From 20/10, when the floor answers in the app (`APP_OVERTIME_FROM`).
-    const l = layout([al("e1", "overtime", "l1", { on_date: "2026-11-03" }), al("e2", "assigned", "of", { on_date: "2026-11-03" })]);
-    expect(l.top[0].names.map((n) => n.name)).toEqual(["Zeca Lima"]);
-    expect(l.bottom.find((c) => c.label === "Overtime staff")!.names).toEqual([]);
-    expect(l.totalStaff).toBe(2);
-  });
-
-  it("lists overtime under Overtime staff for somebody with no login", () => {
-    const l = printSheetLayout({
-      areas: AREAS3,
-      allocations: [al("e1", "overtime", "l1", { on_date: "2026-11-03" })],
-      employeeById: new Map([["e1", { ...emp("e1", "Zeca Lima"), user_id: null }]]),
-    });
-    expect(l.bottom.find((c) => c.label === "Overtime staff")!.names.map((n) => n.name)).toEqual(["Zeca Lima"]);
-  });
-
   it("writes the half day beside the name, the way the office does", () => {
     const l = layout([al("e1", "holiday", null, { half_day: true })]);
     expect(l.bottom.find((c) => c.label === "Holidays")!.names[0]).toMatchObject({ name: "Zeca Lima", note: "Half day" });

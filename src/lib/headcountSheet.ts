@@ -4,7 +4,7 @@ import XLSX from "xlsx-js-style";
 import { claimsLeadership, keepsLeadership } from "@/lib/leaderMark";
 import { sheetBandOf } from "@/lib/headcountBlocks";
 import { isHalfDay, isWorkingHalfDay } from "@/lib/halfDay";
-import { overtimeIsAccepted, placementHours, type ConfirmedAsk, type WorkedMarks } from "@/lib/boardOvertime";
+import { placementHours, type ConfirmedAsk, type WorkedMarks } from "@/lib/boardOvertime";
 import { statusForPlacement, type RotaCover } from "@/lib/rotaStatus";
 import { boardShiftFor } from "@/hooks/useHeadcount";
 import type { HeadcountArea, HeadcountEmployee, Allocation, AllocStatus } from "@/hooks/useHeadcount";
@@ -631,12 +631,9 @@ export function printSheetLayout(input: {
         ]),
       },
       {
-        // Only overtime somebody said yes to, as the board counts it. A row the rota
-        // stamped `overtime` is on its line above and stays there; it is not listed as
-        // overtime staff (`overtimeIsAccepted`).
         label: "Overtime staff", tone: "overtime",
         names: ordered(known
-          .filter((a) => overtimeIsAccepted(a, input.confirmedAsks?.get(a.employee_id), input.employeeById.get(a.employee_id)))
+          .filter((a) => a.status === "overtime")
           .map((a) => cell(a))),
       },
       ...(training.names.length ? [training] : []),

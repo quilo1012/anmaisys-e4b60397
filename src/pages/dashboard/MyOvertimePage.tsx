@@ -699,7 +699,7 @@ function AsksForMe({ me }: { me: { id: string; full_name: string; department: st
   };
   const buckets = visible.map((r) => ({ r, b: bucketOf(r) }));
   // Only an accepted ask is accepted. A Headcount placement with no ask behind it is the
-  // rota's overtime stamp, not a yes (see `overtimeIsAccepted`), so it is listed under All only.
+  // rota's overtime stamp, not a yes, so it is listed under All only.
   const countOf = (k: "needs" | "accepted" | "declined") =>
     buckets.filter((x) => x.b === k).length;
   const shownAsks = filter === "all" ? visible : buckets.filter((x) => x.b === filter).map((x) => x.r);

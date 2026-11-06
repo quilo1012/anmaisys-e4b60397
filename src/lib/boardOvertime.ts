@@ -207,64 +207,6 @@ const span = (ws: Array<[number, number]>) => ws.reduce((n, [a, b]) => n + (b - 
 const show = ([a, b]: [number, number]) => `${clock(a)}–${clock(b)}`;
 
 /**
- * Whether an `overtime` row on the board is overtime somebody accepted.
- *
- * `daily_allocations.status = 'overtime'` has two writers. The bridge writes it when an
- * answer is accepted, and stamps the row with the ask (`overtime_request_id`). The board
- * writes it too, on its own, whenever somebody is placed or copied onto a shift their
- * rota does not cover (`statusForPlacement`) — so the finance close pays it as overtime.
- * The second says nothing about the person's answer: between 20/10 and 03/11 there were
- * 85 such rows, 74 of them on a shift with an open ask that only 7 had answered and 2
- * had said no to.
- *
- * The status stays as it is — payroll reads it. This is what the board shows as
- * overtime: a row the bridge wrote, or one with an accepted answer for this board —
- * or any overtime row before `APP_OVERTIME_FROM`, or of somebody with no login (`hasNoApp`).
- */
-export function overtimeIsAccepted(
-  a: Pick<PlacementLike, "status" | "overtime_request_id"> & { on_date?: string },
-  asks: ReadonlyArray<ConfirmedAsk> | undefined,
-  person: { user_id?: string | null } | undefined,
-): boolean {
-  return a.status === "overtime"
-    && (!!a.overtime_request_id || (asks?.length ?? 0) > 0 || beforeTheApp(a.on_date) || hasNoApp(person));
-}
-
-/**
- * Somebody with no login cannot say yes in the app, so the board is the only record of
- * their overtime and being placed on it counts (owner's decision, 06/11/2026). Linking
- * a login ends it. `undefined` means the login was not read, and proves nothing.
- */
-export const hasNoApp = (person: { user_id?: string | null } | undefined): boolean => person?.user_id === null;
-
-/**
- * The first board on which overtime has to be accepted in the app to count as overtime.
- *
- * Before it the floor had no app: overtime was arranged in person and written on the
- * board, so the board's `overtime` row is the only record there is. On 13/10 those rows
- * dropped out of the Overtime column when the rule above arrived (03/11). The owner set
- * the line on 04/11: up to 19/10 an overtime row counts; from 20/10, only an accepted one
- * — the window in which 74 stamped rows sat on shifts with an open ask.
- */
-export const APP_OVERTIME_FROM = "2026-10-20";
-const beforeTheApp = (onDate: string | undefined) => !!onDate && onDate < APP_OVERTIME_FROM;
-
-/** One person on one board: the key `acceptedSlots` is read by. */
-export const slotKey = (employeeId: string, date: string, shift: string) => `${employeeId}|${date}|${shift}`;
-
-/**
- * `overtimeIsAccepted` over a range of days, for screens that read many boards at once
- * (the trend, the overtime panel). `slots` holds `slotKey`s of accepted asks, each on
- * the board its hours belong to (`boardSlotOf`), with cancellations and drop-outs out.
- * `withoutApp` holds the ids of people with no login (`hasNoApp`).
- */
-export function overtimeAcceptedIn(slots: ReadonlySet<string>, withoutApp: ReadonlySet<string>) {
-  return (a: { employee_id: string; on_date: string; shift: string; status: string; overtime_request_id?: string | null }) =>
-    a.status === "overtime"
-    && (!!a.overtime_request_id || slots.has(slotKey(a.employee_id, a.on_date, a.shift)) || beforeTheApp(a.on_date) || withoutApp.has(a.employee_id));
-}
-
-/**
  * Hours for one placement on the board of `boardDate` / `shift`, with the confirmed
  * overtime that belongs to that board laid over it.
  *
