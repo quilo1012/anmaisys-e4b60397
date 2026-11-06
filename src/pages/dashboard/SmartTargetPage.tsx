@@ -24,22 +24,20 @@ import {
   SHOW_MIN_SCORED,
   type LineAccuracy,
 } from "@/lib/smartTargetAccuracy";
-import { FORECAST_LINES, WIDE_MARGIN_LINES, historyFromSessions, skuFamily } from "@/lib/smartTargetHistory";
+import { FORECAST_LINES, WIDE_MARGIN_LINES, historyFromSessions, skuFamily, skuIsSample } from "@/lib/smartTargetHistory";
 import {
   cleanCycles,
   cyclesToFix,
   lineFactors,
-  lineRates,
-  BASE_LINES,
-  BASE_SOURCE,
+  planRates,
+  NO_HISTORY_SOURCE,
+  SAMPLE_SOURCE,
   explainTarget,
   fixSuggestion,
   type FixSuggestion,
   ESTIMATED_SOURCE,
   FAMILY_SOURCE,
-  withEstimates,
   LINE_RATES_CONFIG,
-  OBSERVED_SOURCE,
   productsWithoutCode,
   type CycleToFix,
   type LineFactor,
@@ -78,7 +76,7 @@ const STATUS: Record<ShiftForecast["status"], { label: string; className: string
 /** The rates item once factors are computed: what is live, and what is held back. */
 const RATES_LIVE = {
   label: "Rates: every line",
-  why: `Rates come from each line's base (its logged shifts, the Standard Line Targets reports and iTouch), then iTouch's ideal speed × the line's performance over the last eight weeks, then the rate the line reached on shifts that filled only that product (all provisional). Every line shows its number. A line missing by more than ${SHOW_MAX_MEDIAN_ERROR}% over ${SHOW_MIN_SCORED}+ measured shifts shows a caution beside it.`,
+  why: `Each product's rate is what the line did on its last 5 shifts of it. With no history there, iTouch's ideal speed × the line's performance, marked as an estimate. Sample bags count by the batch, about 3 h each. All provisional. Every line shows its number. A line missing by more than ${SHOW_MAX_MEDIAN_ERROR}% over ${SHOW_MIN_SCORED}+ measured shifts shows a caution beside it.`,
   owner: "Production: correct the cycles listed under Fix in iTouch",
 };
 
@@ -174,24 +172,16 @@ function JobBlock({ job }: { job: JobForecast }) {
         </div>
       )}
       {job.rate?.source.startsWith(ESTIMATED_SOURCE) && (
-        <div className="text-2xs text-warning-strong" title={job.rate.source}>
-          Estimated: no rate for this product
-        </div>
+        <div className="text-2xs text-warning-strong" title={job.rate.source}>Estimated: no rate for this product</div>
+      )}
+      {job.rate?.source.startsWith(NO_HISTORY_SOURCE) && (
+        <div className="text-2xs text-warning-strong" title={job.rate.source}>No history here: estimate</div>
+      )}
+      {job.rate?.source.startsWith(SAMPLE_SOURCE) && (
+        <div className="text-2xs text-muted-foreground" title={job.rate.source}>Sample batches: about 3 h each</div>
       )}
       {job.rate?.source.startsWith(FAMILY_SOURCE) && (
-        <div className="text-2xs text-muted-foreground" title={job.rate.source}>
-          Rate from the line's last {job.rate.sampleShifts} shifts of this product
-        </div>
-      )}
-      {job.rate?.source.startsWith(BASE_SOURCE) && (
-        <div className="text-2xs text-muted-foreground" title={job.rate.source}>
-          Rate from the line's base ({job.rate.sampleShifts} shifts)
-        </div>
-      )}
-      {job.rate?.source.startsWith(OBSERVED_SOURCE) && (
-        <div className="text-2xs text-muted-foreground" title={job.rate.source}>
-          Rate observed on this line ({job.rate.sampleShifts} shifts)
-        </div>
+        <div className="text-2xs text-muted-foreground" title={job.rate.source}>Rate from the line's last {job.rate.sampleShifts} shifts of this product</div>
       )}
       {job.allocation?.basis === "runs_to_shift_end" && (
         <div className="text-2xs text-warning-strong">No order quantity: runs to the end of the shift</div>
@@ -274,9 +264,9 @@ function LineCard({ line, result, notes, basis }: { line: number; result: ShiftF
           <dt className="text-muted-foreground">Rate</dt>
           <dd>
             {basis?.factor?.factor != null
-              ? `${BASE_LINES.includes(line as LineNo) ? "The line's base where it knows the product, then " : ""}iTouch ideal × ${Math.round(basis.factor.factor * 100)}%, this line's performance over ${basis.factor.shiftsUsed} shifts (${basis.from} to ${basis.to})`
+              ? `The line's last shifts of each product, then iTouch ideal × ${Math.round(basis.factor.factor * 100)}%, this line's performance over ${basis.factor.shiftsUsed} shifts (${basis.from} to ${basis.to})`
               : basis
-                ? `${BASE_LINES.includes(line as LineNo) ? "The line's base where it knows the product. " : ""}No performance factor yet: ${basis.factor?.shiftsUsed ?? 0} measurable shifts between ${basis.from} and ${basis.to}, 5 needed.`
+                ? `The line's last shifts of each product. No performance factor yet: ${basis.factor?.shiftsUsed ?? 0} measurable shifts between ${basis.from} and ${basis.to}, 5 needed.`
                 : "Loading the last eight weeks…"}
           </dd>
           {basis?.caution && (
@@ -368,6 +358,7 @@ function AccuracyCard({ accuracy, installed }: { accuracy: LineAccuracy[] | null
                         a.frozenLate && `${a.frozenLate} made late`,
                         a.noNumber && `${a.noNumber} without a number`,
                         a.noActual && `${a.noActual} with nothing logged`,
+                        a.estimated && `${a.estimated} estimates`,
                       ].filter(Boolean).join(", ") || "—"}
                     </td>
                   </tr>
@@ -435,7 +426,7 @@ function FixInItouchCard({ fix, noCode }: { fix: (CycleToFix & { description: st
                       <div className="text-xs text-muted-foreground">{f.shifts} shifts</div>
                     </td>
                     <td className="py-1.5 text-xs text-muted-foreground">
-                      {f.coveredMeanwhile ? "Has a rate from the line's base or history" : "No number for jobs of this product"}
+                      {f.coveredMeanwhile ? "Has a rate from the line's recent shifts" : "No number for jobs of this product"}
                     </td>
                   </tr>
                 ))}
@@ -483,10 +474,12 @@ export default function SmartTargetPage() {
     if (!cycles.length) return null;
     const history = historyFromSessions(historyQuery.data.sessions, historyQuery.data.items, catalogue);
     const factors = lineFactors(history, cycles);
-    return { cycles, factors, history, fix: cyclesToFix(history, cycles, rejected).map((f) => ({
+    return { cycles, factors, history, fix: cyclesToFix(history, cycles, rejected, { familyOf: skuFamily(catalogue), isSample: skuIsSample(catalogue) }).map((f) => ({
       ...f,
       description: identifyItemSku({ sku_id: null, sku_code_text: f.sku, actual: 0, started_at: null, finished_at: null }, catalogue)?.name ?? null,
-      suggestion: fixSuggestion(f.sku, lineRates(f.line, cycles, factors.find((x) => x.line === f.line) ?? null, history), factors.find((x) => x.line === f.line)?.factor ?? null),
+      suggestion: fixSuggestion(f.sku, planRates(f.line, [{ jobId: f.sku, sku: f.sku, sequence: 1 }], {
+        cycles, factor: factors.find((x) => x.line === f.line) ?? null, history, familyOf: skuFamily(catalogue), isSample: skuIsSample(catalogue),
+      }).rates, factors.find((x) => x.line === f.line)?.factor ?? null),
     })), noCode: productsWithoutCode(history), from: historyQuery.data.from, to: historyQuery.data.to };
   }, [cyclesQuery.data, historyQuery.data, catalogue]);
 
@@ -529,7 +522,6 @@ export default function SmartTargetPage() {
       lines: inputs.lines.map((l) => {
         const factor = rateBasis?.factors.find((f) => f.line === l.line) ?? null;
         const shown = FORECAST_LINES.includes(l.line);
-        const ownRates = rateBasis ? lineRates(l.line, rateBasis.cycles, factor, rateBasis.history, skuFamily(catalogue)) : [];
         const basis: RateBasis | null = rateBasis
           ? { factor, caution: cautions.find((c) => c.line === l.line)?.caution ?? null, from: rateBasis.from, to: rateBasis.to }
           : null;
@@ -538,7 +530,7 @@ export default function SmartTargetPage() {
         const fromQueue = fillFromQueue(l.line, l.input.jobs, queue.rows);
         // Nothing logged on this line yet: the plan is what iTouch has queued for it (Q32a).
         // Once Production Control has a plan for the line, that plan answers instead.
-        const queuePlan = l.input.jobs.length ? null : planFromQueue(l.line, queue.rows, 0, ownRates);
+        const queuePlan = l.input.jobs.length ? null : planFromQueue(l.line, queue.rows, 0, []);
         const usesQueuePlan = !!queuePlan?.jobs.length;
         const input = usesQueuePlan
           ? { ...l.input, jobs: queuePlan.jobs, previousSku: queuePlan.previousSku ?? l.input.previousSku }
@@ -548,7 +540,10 @@ export default function SmartTargetPage() {
           : fromQueue.filled
           ? [...l.notes, `Order quantity for ${fromQueue.filled} job${fromQueue.filled === 1 ? "" : "s"} from the iTouch queue read at ${londonTime(queue.rows[0].fetched_at)}: what was left to make then.`]
           : l.notes;
-        const result = forecastShift({ ...input, rates: withEstimates(l.line, input.jobs.map((j) => j.sku), ownRates) }, LINE_RATES_CONFIG);
+        const planned = rateBasis
+          ? planRates(l.line, input.jobs, { cycles: rateBasis.cycles, factor, history: rateBasis.history, familyOf: skuFamily(catalogue), isSample: skuIsSample(catalogue) })
+          : { jobs: input.jobs, rates: [] };
+        const result = forecastShift({ ...input, jobs: planned.jobs, rates: planned.rates }, LINE_RATES_CONFIG);
         return { ...l, notes, basis, result, shown, factor };
       }),
     };

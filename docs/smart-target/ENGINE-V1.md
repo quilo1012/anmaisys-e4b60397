@@ -254,3 +254,16 @@ Line 4 is the clearest gain (12–15% to 8–10%). Line 5 was not improved (15, 
 - **Why this target (06/11).** Each line card says how its number was reached, job by job. Fix in iTouch shows the SKU and product description, and the solution: the target per hour, the cycle to enter (that target ÷ the line's performance) and where it comes from.
 
 - **The line's own shifts as a guard (06/11).** Line 1 was given 3,000 for Essential Protein 1.6 kg at night, when its last 8 shifts of that product made 1,432 to 1,988. Its factor is an average over everything it fills. Now, where a line has 3+ shifts of a product family (name up to the fill size, flavours together) and the rate is 1.3× or more from them, those shifts win. Scored on later shifts, this did no harm (17.0, 15.0 and 15.8% against 17.0, 15.9 and 15.8%): it stops the gross errors, and is not a better model. Why those shifts have 1h30 to 4h between runs is a question for Production.
+
+## The rule since 06/11/2026 (Q62–Q64)
+
+The first real day missed by +103, +422, +50, +3, −10 and +24% on Lines 1 to 6. Earlier tests here (13–16%) were flattered: they used each shift's real quantities, which a forecast cannot know. Treat those figures as measuring rates, not forecasts. The base of 801 rows, the observed rate and the family guard are gone.
+
+- **A product's rate** is what the line did on its last 5 shifts mainly of that product family (name up to the fill size, flavours and markets together, shifts with samples left out), needing at least 2 in the eight weeks.
+- **No history there:** iTouch × factor, marked "No history here: estimate". It was agreed as the line's average, but scored better (14.5% against 16.2%), so the line's usual rate is only the last resort.
+- **Sample bags** (`BLENDED…`, or SAMPLE in the code or name): 185 min a batch, the median of 12 measured gaps, changeover and mixing included.
+- **Estimates stay out of the main measurement:** a forecast with one is kept and counted, not scored.
+
+Fair test, knowing only the shift's main product, on 464 shifts since 15/09 (`scripts/smart-target-base/fair-backtest.cjs`): 14.5% median miss against 17.1%; 12.1% on the 292 shifts with history. It says what the line usually does, not what it could do.
+
+Replay of 06/11 day shift with this rule, from the iTouch queue read at 07:00 and only the shifts before that day (Lines 1 to 6): 1,500, 456, 1,580, 7,885, 2,667 and 3,800, against 1,432, 603, 1,777, 7,811, 2,769 and 4,044 logged (+5, −24, −11, +1, −4, −6%). The rule was chosen after seeing that day, so this shows it fixes those misses, not that it will hold: only the coming shifts can show that.

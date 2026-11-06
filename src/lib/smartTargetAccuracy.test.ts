@@ -47,6 +47,14 @@ describe("accuracyByLine", () => {
     ]);
   });
 
+  it("keeps a forecast resting on an estimate out of the score, and counts it (Q62a)", () => {
+    const [, l2] = accuracyByLine([
+      f({}),
+      f({ session_date: "2026-11-02", frozen_at: "2026-11-02T06:10:00Z", jobs: [{ estimated: false }, { estimated: true }] }),
+    ], new Map([["2026-11-03|DAY|2", 5000], ["2026-11-02|DAY|2", 1]]));
+    expect(l2).toMatchObject({ scored: 1, estimated: 1, medianAbsPctError: 0 });
+  });
+
   it("has no error at all for a line with nothing scored", () => {
     expect(accuracyByLine([], new Map())[0]).toMatchObject({ scored: 0, medianAbsPctError: null });
   });

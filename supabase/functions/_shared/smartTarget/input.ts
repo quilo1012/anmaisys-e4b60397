@@ -197,6 +197,7 @@ export function buildShiftInputs(
       const last = jobs[jobs.length - 1];
       if (last && r.sku !== null && last.sku === r.sku) {
         last.orderQty = last.orderQty !== null && last.orderQty !== undefined && r.qty !== null ? last.orderQty + r.qty : null;
+        last.batches = (last.batches ?? 1) + 1;
         continue;
       }
       jobs.push({ jobId: r.id, sku: r.sku, sequence: jobs.length + 1, orderQty: r.qty });

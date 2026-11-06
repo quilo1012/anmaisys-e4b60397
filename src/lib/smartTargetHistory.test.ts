@@ -64,8 +64,8 @@ describe("historyFromSessions", () => {
 });
 
 describe("which lines show a number", () => {
-  it("is every line, with the tested margin of the two over the goal", () => {
+  it("is every line, with the tested margin of the one over the goal", () => {
     expect(FORECAST_LINES).toEqual([1, 2, 3, 4, 5, 6]);
-    expect(WIDE_MARGIN_LINES).toEqual({ 1: 22, 3: 18 });
+    expect(WIDE_MARGIN_LINES).toEqual({ 3: 22 });
   });
 });

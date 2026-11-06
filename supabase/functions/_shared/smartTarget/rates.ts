@@ -22,8 +22,7 @@
  * nobody has audited yet.
  */
 
-import { normaliseSku, parseLineNo, type JobForecast, type LineNo, type RateRecord } from "./engine.ts";
-import { BASE_LINES, RATE_BASE_DATE, RATE_BASE_ROWS } from "./rateBase.ts";
+import { normaliseSku, parseLineNo, type JobForecast, type LineNo, type PlannedJob, type RateRecord } from "./engine.ts";
 
 export interface CycleRecord {
   line: unknown;
@@ -184,82 +183,47 @@ export function ratesForLine(line: LineNo, cycles: CleanCycle[], factor: LineFac
     }));
 }
 
-/** Fewest single-product shifts an observed rate rests on (Q43). */
-export const OBSERVED_MIN_SHIFTS = 3;
-export const OBSERVED_SOURCE = "Observed on this line";
+/**
+ * The rule for what a shift will fill (decided 06/11, Q62a): what this line did on its last
+ * 5 shifts of this product. Simple, and it knows what an average cannot: Essential Protein
+ * 1.6 kg on Line 1 makes about 1,600 a shift because of the hours between runs, whatever the
+ * line's speed on other products. It says what the line usually does, not what it could do.
+ *
+ * Scored fairly, knowing only the shift's main product, on 464 shifts since 15/09: a median
+ * miss of 14.5%, against 17.1% for iTouch × factor alone; 12.1% where the line has history.
+ */
+export const LAST_SHIFTS = 5;
+export const LAST_SHIFTS_MIN = 2;
+export const FAMILY_SOURCE = "Recent shifts of this product";
+/** No history of this product on the line: iTouch × factor. An estimate, left out of the main measurement. */
+export const NO_HISTORY_SOURCE = "No history";
+/** Nothing at all for this product: the line's usual rate. An estimate, left out too. */
+export const ESTIMATED_SOURCE = "Estimated";
+export const SAMPLE_SOURCE = "Sample batches";
 
 /**
- * A rate for each product the line has filled on its own for a whole shift, at least
- * OBSERVED_MIN_SHIFTS times: the median of containers ÷ (net minutes − setup) over those
- * shifts (decided 05/11, Q43a). It is the second choice, used only where iTouch has no
- * usable cycle for the product on this line. It is measured, not made up, and it says
- * so: the source starts with OBSERVED_SOURCE.
+ * Sample bags are timed by the batch, not the unit (decided 06/11, Q63a): from the start of
+ * one batch to the start of the next took a median 185 min on 12 measured gaps (164 to 202
+ * for the middle half), changeover and mixing included, for about 46 bags.
  */
-export function observedRates(line: LineNo, history: HistoryShift[], minShifts = OBSERVED_MIN_SHIFTS): RateRecord[] {
-  const bySku = new Map<string, number[]>();
-  for (const h of history) {
-    if (h.line !== line) continue;
-    const made = h.made.filter((m) => m.qty > 0);
-    if (made.length !== 1) continue;
-    const sku = normaliseSku(made[0].sku);
-    const available = h.netMinutes - h.setupMinutes;
-    if (!sku || available <= 0) continue;
-    bySku.set(sku, [...(bySku.get(sku) ?? []), (made[0].qty / available) * 60]);
-  }
-  const out: RateRecord[] = [];
-  for (const [sku, perHour] of bySku) {
-    if (perHour.length < minShifts) continue;
-    out.push({
-      line,
-      sku,
-      value: Math.round(median(perHour) * 10) / 10,
-      unit: "containers/hour",
-      status: "provisional",
-      sampleShifts: perHour.length,
-      source: `${OBSERVED_SOURCE}: median of ${perHour.length} shifts that filled only ${sku}`,
-    });
-  }
-  return out;
+export const SAMPLE_BATCH_MINUTES = 185;
+export const SAMPLE_BATCH_UNITS = 46;
+
+/** Q64a: anything starting BLENDED, or with SAMPLE in its code or name. */
+export function isSampleProduct(sku: string | null | undefined, name?: string | null): boolean {
+  return /^BLENDED/i.test(String(sku ?? "").trim()) || /SAMPLE/i.test(`${sku ?? ""} ${name ?? ""}`);
 }
 
-export { BASE_LINES };
+/** Whether a rate is an estimate, so its forecast stays out of the main measurement. */
+export function isEstimateRate(source: string | null | undefined): boolean {
+  return !!source && (source.startsWith(NO_HISTORY_SOURCE) || source.startsWith(ESTIMATED_SOURCE));
+}
 
 /**
- * For forecasts that use lineRates(). The engine's own floor of 5 history shifts is for a
- * rate it knows nothing else about. Every rate here has already met its own rule: a factor
- * rests on 5+ shifts, an observed rate on 3+, and a base row was tested as a whole, thin
- * rows included. With the floor on, a base row with 1 shift hid the iTouch × factor rate
- * behind it and the product read "no rate" (Line 6, CWBAG450V, 06/11).
+ * For forecasts built here. The engine's floor of 5 history shifts is for a rate it knows
+ * nothing else about; each rate here has already met its own rule.
  */
 export const LINE_RATES_CONFIG = { minHistoryShifts: 0 };
-export const BASE_SOURCE = "Line base";
-
-const baseRows = RATE_BASE_ROWS.trim().split("\n").map((row) => {
-  const [line, sku, perHour, shifts] = row.split("|");
-  return { line: Number(line) as LineNo, sku: normaliseSku(sku)!, perHour: Number(perHour), shifts: Number(shifts) };
-});
-
-/** The base's rates for a line. Empty for a line the base did not improve (rateBase.ts). */
-export function baseRates(line: LineNo): RateRecord[] {
-  if (!BASE_LINES.includes(line)) return [];
-  return baseRows
-    .filter((r) => r.line === line)
-    .map((r) => ({
-      line,
-      sku: r.sku,
-      value: r.perHour,
-      unit: "containers/hour",
-      status: "provisional" as const,
-      sampleShifts: r.shifts,
-      source: `${BASE_SOURCE} of ${RATE_BASE_DATE}: ${r.shifts} shifts on this line, reports and iTouch`,
-    }));
-}
-
-export const FAMILY_SOURCE = "Recent shifts of this product";
-/** Fewest shifts of one product family on a line before they can overrule a rate. */
-export const FAMILY_MIN_SHIFTS = 3;
-/** How far apart the rate and those shifts must be before they overrule it. */
-export const FAMILY_MAX_APART = 1.3;
 
 /**
  * A product family from a product name: everything up to and including the fill size, without
@@ -271,95 +235,81 @@ export function familyFromName(name: string | null | undefined): string | null {
   return /^(.*?\d+(?:\.\d+)?\s*(?:KG|G))\b/.exec(clean)?.[1] ?? null;
 }
 
-/**
- * What the line reached per hour on shifts that filled one product family, flavours included:
- * family → the median of containers ÷ (net − setup), with at least FAMILY_MIN_SHIFTS shifts.
- */
-function familyRates(line: LineNo, history: HistoryShift[], familyOf: (sku: string) => string | null) {
-  const byFamily = new Map<string, number[]>();
-  for (const h of history) {
+export interface PlanRateInputs {
+  cycles: CleanCycle[];
+  factor: LineFactor | null;
+  /** Oldest first, as historyFromSessions() returns it. */
+  history: HistoryShift[];
+  /** A SKU's family; a SKU with none stands for itself. */
+  familyOf: (sku: string) => string | null;
+  isSample: (sku: string) => boolean;
+}
+
+const perHourOf = (h: HistoryShift) => {
+  const available = h.netMinutes - h.setupMinutes;
+  return available > 0 ? (h.made.reduce((sum, m) => sum + Math.max(0, m.qty), 0) / available) * 60 : null;
+};
+
+/** What the line reached on its last shifts of each family: those it mostly filled, no samples. */
+export function lastShiftsRates(line: LineNo, inputs: Pick<PlanRateInputs, "history" | "familyOf" | "isSample">) {
+  const seen = new Map<string, number[]>();
+  for (const h of inputs.history) {
     if (h.line !== line) continue;
-    const made = h.made.filter((m) => m.qty > 0);
-    const families = new Set(made.map((m) => (m.sku ? familyOf(m.sku) : null)));
-    const family = families.size === 1 ? [...families][0] : null;
-    const available = h.netMinutes - h.setupMinutes;
-    if (!family || available <= 0) continue;
-    const total = made.reduce((sum, m) => sum + m.qty, 0);
-    byFamily.set(family, [...(byFamily.get(family) ?? []), (total / available) * 60]);
+    const made = h.made.filter((m) => m.qty > 0 && m.sku);
+    if (!made.length || made.some((m) => inputs.isSample(m.sku!))) continue;
+    const byFamily = new Map<string, number>();
+    for (const m of made) {
+      const family = inputs.familyOf(m.sku!) ?? normaliseSku(m.sku)!;
+      byFamily.set(family, (byFamily.get(family) ?? 0) + m.qty);
+    }
+    const [main] = [...byFamily.entries()].sort((a, b) => b[1] - a[1])[0];
+    const rate = perHourOf(h);
+    if (rate !== null) seen.set(main, [...(seen.get(main) ?? []), rate]);
   }
   const out = new Map<string, { perHour: number; shifts: number }>();
-  for (const [family, perHour] of byFamily) {
-    if (perHour.length >= FAMILY_MIN_SHIFTS) out.set(family, { perHour: median(perHour), shifts: perHour.length });
+  for (const [family, rates] of seen) {
+    if (rates.length >= LAST_SHIFTS_MIN) {
+      const last = rates.slice(-LAST_SHIFTS);
+      out.set(family, { perHour: median(last), shifts: last.length });
+    }
   }
   return out;
 }
 
 /**
- * Every rate the line has, best first: the line's base, then iTouch's ideal × the line's
- * factor, then the rate observed on the line for products neither of those covers.
- *
- * A check on top, given `familyOf`: where the line's own shifts of that product family are
- * FAMILY_MAX_APART or more from the rate, those shifts win. A line's factor is an average
- * over everything it fills, and on 06/11 it put Essential Protein 1.6 kg on Line 1 at 293/h
- * against the 160/h its last 8 shifts reached, so a shift target of 3,000 where the line
- * makes about 1,600. Scored on later shifts, this rule did no harm on the three cut-offs
- * (17.0, 15.0 and 15.8% against 17.0, 15.9 and 15.8%): it is a guard, not a better model.
+ * The rates for one line's plan, one per product, best evidence first: sample batches by
+ * time; the line's last shifts of the product; iTouch × factor, marked as having no history;
+ * the line's usual rate, marked as an estimate. Sample jobs carry no separate changeover or
+ * mixing, because the batch time already holds them.
  */
-export function lineRates(
-  line: LineNo,
-  cycles: CleanCycle[],
-  factor: LineFactor | null,
-  history: HistoryShift[],
-  familyOf?: (sku: string) => string | null,
-): RateRecord[] {
-  const out: RateRecord[] = [];
-  const covered = new Set<string | null>();
-  for (const r of [...baseRates(line), ...(factor ? ratesForLine(line, cycles, factor) : []), ...observedRates(line, history)]) {
-    const key = normaliseSku(r.sku);
-    if (covered.has(key)) continue;
-    covered.add(key);
-    out.push(r);
-  }
-  if (!familyOf) return out;
-  const families = familyRates(line, history, familyOf);
-  return out.map((r) => {
-    const family = familyOf(r.sku);
-    const seen = family ? families.get(family) : undefined;
-    if (!seen || Math.max(seen.perHour / r.value, r.value / seen.perHour) < FAMILY_MAX_APART) return r;
-    return {
-      ...r,
-      value: Math.round(seen.perHour * 10) / 10,
-      sampleShifts: seen.shifts,
-      source: `${FAMILY_SOURCE}: median of ${seen.shifts} shifts of ${family} on Line ${line}`,
-    };
+export function planRates(line: LineNo, jobs: PlannedJob[], inputs: PlanRateInputs): { jobs: PlannedJob[]; rates: RateRecord[] } {
+  const families = lastShiftsRates(line, inputs);
+  const fromItouch = new Map((inputs.factor ? ratesForLine(line, inputs.cycles, inputs.factor) : []).map((r) => [normaliseSku(r.sku), r]));
+  const usual = inputs.history.filter((h) => h.line === line).slice(-10).map(perHourOf).filter((r): r is number => r !== null);
+  const rates = new Map<string, RateRecord>();
+  const record = (sku: string, value: number, sampleShifts: number, source: string): RateRecord =>
+    ({ line, sku, value: Math.round(value * 10) / 10, unit: "containers/hour", status: "provisional", sampleShifts, source });
+  const planned = jobs.map((job) => {
+    const sku = normaliseSku(job.sku);
+    if (!sku) return job;
+    if (inputs.isSample(sku)) {
+      const batches = job.batches ?? 1;
+      const orderQty = job.orderQty && job.orderQty > 0 ? job.orderQty : batches * SAMPLE_BATCH_UNITS;
+      if (!rates.has(sku)) {
+        rates.set(sku, record(sku, orderQty / ((batches * SAMPLE_BATCH_MINUTES) / 60), 0, `${SAMPLE_SOURCE}: about ${Math.round(SAMPLE_BATCH_MINUTES / 60)} h a batch, ${batches} batch${batches === 1 ? "" : "es"}`));
+      }
+      return { ...job, orderQty, changeoverMinutes: 0, mixingMinutes: 0 };
+    }
+    if (rates.has(sku)) return job;
+    const family = inputs.familyOf(sku) ?? sku;
+    const seen = families.get(family);
+    const itouch = fromItouch.get(sku);
+    if (seen) rates.set(sku, record(sku, seen.perHour, seen.shifts, `${FAMILY_SOURCE}: median of the last ${seen.shifts} shifts of ${family} on Line ${line}`));
+    else if (itouch) rates.set(sku, { ...itouch, source: `${NO_HISTORY_SOURCE}: ${itouch.source}` });
+    else if (usual.length) rates.set(sku, record(sku, median(usual), 0, `${ESTIMATED_SOURCE}: no rate for ${sku}, so the line's usual rate`));
+    return job;
   });
-}
-
-export const ESTIMATED_SOURCE = "Estimated";
-
-/**
- * A rate for each planned product the line has none for: the median of the line's other
- * rates, marked as an estimate (decided 06/11, Q56a). One product with no rate anywhere
- * used to leave every job after it with no time, so a tiny order could blank a whole
- * line. A line with no rates at all gets none: there is nothing to estimate from.
- */
-export function withEstimates(line: LineNo, skus: (string | null | undefined)[], rates: RateRecord[]): RateRecord[] {
-  if (!rates.length) return rates;
-  const known = new Set(rates.map((r) => normaliseSku(r.sku)));
-  const value = Math.round(median(rates.map((r) => r.value)) * 10) / 10;
-  const missing = [...new Set(skus.map((s) => normaliseSku(s)).filter((s): s is string => !!s && !known.has(s)))];
-  return [
-    ...rates,
-    ...missing.map((sku) => ({
-      line,
-      sku,
-      value,
-      unit: "containers/hour",
-      status: "provisional" as const,
-      sampleShifts: 0,
-      source: `${ESTIMATED_SOURCE}: no rate for ${sku} on Line ${line}, so the median of the line's rates`,
-    })),
-  ];
+  return { jobs: planned, rates: [...rates.values()] };
 }
 
 export interface CycleToFix {
@@ -370,7 +320,7 @@ export interface CycleToFix {
   problem: string;
   madeQty: number;
   shifts: number;
-  /** True when the line has a rate for it in the meantime, from its base or its history. */
+  /** True when the line's own recent shifts give it a rate in the meantime. */
   coveredMeanwhile: boolean;
 }
 
@@ -379,7 +329,12 @@ export interface CycleToFix {
  * that have no usable iTouch cycle, biggest first. The full rejected list is far longer
  * and mostly products nobody makes.
  */
-export function cyclesToFix(history: HistoryShift[], cycles: CleanCycle[], rejected: RejectedCycle[]): CycleToFix[] {
+export function cyclesToFix(
+  history: HistoryShift[],
+  cycles: CleanCycle[],
+  rejected: RejectedCycle[],
+  families: Pick<PlanRateInputs, "familyOf" | "isSample"> = { familyOf: () => null, isSample: () => false },
+): CycleToFix[] {
   const usable = new Set(cycles.map((c) => `${c.line}|${c.sku}`));
   const made = new Map<string, { line: LineNo; sku: string; qty: number; shifts: number }>();
   for (const h of history) {
@@ -393,11 +348,11 @@ export function cyclesToFix(history: HistoryShift[], cycles: CleanCycle[], rejec
       made.set(k, cur);
     }
   }
-  const observed = new Map<LineNo, Set<string>>();
+  const known = new Map<LineNo, Map<string, unknown>>();
   const out: CycleToFix[] = [];
   for (const [k, m] of made) {
     if (usable.has(k)) continue;
-    if (!observed.has(m.line)) observed.set(m.line, new Set([...baseRates(m.line), ...observedRates(m.line, history)].map((r) => normaliseSku(r.sku)!)));
+    if (!known.has(m.line)) known.set(m.line, lastShiftsRates(m.line, { history, ...families }));
     const bad = rejected.find((r) => parseLineNo(r.line) === m.line && normaliseSku(r.sku) === m.sku);
     out.push({
       line: m.line,
@@ -406,7 +361,7 @@ export function cyclesToFix(history: HistoryShift[], cycles: CleanCycle[], rejec
       problem: bad ? bad.reason : "No cycle time for this product on this line in iTouch.",
       madeQty: m.qty,
       shifts: m.shifts,
-      coveredMeanwhile: observed.get(m.line)!.has(m.sku),
+      coveredMeanwhile: known.get(m.line)!.has(families.familyOf(m.sku) ?? m.sku),
     });
   }
   return out.sort((a, b) => b.madeQty - a.madeQty || a.line - b.line);
@@ -430,10 +385,10 @@ export function fixSuggestion(sku: string, rates: RateRecord[], factor: number |
   if (!rate) return { perHour: null, cycleSeconds: null, why: "No shifts of it on this line yet: time a run and enter the cycle." };
   const cycle = factor ? Math.round((3600 / rate.value) * factor * 10) / 10 : null;
   const usable = cycle !== null && cycle >= DEFAULT_CYCLE_LIMITS.minSeconds && cycle <= DEFAULT_CYCLE_LIMITS.maxSeconds;
-  const from = rate.source.startsWith(BASE_SOURCE)
-    ? `The line's base: ${rate.sampleShifts} shifts on this line, the reports and iTouch`
-    : rate.source.startsWith(OBSERVED_SOURCE)
-      ? `What the line reached on ${rate.sampleShifts} shifts that filled only this product`
+  const from = rate.source.startsWith(FAMILY_SOURCE)
+    ? `What the line reached on its last ${rate.sampleShifts} shifts of this product`
+    : rate.source.startsWith(ESTIMATED_SOURCE)
+      ? "An estimate: the line's usual rate"
       : `iTouch's other cycles at this line's performance`;
   return {
     perHour: Math.round(rate.value),
@@ -449,13 +404,11 @@ export function explainTarget(jobs: JobForecast[]): string[] {
     const perHour = Math.round(j.rate.perHour);
     const from = j.rate.source.startsWith(FAMILY_SOURCE)
       ? `the line's last ${j.rate.sampleShifts} shifts of this product`
-      : j.rate.source.startsWith(BASE_SOURCE)
-      ? `the line's base, ${j.rate.sampleShifts} shifts`
-      : j.rate.source.startsWith(OBSERVED_SOURCE)
-        ? `observed on this line, ${j.rate.sampleShifts} shifts`
-        : j.rate.source.startsWith(ESTIMATED_SOURCE)
-          ? "an estimate: the median of the line's rates"
-          : "iTouch's cycle × the line's performance";
+      : j.rate.source.startsWith(SAMPLE_SOURCE)
+        ? `sample batches, about ${Math.round(SAMPLE_BATCH_MINUTES / 60)} h each`
+        : j.rate.source.startsWith(NO_HISTORY_SOURCE)
+          ? "no history here: iTouch's cycle × the line's performance, an estimate"
+          : "an estimate: the line's usual rate";
     const qty = j.expectedContainers.toLocaleString();
     return [
       j.allocation?.basis === "order_qty_at_rate" && j.allocation.completesOrder

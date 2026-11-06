@@ -33,7 +33,7 @@ describe("the Smart Target on the line tablet", () => {
   });
 
   it("shows a wide-margin line's number, with the caution beside it", () => {
-    show(target({ line: 1, expected_total: 2903 }));
+    show(target({ line: 3, expected_total: 2903 }));
     expect(screen.getByText("2,903")).toBeInTheDocument();
     expect(screen.getByText(/usually misses by about 22%/)).toBeInTheDocument();
   });

@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ENGINE_VERSION, type LineNo, type ShiftForecast, type ShiftType } from "@/lib/smartTargetEngine";
-import type { LineFactor } from "@/lib/smartTargetRates";
+import { isEstimateRate, type LineFactor } from "@/lib/smartTargetRates";
 import { isCurrentShift } from "@/lib/smartTargetQueue";
 import type { StoredForecast } from "@/lib/smartTargetAccuracy";
 
@@ -36,7 +36,7 @@ export function useSmartTargetForecastRows(date: string) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("smart_target_forecasts")
-        .select("session_date, shift, line, shown, expected_total, frozen_at")
+        .select("session_date, shift, line, shown, expected_total, frozen_at, jobs")
         .gte("session_date", from)
         .lte("session_date", date)
         .order("session_date");
@@ -86,6 +86,7 @@ export function useFreezeSmartTargetForecasts(date: string, shift: ShiftType, to
           order: j.orderQty,
           expected: j.expectedContainers,
           basis: j.allocation?.basis ?? null,
+          estimated: isEstimateRate(j.rate?.source),
         })),
         engine_version: ENGINE_VERSION,
       }));
