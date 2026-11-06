@@ -71,6 +71,8 @@ export interface SmartTargetItem {
    * orders them; without it the "last job" was whichever id sorted last.
    */
   created_at?: string | null;
+  /** What operators logged on the row, for the line card's comparison. */
+  actual_qty?: number | null;
 }
 
 /** An input the engine needs that the app does not have yet. */

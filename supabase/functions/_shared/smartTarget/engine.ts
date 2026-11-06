@@ -40,7 +40,7 @@
 
 import { londonWallToUtc } from "../production/shifts.ts";
 
-export const ENGINE_VERSION = "smart-target-engine/1.0";
+export const ENGINE_VERSION = "smart-target-engine/2.0";
 
 export type ShiftType = "DAY" | "NIGHT";
 export type LineNo = 1 | 2 | 3 | 4 | 5 | 6;

@@ -267,3 +267,11 @@ The first real day missed by +103, +422, +50, +3, −10 and +24% on Lines 1 to 6
 Fair test, knowing only the shift's main product, on 464 shifts since 15/09 (`scripts/smart-target-base/fair-backtest.cjs`): 14.5% median miss against 17.1%; 12.1% on the 292 shifts with history. It says what the line usually does, not what it could do.
 
 Replay of 06/11 day shift with this rule, from the iTouch queue read at 07:00 and only the shifts before that day (Lines 1 to 6): 1,500, 456, 1,580, 7,885, 2,667 and 3,800, against 1,432, 603, 1,777, 7,811, 2,769 and 4,044 logged (+5, −24, −11, +1, −4, −6%). The rule was chosen after seeing that day, so this shows it fixes those misses, not that it will hold: only the coming shifts can show that.
+
+## What 06/11/2026 showed (analysis)
+
+- **The page showed a recalculation as the target.** The big number was worked out on opening, from what operators had logged since, so it changed during the shift and knew the answer afterwards. The line card now leads with the target kept for the shift and its time, then what was logged and the miss, then "Calculated now" if it differs.
+- **Each shift's kept target came from whichever code was live when it was saved.** That day alone held three methods. `ENGINE_VERSION` is now 2.0 and only the current method is scored; older rows are listed as "from an older method".
+- **iTouch's queue reports nothing done.** Every row on both shifts read 0 done and "Scheduled"; finished batches just leave the list. So "order − made" subtracts nothing and the running-job correction (Q38) never fires.
+- **What ran was not what was queued.** Line 5 was queued `BEEFXPCA` and logged `BEEFXP900CA`; Line 6 was queued `CWBAG450V` and logged `CW4V`, then `CW825V`; Line 4 queued `CRE500` and logged `PERUCRE500`. A forecast from the queue cannot see this.
+- `BEEFXP900CA` is named "BEEF-XP CHERRY APPLE" in the product list, with no size, so it has no family and reads as no history.

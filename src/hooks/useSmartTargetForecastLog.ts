@@ -36,7 +36,7 @@ export function useSmartTargetForecastRows(date: string) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("smart_target_forecasts")
-        .select("session_date, shift, line, shown, expected_total, frozen_at, jobs")
+        .select("session_date, shift, line, shown, expected_total, frozen_at, jobs, engine_version")
         .gte("session_date", from)
         .lte("session_date", date)
         .order("session_date");

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { accuracyByLine, actualTotals, frozenOnTime, type StoredForecast } from "./smartTargetAccuracy";
+import { accuracyByLine, actualTotals, frozenOnTime, targetVersusLogged, type StoredForecast } from "./smartTargetAccuracy";
+import { ENGINE_VERSION } from "./smartTargetEngine";
 
 const f = (over: Partial<StoredForecast>): StoredForecast => ({
   session_date: "2026-11-03", shift: "DAY", line: 2, shown: true, expected_total: 5000, frozen_at: "2026-11-03T06:30:00Z", ...over,
@@ -55,7 +56,26 @@ describe("accuracyByLine", () => {
     expect(l2).toMatchObject({ scored: 1, estimated: 1, medianAbsPctError: 0 });
   });
 
+  it("scores only the method in use, so 06/11's old numbers do not stand against the new rule", () => {
+    const [, l2] = accuracyByLine([
+      f({ engine_version: ENGINE_VERSION }),
+      f({ session_date: "2026-11-02", frozen_at: "2026-11-02T06:10:00Z", engine_version: "smart-target-engine/1.0", expected_total: 99 }),
+    ], new Map([["2026-11-03|DAY|2", 5000], ["2026-11-02|DAY|2", 5000]]));
+    expect(l2).toMatchObject({ scored: 1, oldMethod: 1, medianAbsPctError: 0 });
+  });
+
   it("has no error at all for a line with nothing scored", () => {
     expect(accuracyByLine([], new Map())[0]).toMatchObject({ scored: 0, medianAbsPctError: null });
+  });
+});
+
+describe("the target against what was logged", () => {
+  it("is the miss of the kept target, as Line 1 on 06/11: 2,903 against 1,432", () => {
+    expect(targetVersusLogged(2903, 1432)).toBe(103);
+    expect(targetVersusLogged(2505, 2769)).toBe(-10);
+  });
+  it("says nothing without a target or anything logged", () => {
+    expect(targetVersusLogged(null, 100)).toBeNull();
+    expect(targetVersusLogged(100, 0)).toBeNull();
   });
 });

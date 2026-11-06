@@ -76,7 +76,7 @@ async function stub(page: Page, cycles: unknown[] = [], history = false, items: 
     if (url.includes("/smart_target_queue_snapshots")) return json(queue);
     if (url.includes("/smart_target_forecasts")) return json(forecasts);
     if (url.includes("/production_sessions")) return json(url.includes(`session_date=lte.${DATE}`) ? SESSIONS : history ? HISTORY_SESSIONS : []);
-    if (url.includes("/production_items")) return json(url.includes("actual_qty") ? (history ? HISTORY_ITEMS : []) : items);
+    if (url.includes("/production_items")) return json(url.includes("planned_qty") ? items : history ? HISTORY_ITEMS : []);
     if (url.includes("/sku_products")) return json(SKUS);
     if (url.includes("/itouch_cycle_times")) return json(cycles);
     return json([]);
@@ -369,7 +369,7 @@ test("keeps the running shift's forecast once, every line alike", async ({ page 
       ]));
     }
     if (url.includes("/production_items")) {
-      if (url.includes("actual_qty")) return json([...hist.items, ...hist.items.map((i) => ({ ...i, session_id: `${i.session_id}b` }))]);
+      if (!url.includes("planned_qty")) return json([...hist.items, ...hist.items.map((i) => ({ ...i, session_id: `${i.session_id}b` }))]);
       return json(["DAY", "NIGHT"].flatMap((sh) => [
         { id: `i2${sh}`, session_id: `t2${sh}`, display_order: 1, sku_id: "sku-col", sku_code_text: null, planned_qty: 0 },
         { id: `i1${sh}`, session_id: `t1${sh}`, display_order: 1, sku_id: "sku-col", sku_code_text: null, planned_qty: 0 },
@@ -387,3 +387,21 @@ test("keeps the running shift's forecast once, every line alike", async ({ page 
   const rows = saves[0].p_rows.sort((a, b) => a.line - b.line);
   expect(rows.map((r) => [r.line, r.shown, r.expected_total !== null])).toEqual([[1, true, true], [2, true, true]]);
 });
+
+test("a line shows the target kept for the shift, what was logged, and not the recalculation as the target", async ({ page }) => {
+  const at = `${DATE}T07:39:00Z`;
+  const items = [{ id: "i21", session_id: "s2", display_order: 1, sku_id: "sku-col", sku_code_text: null, planned_qty: 3000, created_at: at, actual_qty: 1432 }];
+  await stub(page, [
+    { machine: "Filler Line 2", sku: "COL165SR", cycle_seconds: 2.9, cavities: null, source: "t", imported_at: at },
+  ], true, items, 2, [], [
+    { session_date: DATE, shift: "DAY", line: 2, shown: true, expected_total: 2903, frozen_at: at, jobs: [], engine_version: "smart-target-engine/1.0" },
+  ]);
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await open(page);
+  const line2 = page.getByTestId("smart-target-line-2");
+  await expect(line2).toContainText("2,903");
+  await expect(line2).toContainText("target set 07:39");
+  await expect(page.getByTestId("smart-target-logged-2")).toHaveText(/Logged 1,432 · target \+103%/);
+  await expect(line2).toContainText("Calculated now: 3,000");
+});
+

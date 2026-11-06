@@ -15,7 +15,7 @@
  * listed as not measurable, never scored as a 100% miss.
  */
 
-import { shiftWindow, type LineNo, type ShiftType } from "./engine.ts";
+import { ENGINE_VERSION, shiftWindow, type LineNo, type ShiftType } from "./engine.ts";
 import type { HistoryShift } from "./rates.ts";
 
 /** Forecasts frozen later than this after the shift starts are kept but not scored. */
@@ -28,6 +28,8 @@ export interface StoredForecast {
   shown: boolean;
   expected_total: number | null;
   frozen_at: string;
+  /** The method that made it. Only the current method is scored; a missing one counts as current. */
+  engine_version?: string | null;
   /** What the forecast was built from; a job marked estimated keeps it out of the main measure. */
   jobs?: { estimated?: boolean }[] | null;
 }
@@ -39,6 +41,8 @@ export interface LineAccuracy {
   frozenLate: number;
   noNumber: number;
   noActual: number;
+  /** Made by an earlier method: kept, listed, not scored, so the error describes the rule in use. */
+  oldMethod: number;
   /** Forecasts resting on an estimate: kept, listed, not scored (Q62a). */
   estimated: number;
   medianAbsPctError: number | null;
@@ -81,9 +85,10 @@ export function accuracyByLine(forecasts: StoredForecast[], actuals: Map<string,
     const own = forecasts
       .filter((f) => f.line === line)
       .sort((a, b) => (a.session_date === b.session_date ? (a.shift < b.shift ? 1 : -1) : a.session_date < b.session_date ? 1 : -1));
-    const acc: LineAccuracy = { line, scored: 0, frozenLate: 0, noNumber: 0, noActual: 0, estimated: 0, medianAbsPctError: null, within10: 0, within20: 0, recent: [] };
+    const acc: LineAccuracy = { line, scored: 0, frozenLate: 0, noNumber: 0, noActual: 0, oldMethod: 0, estimated: 0, medianAbsPctError: null, within10: 0, within20: 0, recent: [] };
     const errors: number[] = [];
     for (const f of own) {
+      if (f.engine_version && f.engine_version !== ENGINE_VERSION) { acc.oldMethod++; continue; }
       if (!frozenOnTime(f)) { acc.frozenLate++; continue; }
       if (f.expected_total === null) { acc.noNumber++; continue; }
       if (f.jobs?.some((j) => j.estimated)) { acc.estimated++; continue; }
@@ -132,4 +137,14 @@ export function lineCautions(accuracy: LineAccuracy[] | null, tested: Partial<Re
       caution: a.medianAbsPctError <= SHOW_MAX_MEDIAN_ERROR ? null : `Over its last ${a.scored} measured shifts Line ${line} missed by a median ${a.medianAbsPctError}%, over the ${SHOW_MAX_MEDIAN_ERROR}% goal. Read its number as a guide.`,
     };
   });
+}
+
+/**
+ * What the line card compares: the target kept for the shift, and what was logged against it.
+ * The miss is against the kept target when there is one. A number calculated after the shift
+ * has seen its plan and proves nothing.
+ */
+export function targetVersusLogged(kept: number | null | undefined, logged: number | null | undefined): number | null {
+  if (kept === null || kept === undefined || !logged || logged <= 0) return null;
+  return Math.round(((kept - logged) / logged) * 100);
 }
