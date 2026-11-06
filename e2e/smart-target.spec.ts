@@ -215,6 +215,10 @@ test("uses the line's base, or the rate it reached where iTouch's cycle is wrong
   const fix = page.getByTestId("smart-target-fix-itouch");
   await expect(fix).toContainText("COL165SR");
   await expect(fix).toContainText("0.31 s");
+  await expect(fix).toContainText("COLLAGEN 165G STRAWBERRY");
+  await expect(fix).toContainText(/Target [\d,]+\/h/);
+  await page.screenshot({ path: "e2e/.results/smart-target-why.png", fullPage: true });
+  await expect(line5).toContainText("Why this target");
   await expect(fix).toContainText("31,810");
   await expect(fix).toContainText("Has a rate from the line's base or history");
   expect(errors).toEqual([]);

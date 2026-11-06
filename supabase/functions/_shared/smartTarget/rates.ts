@@ -22,7 +22,7 @@
  * nobody has audited yet.
  */
 
-import { normaliseSku, parseLineNo, type LineNo, type RateRecord } from "./engine.ts";
+import { normaliseSku, parseLineNo, type JobForecast, type LineNo, type RateRecord } from "./engine.ts";
 import { BASE_LINES, RATE_BASE_DATE, RATE_BASE_ROWS } from "./rateBase.ts";
 
 export interface CycleRecord {
@@ -346,6 +346,57 @@ export function cyclesToFix(history: HistoryShift[], cycles: CleanCycle[], rejec
     });
   }
   return out.sort((a, b) => b.madeQty - a.madeQty || a.line - b.line);
+}
+
+export interface FixSuggestion {
+  /** The target the line should use for this product, or null with no evidence. */
+  perHour: number | null;
+  /** The ideal cycle to enter in iTouch: that target ÷ the line's performance. */
+  cycleSeconds: number | null;
+  why: string;
+}
+
+/**
+ * What to do about a product on the Fix in iTouch list, and why. The cycle iTouch should
+ * hold is the one that, at the line's performance, gives the rate the line reaches: for
+ * Line 4's CRE500, 5.1 s real at 62% is about 3.1 s, not the 0.31 s it held.
+ */
+export function fixSuggestion(sku: string, rates: RateRecord[], factor: number | null): FixSuggestion {
+  const rate = rates.find((r) => normaliseSku(r.sku) === normaliseSku(sku));
+  if (!rate) return { perHour: null, cycleSeconds: null, why: "No shifts of it on this line yet: time a run and enter the cycle." };
+  const cycle = factor ? Math.round((3600 / rate.value) * factor * 10) / 10 : null;
+  const usable = cycle !== null && cycle >= DEFAULT_CYCLE_LIMITS.minSeconds && cycle <= DEFAULT_CYCLE_LIMITS.maxSeconds;
+  const from = rate.source.startsWith(BASE_SOURCE)
+    ? `The line's base: ${rate.sampleShifts} shifts on this line, the reports and iTouch`
+    : rate.source.startsWith(OBSERVED_SOURCE)
+      ? `What the line reached on ${rate.sampleShifts} shifts that filled only this product`
+      : `iTouch's other cycles at this line's performance`;
+  return {
+    perHour: Math.round(rate.value),
+    cycleSeconds: usable ? cycle : null,
+    why: factor && usable ? `${from}. ${Math.round(rate.value)}/h at the line's ${Math.round(factor * 100)}% performance is a ${cycle} s cycle.` : `${from}.`,
+  };
+}
+
+/** One sentence per job: how its part of the target was reached. */
+export function explainTarget(jobs: JobForecast[]): string[] {
+  return jobs.flatMap((j) => {
+    if (j.expectedContainers === null || !j.rate) return [];
+    const perHour = Math.round(j.rate.perHour);
+    const from = j.rate.source.startsWith(BASE_SOURCE)
+      ? `the line's base, ${j.rate.sampleShifts} shifts`
+      : j.rate.source.startsWith(OBSERVED_SOURCE)
+        ? `observed on this line, ${j.rate.sampleShifts} shifts`
+        : j.rate.source.startsWith(ESTIMATED_SOURCE)
+          ? "an estimate: the median of the line's rates"
+          : "iTouch's cycle × the line's performance";
+    const qty = j.expectedContainers.toLocaleString();
+    return [
+      j.allocation?.basis === "order_qty_at_rate" && j.allocation.completesOrder
+        ? `${j.sku}: ${qty}, the whole order, about ${Math.round((j.expectedContainers / j.rate.perHour) * 60)} min at ${perHour}/h (${from}).`
+        : `${j.sku}: ${qty} = ${perHour}/h × ${Math.round(j.allocation?.productiveMinutes ?? 0)} min left in the shift (${from}).`,
+    ];
+  });
 }
 
 /** Typed products that are not in the product list, per line, biggest first (Q44a). */
