@@ -23,6 +23,7 @@
  */
 
 import { normaliseSku, parseLineNo, type LineNo, type RateRecord } from "./engine.ts";
+import { BASE_LINES, RATE_BASE_DATE, RATE_BASE_ROWS } from "./rateBase.ts";
 
 export interface CycleRecord {
   line: unknown;
@@ -221,14 +222,43 @@ export function observedRates(line: LineNo, history: HistoryShift[], minShifts =
   return out;
 }
 
+export const BASE_SOURCE = "Line base";
+
+const baseRows = RATE_BASE_ROWS.trim().split("\n").map((row) => {
+  const [line, sku, perHour, shifts] = row.split("|");
+  return { line: Number(line) as LineNo, sku: normaliseSku(sku)!, perHour: Number(perHour), shifts: Number(shifts) };
+});
+
+/** The base's rates for a line. Empty for a line the base did not improve (rateBase.ts). */
+export function baseRates(line: LineNo): RateRecord[] {
+  if (!BASE_LINES.includes(line)) return [];
+  return baseRows
+    .filter((r) => r.line === line)
+    .map((r) => ({
+      line,
+      sku: r.sku,
+      value: r.perHour,
+      unit: "containers/hour",
+      status: "provisional" as const,
+      sampleShifts: r.shifts,
+      source: `${BASE_SOURCE} of ${RATE_BASE_DATE}: ${r.shifts} shifts on this line, reports and iTouch`,
+    }));
+}
+
 /**
- * Every rate the line has: iTouch's ideal × the line's factor first, and the rate
- * observed on the line for the products iTouch has no usable cycle for.
+ * Every rate the line has, best first: the line's base, then iTouch's ideal × the line's
+ * factor, then the rate observed on the line for products neither of those covers.
  */
 export function lineRates(line: LineNo, cycles: CleanCycle[], factor: LineFactor | null, history: HistoryShift[]): RateRecord[] {
-  const fromItouch = factor ? ratesForLine(line, cycles, factor) : [];
-  const covered = new Set(fromItouch.map((r) => normaliseSku(r.sku)));
-  return [...fromItouch, ...observedRates(line, history).filter((r) => !covered.has(normaliseSku(r.sku)))];
+  const out: RateRecord[] = [];
+  const covered = new Set<string | null>();
+  for (const r of [...baseRates(line), ...(factor ? ratesForLine(line, cycles, factor) : []), ...observedRates(line, history)]) {
+    const key = normaliseSku(r.sku);
+    if (covered.has(key)) continue;
+    covered.add(key);
+    out.push(r);
+  }
+  return out;
 }
 
 export interface CycleToFix {
@@ -239,8 +269,8 @@ export interface CycleToFix {
   problem: string;
   madeQty: number;
   shifts: number;
-  /** True when the line has an observed rate for it in the meantime. */
-  coveredByObserved: boolean;
+  /** True when the line has a rate for it in the meantime, from its base or its history. */
+  coveredMeanwhile: boolean;
 }
 
 /**
@@ -266,7 +296,7 @@ export function cyclesToFix(history: HistoryShift[], cycles: CleanCycle[], rejec
   const out: CycleToFix[] = [];
   for (const [k, m] of made) {
     if (usable.has(k)) continue;
-    if (!observed.has(m.line)) observed.set(m.line, new Set(observedRates(m.line, history).map((r) => r.sku)));
+    if (!observed.has(m.line)) observed.set(m.line, new Set([...baseRates(m.line), ...observedRates(m.line, history)].map((r) => normaliseSku(r.sku)!)));
     const bad = rejected.find((r) => parseLineNo(r.line) === m.line && normaliseSku(r.sku) === m.sku);
     out.push({
       line: m.line,
@@ -275,7 +305,7 @@ export function cyclesToFix(history: HistoryShift[], cycles: CleanCycle[], rejec
       problem: bad ? bad.reason : "No cycle time for this product on this line in iTouch.",
       madeQty: m.qty,
       shifts: m.shifts,
-      coveredByObserved: observed.get(m.line)!.has(m.sku),
+      coveredMeanwhile: observed.get(m.line)!.has(m.sku),
     });
   }
   return out.sort((a, b) => b.madeQty - a.madeQty || a.line - b.line);

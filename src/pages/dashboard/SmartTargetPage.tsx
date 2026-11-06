@@ -29,6 +29,7 @@ import {
   cyclesToFix,
   lineFactors,
   lineRates,
+  BASE_SOURCE,
   OBSERVED_SOURCE,
   productsWithoutCode,
   type CycleToFix,
@@ -73,7 +74,7 @@ const STATUS: Record<ShiftForecast["status"], { label: string; className: string
 /** The rates item once factors are computed: what is live, and what is held back. */
 const RATES_LIVE = {
   label: "Rates: every line, shown once it proves itself",
-  why: `Rates are iTouch's ideal speed × each line's performance over the last eight weeks, or, where iTouch has no usable cycle, the rate the line itself reached on shifts that filled only that product (provisional). A line's number is shown while its last ${SHOW_MIN_SCORED}+ measured shifts miss by a median of ${SHOW_MAX_MEDIAN_ERROR}% or less; until then Lines 2, 4 and 5 are shown and 1, 3 and 6 are forecast in shadow.`,
+  why: `Rates come from each line's base (its logged shifts, the Standard Line Targets reports and iTouch), then iTouch's ideal speed × the line's performance over the last eight weeks, then the rate the line reached on shifts that filled only that product (all provisional). A line's number is shown while its last ${SHOW_MIN_SCORED}+ measured shifts miss by a median of ${SHOW_MAX_MEDIAN_ERROR}% or less; until then Lines 2, 4 and 5 are shown and 1, 3 and 6 are forecast in shadow.`,
   owner: "Production: correct the cycles listed under Fix in iTouch",
 };
 
@@ -166,6 +167,11 @@ function JobBlock({ job }: { job: JobForecast }) {
       {job.allocation?.basis === "order_qty_at_rate" && (
         <div className="text-2xs text-warning-strong">
           {job.allocation.completesOrder ? "Order completes at this rate" : "Cut short: rate × time left"}
+        </div>
+      )}
+      {job.rate?.source.startsWith(BASE_SOURCE) && (
+        <div className="text-2xs text-muted-foreground" title={job.rate.source}>
+          Rate from the line's base ({job.rate.sampleShifts} shifts)
         </div>
       )}
       {job.rate?.source.startsWith(OBSERVED_SOURCE) && (
@@ -390,7 +396,7 @@ function FixInItouchCard({ fix, noCode }: { fix: CycleToFix[] | null; noCode: { 
                       <div className="text-xs text-muted-foreground">{f.shifts} shifts</div>
                     </td>
                     <td className="py-1.5 text-xs text-muted-foreground">
-                      {f.coveredByObserved ? "Uses the rate observed on this line" : "No number for jobs of this product"}
+                      {f.coveredMeanwhile ? "Has a rate from the line's base or history" : "No number for jobs of this product"}
                     </td>
                   </tr>
                 ))}

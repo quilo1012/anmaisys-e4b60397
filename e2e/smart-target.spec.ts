@@ -191,30 +191,32 @@ test("forecasts Line 2 from its own last eight weeks, and holds Line 1 back with
   expect(errors).toEqual([]);
 });
 
-test("uses the rate the line itself reached where iTouch's cycle is wrong, and lists the cycle to fix", async ({ page }) => {
+test("uses the line's base, or the rate it reached where iTouch's cycle is wrong, and lists the cycle to fix", async ({ page }) => {
   const at = "2026-11-04T20:16:00Z";
   const src = "iTouch Product Details (test)";
-  // Line 2's COL165SR cycle has the decimal point in the wrong place, as Line 4's
-  // PERUCRE500 did on 05/11 (0.31 s). The five history shifts filled only COL165SR.
+  // Line 5 has no base. Its COL165SR cycle has the decimal point in the wrong place, as
+  // Line 4's PERUCRE500 did on 05/11 (0.31 s), and the five history shifts filled only it.
   const errors = await stub(page, [
-    { machine: "Filler Line 2", sku: "COL165SR", cycle_seconds: 0.31, cavities: null, source: src, imported_at: at },
+    { machine: "Filler Line 5", sku: "COL165SR", cycle_seconds: 0.31, cavities: null, source: src, imported_at: at },
     { machine: "Filler Line 1", sku: "ABEENG", cycle_seconds: 3.5, cavities: null, source: src, imported_at: at },
-  ], true);
+  ], true, [
+    { id: "i21", session_id: "s2", display_order: 1, sku_id: "sku-col", sku_code_text: null, planned_qty: 3000 },
+    { id: "i51", session_id: "s5", display_order: 1, sku_id: "sku-col", sku_code_text: null, planned_qty: 3000 },
+  ], 5);
   await page.setViewportSize({ width: 1440, height: 1100 });
   await open(page);
 
-  const line2 = page.getByTestId("smart-target-line-2");
-  await expect(line2).toContainText("Rate observed on this line (5 shifts)");
-  await expect(line2).toContainText("3,000");
-  await expect(line2).not.toContainText("No rate for COL165SR");
+  const line5 = page.getByTestId("smart-target-line-5");
+  await expect(line5).toContainText("Rate observed on this line (5 shifts)");
+  await expect(line5).toContainText("3,000");
+  await expect(line5).not.toContainText("No rate for COL165SR");
+  await expect(page.getByTestId("smart-target-line-2")).toContainText("Rate from the line's base");
 
   const fix = page.getByTestId("smart-target-fix-itouch");
   await expect(fix).toContainText("COL165SR");
   await expect(fix).toContainText("0.31 s");
   await expect(fix).toContainText("31,810");
-  await expect(fix).toContainText("Uses the rate observed on this line");
-  await fix.scrollIntoViewIfNeeded();
-  await page.screenshot({ path: "e2e/.results/smart-target-fix-itouch.png", fullPage: true });
+  await expect(fix).toContainText("Has a rate from the line's base or history");
   expect(errors).toEqual([]);
 });
 
