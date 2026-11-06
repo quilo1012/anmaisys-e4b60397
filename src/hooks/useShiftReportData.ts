@@ -2,15 +2,18 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { shiftWindow, type ShiftType } from "@/lib/smartTargetEngine";
-import type { DowntimeRow, StatusRow } from "@/lib/shiftReport";
+import { reportRefreshMs, type DowntimeRow, type StatusRow } from "@/lib/shiftReport";
 
 /** Everything the shift report reads beyond the forecast: stops, the machine's log, the RAG plan. */
 export function useShiftReportData(date: string, shift: ShiftType) {
+  const window = shiftWindow(date, shift);
+  const refreshMs = reportRefreshMs(window, Date.now());
   return useQuery({
     queryKey: ["smart_target_shift_report", date, shift],
-    refetchInterval: 5 * 60_000,
+    refetchInterval: refreshMs,
+    // Coming back to the tab is no reason to read eighteen hours of log for a closed shift.
+    refetchOnWindowFocus: refreshMs !== false,
     queryFn: async () => {
-      const window = shiftWindow(date, shift);
       const [downtimes, status, rag, comments, leaders] = await Promise.all([
         fetchAllRows<DowntimeRow & { id: string }>(
           supabase.from("production_downtimes").select("id, line, shift, reason, category, duration_minutes")

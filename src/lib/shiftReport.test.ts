@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { lineReport, machineClock, stopsByReason, type LineReportInput, type StatusRow } from "./shiftReport";
+import { lineReport, machineClock, reportRefreshMs, stopsByReason, type LineReportInput, type StatusRow } from "./shiftReport";
 import { ENGINE_VERSION } from "./smartTargetEngine";
 
 const at = (hhmm: string) => `2026-11-06T${hhmm}:00.000Z`;
@@ -56,6 +56,18 @@ describe("machineClock", () => {
   it("is null with no change in the shift, instead of a zero", () => {
     expect(machineClock([s("Line 1", 4, "05:00")], "Line 1", ms("06:00"), ms("18:00"), ms("10:00"))).toBeNull();
     expect(machineClock([], "Line 1", ms("06:00"), ms("18:00"), ms("10:00"))).toBeNull();
+  });
+});
+
+describe("reportRefreshMs", () => {
+  const shift = { startMs: ms("06:00"), endMs: ms("18:00") };
+
+  it("reads again only while the shift runs", () => {
+    expect(reportRefreshMs(shift, ms("05:59"))).toBe(false);
+    expect(reportRefreshMs(shift, ms("06:00"))).toBe(300_000);
+    expect(reportRefreshMs(shift, ms("17:59"))).toBe(300_000);
+    expect(reportRefreshMs(shift, ms("18:00"))).toBe(false);
+    expect(reportRefreshMs(null, ms("12:00"))).toBe(false);
   });
 });
 

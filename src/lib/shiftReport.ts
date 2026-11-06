@@ -102,6 +102,14 @@ export function machineClock(rows: StatusRow[], line: string, startMs: number, e
   };
 }
 
+/**
+ * How often an open report reads again: every five minutes while the shift runs, and not at
+ * all before or after it, when what it reads has no reason to move.
+ */
+export function reportRefreshMs(window: { startMs: number; endMs: number } | null, nowMs: number): number | false {
+  return window && nowMs >= window.startMs && nowMs < window.endMs ? 5 * 60_000 : false;
+}
+
 /** Stops logged on a line and shift, biggest first, one row per reason. */
 export function stopsByReason(rows: DowntimeRow[], line: string, shift: string): { reason: string; minutes: number }[] {
   const by = new Map<string, number>();
