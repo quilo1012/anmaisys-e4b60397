@@ -1,6 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from "react";
 import { logSystemError } from "@/lib/telemetry";
-import { chunkCrashEvidence } from "@/lib/chunkCrashEvidence";
+import { chunkCrashEvidence, isChunkLoadError } from "@/lib/chunkCrashEvidence";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertTriangle } from "lucide-react";
@@ -100,7 +100,15 @@ export class ErrorBoundary extends Component<Props, State> {
   // instant we reset React state, so "Try again" looked like it did nothing.
   // A hard reload fetches fresh code and clears the transient.
   handleReload = () => window.location.reload();
-  handleReset = () => this.setState({ hasError: false, error: null, info: null });
+  // React.lazy keeps the rejected import, so a screen that never downloaded throws again
+  // the moment it is redrawn. Only a new document asks for the file again.
+  handleReset = () => {
+    if (isChunkLoadError(this.state.error)) {
+      this.handleReload();
+      return;
+    }
+    this.setState({ hasError: false, error: null, info: null });
+  };
 
   render() {
     if (this.state.hasError) {
