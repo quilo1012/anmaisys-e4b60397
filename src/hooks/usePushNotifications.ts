@@ -319,6 +319,18 @@ export function useKeepPushSubscriptionCurrent(userId: string | null | undefined
           reg = await withTimeout(navigator.serviceWorker.ready, 20_000, "Preparing notifications");
         }
         let sub = await reg.pushManager.getSubscription();
+        // A subscription minted under another key (the 06/11/2026 move to AN Maintenance
+        // changed it) is one this server can never send to, and nothing else replaces it:
+        // only the Enable button did, and nobody presses it on a phone that says "on".
+        // Drop it and mint a new one. Only when the browser reports the key — some do not,
+        // and churning a subscription we cannot judge every half hour helps nobody.
+        if (sub && VAPID_PUBLIC_KEY) {
+          const held = sub.options?.applicationServerKey;
+          if (held && !sameApplicationServerKey(held, urlBase64ToUint8Array(VAPID_PUBLIC_KEY))) {
+            try { await sub.unsubscribe(); } catch { /* gone already is the outcome we wanted */ }
+            sub = null;
+          }
+        }
         if (!sub && VAPID_PUBLIC_KEY) {
           sub = await reg.pushManager.subscribe({
             userVisibleOnly: true,
