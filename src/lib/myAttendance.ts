@@ -428,7 +428,7 @@ export function myShifts(data: MyAttendanceData, from: string, to: string): MySh
     for (const b of rows) {
       const ask = b.status === "overtime" ? asks.find((o) => overtimeBoardFor(o.starts_at) === b.shift) : undefined;
       // An `overtime` row with no accepted ask of theirs is the rota's stamp on an
-      // off-rota placement (`overtimeIsAccepted`): a shift they are put on, not
+      // off-rota placement: a shift they are put on, not
       // overtime they said yes to. My Overtime lists it as "Not one you accepted".
       const kind: MyShift["kind"] =
         b.status === "assigned" || (b.status === "overtime" && !ask) ? "scheduled"

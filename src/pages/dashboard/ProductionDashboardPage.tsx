@@ -20,12 +20,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { can } from "@/lib/permissions";
 import { currentShift } from "@/lib/operationalShift";
 import { tallyBoard, boardTrend, type BoardTally } from "@/lib/boardTally";
-import { overtimeIsAccepted } from "@/lib/boardOvertime";
 import { foldTrainingArea, isTrainingArea } from "@/lib/headcountBlocks";
 import { overtimeCoverage } from "@/lib/overtimeCoverage";
 import { windowLabel, type OvertimeResponse } from "@/lib/overtimeRequests";
 import { askShift } from "@/lib/overtimeShifts";
-import { useShiftRoster, useAllocations, useHeadcountAreas, useBoardTrend, useConfirmedOvertime } from "@/hooks/useHeadcount";
+import { useShiftRoster, useAllocations, useHeadcountAreas, useBoardTrend } from "@/hooks/useHeadcount";
 import { useOvertimeRequestsBetween, useOvertimeResponsesFor, useOvertimeOutcomesFor } from "@/hooks/useOvertimeRequests";
 import { useReportSummary } from "@/hooks/useReportSummary";
 import { useStoppedLinesCount } from "@/hooks/useStoppedLinesCount";
@@ -169,17 +168,14 @@ function useBoardTally(shift: Shift, day: string) {
   const { data: roster = [], boardById, isLoading: rl } = useShiftRoster(shift, day);
   const { data: allocations = [], isLoading: al, error } = useAllocations(day, shift);
   const { data: allAreas = [], isLoading: ar } = useHeadcountAreas();
-  // The same accepted asks the board reads, so the two say the same overtime figure.
-  const { data: confirmedAsks } = useConfirmedOvertime(day, shift);
   // The board reads the Training area as the Training column (`foldTrainingArea`), so
   // this reads it the same way — or the dashboard would count them on a line.
   const areas = useMemo(() => allAreas.filter((a) => !isTrainingArea(a)), [allAreas]);
   const tally = useMemo(
     () => tallyBoard({
       allocations: foldTrainingArea(allocations, allAreas), areas, roster, drawable: (id) => boardById.has(id),
-      overtimeAccepted: (a) => overtimeIsAccepted(a, confirmedAsks?.get(a.employee_id), boardById.get(a.employee_id)),
     }),
-    [allocations, allAreas, areas, roster, boardById, confirmedAsks],
+    [allocations, allAreas, areas, roster, boardById],
   );
   return { tally, areas, isLoading: rl || al || ar, error };
 }
@@ -207,7 +203,7 @@ function Staffing({ day, shifts, from, to }: { day: string; shifts: Shift[]; fro
 
   const trend = useBoardTrend(from, to, true);
   const trendDays = useMemo(
-    () => (trend.data ? boardTrend(trend.data.rows, from, to, trend.data.drawableOn, trend.data.overtimeAccepted) : []),
+    () => (trend.data ? boardTrend(trend.data.rows, from, to, trend.data.drawableOn) : []),
     [trend.data, from, to],
   );
   const absences = useMemo(() => {
