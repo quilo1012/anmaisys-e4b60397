@@ -167,3 +167,22 @@ describe("consecutive rows of one SKU are one run", () => {
     expect(lines[5].input.jobs).toHaveLength(2);
   });
 });
+
+describe("the order operators logged in", () => {
+  // Line 5, night of 05/11: both rows have display_order 0, and the id of the first sorts last.
+  const catalogue = buildSkuCatalogue([]);
+  const logged = [
+    { id: "z", session_id: "n", display_order: 0, sku_id: null, sku_code_text: "BEEFXP900OM", planned_qty: null, created_at: "2026-11-05T22:47:00Z" },
+    { id: "a", session_id: "n", display_order: 0, sku_id: null, sku_code_text: "BEEFXPOM", planned_qty: null, created_at: "2026-11-06T01:45:00Z" },
+  ];
+
+  it("takes the last row logged as what the line was filling at handover", () => {
+    const { lines } = buildShiftInputs("2026-11-06", "DAY", [{ id: "n", line: "Line 5", session_date: "2026-11-05", shift: "NIGHT", started_at: null }], logged, catalogue);
+    expect(lines.find((l) => l.line === 5)?.input.previousSku).toBe("BEEFXPOM");
+  });
+
+  it("keeps a shift's jobs in the order they were logged", () => {
+    const { lines } = buildShiftInputs("2026-11-05", "NIGHT", [{ id: "n", line: "Line 5", session_date: "2026-11-05", shift: "NIGHT", started_at: null }], logged, catalogue);
+    expect(lines.find((l) => l.line === 5)?.input.jobs.map((j) => j.sku)).toEqual(["BEEFXP900OM", "BEEFXPOM"]);
+  });
+});

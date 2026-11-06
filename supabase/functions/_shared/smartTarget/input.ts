@@ -66,6 +66,11 @@ export interface SmartTargetItem {
   sku_id: string | null;
   sku_code_text: string | null;
   planned_qty: number | null;
+  /**
+   * When the row was logged. Operators' rows all have display_order 0, so this is what
+   * orders them; without it the "last job" was whichever id sorted last.
+   */
+  created_at?: string | null;
 }
 
 /** An input the engine needs that the app does not have yet. */
@@ -153,7 +158,7 @@ export function buildShiftInputs(
     const lastBefore = items
       .filter((i) => beforeRank.has(i.session_id))
       .sort((a, b) =>
-        beforeRank.get(a.session_id)! - beforeRank.get(b.session_id)! || a.display_order - b.display_order || cmp(a.id, b.id))
+        beforeRank.get(a.session_id)! - beforeRank.get(b.session_id)! || a.display_order - b.display_order || cmp(a.created_at ?? "", b.created_at ?? "") || cmp(a.id, b.id))
       .map((i) => identifyItemSku({ sku_id: i.sku_id, sku_code_text: i.sku_code_text, actual: 0, started_at: null, finished_at: null }, catalogue)?.code ?? null)
       .filter((c): c is string => c !== null)
       .pop();
@@ -173,7 +178,7 @@ export function buildShiftInputs(
     const rows = items
       .filter((i) => rank.has(i.session_id))
       .sort((a, b) =>
-        rank.get(a.session_id)! - rank.get(b.session_id)! || a.display_order - b.display_order || cmp(a.id, b.id))
+        rank.get(a.session_id)! - rank.get(b.session_id)! || a.display_order - b.display_order || cmp(a.created_at ?? "", b.created_at ?? "") || cmp(a.id, b.id))
       .map((i) => {
         const sku = identifyItemSku(
           { sku_id: i.sku_id, sku_code_text: i.sku_code_text, actual: 0, started_at: null, finished_at: null },
