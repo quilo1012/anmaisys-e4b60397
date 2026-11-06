@@ -140,6 +140,14 @@ describe("forecastAhead", () => {
     expect(rows[0].jobs.every((j) => j.expected !== null)).toBe(true);
   });
 
+  it("takes the last product logged when nothing in the queue is running, so the same product pays no change", () => {
+    const queue = [q("Line 5", 1, "BEEFXPOM - B4", 888, 0, "Scheduled")];
+    const cycles5: CleanCycle[] = [{ line: 5, sku: "BEEFXPOM", idealPerHour: 553.8, cycleSeconds: 6.5, source: "iTouch" }];
+    const factors5: LineFactor[] = [{ line: 5, factor: 0.5, shiftsUsed: 30, excluded: [] }];
+    const { forecasts } = forecastAhead({ ...base, cycles: cycles5, factors: factors5, shownLines: [5], final: false, queue, previousSkus: { 5: "BEEFXPOM" } });
+    expect(forecasts.get(5)?.jobs[0]).toMatchObject({ transition: "same_sku", changeoverMinutes: 0, mixingMinutes: 0 });
+  });
+
   it("forecasts held-back lines in shadow", () => {
     const { rows } = forecastAhead({ ...base, final: false, queue: [q("Line 1", 1, "A", 1000, 0)] });
     expect(rows).toEqual([expect.objectContaining({ line: 1, shown: false })]);
