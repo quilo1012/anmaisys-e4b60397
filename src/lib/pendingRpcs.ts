@@ -30,6 +30,11 @@
  * not landed, and the day somebody wonders why the tablet's QR carries no code, this
  * is the answer. **Delete the entry when the block is applied**, so the list stays a
  * list of what is pending rather than a list of what was once pending.
+ *
+ * The one exception is an entry marked `silent`, which is not recorded at all. It is for
+ * a gap someone chose to leave open, on a call made often enough to bury the log, and
+ * the field says who chose and why. Only PGRST202 is silenced: any other error from that
+ * function is still recorded.
  */
 
 interface PendingRpc {
@@ -39,6 +44,8 @@ interface PendingRpc {
   block: string;
   /** What the screen shows instead. Point 1 of the doctrine, written down. */
   fallback: string;
+  /** Why this one is not recorded at all, if it is not. See the note above. */
+  silent?: string;
 }
 
 const PENDING: readonly PendingRpc[] = [
@@ -49,6 +56,9 @@ const PENDING: readonly PendingRpc[] = [
       "useSmartLineTarget turns PGRST202 into `not_installed`, and SmartTargetBlock draws " +
       "nothing, so the operator's Target popover shows only the RAG target, as it did " +
       "before Smart Target. BLOCO 149 waits for the switch to AN Maintenance (Q41a).",
+    silent:
+      "Asked every time a leader opens Target. Nine entries in two hours on 06/11, from two " +
+      "operators, all repeating what Q41a already decided. The user asked for them to stop.",
   },
   {
     name: "login_link_candidates",
@@ -94,6 +104,12 @@ const PENDING: readonly PendingRpc[] = [
 export function isPendingRpc(message: string | null | undefined): boolean {
   if (!message) return false;
   return PENDING.some((p) => message.includes(p.name));
+}
+
+/** Whether that gap was also declared not worth a line in the log. */
+export function isSilentPendingRpc(message: string | null | undefined): boolean {
+  if (!message) return false;
+  return PENDING.some((p) => p.silent && message.includes(p.name));
 }
 
 /** The list itself, for a test that keeps it honest. */
