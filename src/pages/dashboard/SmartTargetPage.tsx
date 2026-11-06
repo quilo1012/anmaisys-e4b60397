@@ -1,11 +1,12 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, ChevronRight, RefreshCw, Target } from "lucide-react";
+import { ArrowRight, ChevronRight, Download, Printer, RefreshCw, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSkuCatalogue } from "@/hooks/useSkuCatalogue";
@@ -46,6 +47,11 @@ import {
 } from "@/lib/smartTargetRates";
 import { ItouchCyclesCard } from "@/components/smartTarget/ItouchCyclesCard";
 import { ShiftStrip, stripHours, stripSegments } from "@/components/smartTarget/ShiftStrip";
+import { ShiftReport } from "@/components/smartTarget/ShiftReport";
+import { useShiftReportData } from "@/hooks/useShiftReportData";
+import { lineReport, londonTime, machineClock, stopsByReason, type LineReport } from "@/lib/shiftReport";
+import { printElementAsDocument } from "@/lib/printDocument";
+import * as XLSX from "xlsx";
 import { getCurrentFactoryShift } from "@/lib/shifts";
 import { identifyItemSku } from "@/lib/lineSku";
 import { cn } from "@/lib/utils";
@@ -83,8 +89,6 @@ const RATES_LIVE = {
   owner: "Production: correct the cycles listed under Fix in iTouch",
 };
 
-const londonTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit" });
 
 /** One line under the summary: where this shift's order quantities come from. */
 function queueText(state: QueueState | null): string | null {
@@ -203,15 +207,25 @@ interface RateBasis {
 
 const MISS_WARNING = 15;
 
-function LineRow({ line, result, notes, basis, kept, logged, offPlan, nowPct }: { line: number; result: ShiftForecast; notes: string[]; basis: RateBasis | null; kept: StoredForecast | null; logged: number; offPlan: string[]; nowPct: number | null }) {
+function LineRow({ line, result, notes, basis, kept, logged, offPlan, nowPct, report }: { line: number; result: ShiftForecast; notes: string[]; basis: RateBasis | null; kept: StoredForecast | null; logged: number; offPlan: string[]; nowPct: number | null; report: LineReport }) {
   const status = STATUS[result.status];
   const grid = "grid gap-x-4 gap-y-1.5 md:grid-cols-[4rem_minmax(0,1fr)_5.5rem_5rem_4rem] md:items-center";
   if (!result.jobs.length) {
-    return (
-      <div data-testid={`smart-target-line-${line}`} className={cn(grid, "px-4 py-3")}>
+    const row = (
+      <>
         <h3 className="font-semibold text-muted-foreground">Line {line}</h3>
         <span className="text-sm text-muted-foreground">No plan for this shift</span>
-      </div>
+      </>
+    );
+    // A line can run with no plan: it still gets its report.
+    if (report.logged <= 0 && !report.stops.length && !report.clock) {
+      return <div data-testid={`smart-target-line-${line}`} className={cn(grid, "px-4 py-3")}>{row}</div>;
+    }
+    return (
+      <details data-testid={`smart-target-line-${line}`} className="group">
+        <summary className={cn(grid, "cursor-pointer list-none px-4 py-3 hover:bg-muted/30")}>{row}</summary>
+        <div className="border-t bg-muted/20 px-4 py-3 md:pl-[5.75rem]"><ShiftReport report={report} /></div>
+      </details>
     );
   }
   const gaps = lineGaps(result);
@@ -278,6 +292,7 @@ function LineRow({ line, result, notes, basis, kept, logged, offPlan, nowPct }: 
         </dl>
       </summary>
       <div className="space-y-3 border-t bg-muted/20 px-4 py-3 md:pl-[5.75rem]">
+        <ShiftReport report={report} />
         <div className="flex flex-wrap gap-1.5">
           <Badge variant="outline" className={cn("font-medium", status.className)}>{status.label}</Badge>
           {basis?.caution && <Badge variant="outline" className="font-medium">Wide margin</Badge>}
@@ -629,6 +644,55 @@ export default function SmartTargetPage() {
     ? ((clock - stripWindow.startMs) / 60_000 / stripWindow.grossMinutes) * 100
     : null;
 
+  const reportData = useShiftReportData(date, shift);
+  const printRef = useRef<HTMLDivElement>(null);
+  const rows = useMemo(() => {
+    if (!built) return [];
+    return built.lines.map(({ line, result, sessionIds }) => {
+      const name = `Line ${line}`;
+      const kept = forecastRows.data?.rows.find((r) => r.session_date === date && r.shift === shift && r.line === line) ?? null;
+      const own = (data?.items ?? []).filter((i) => sessionIds.includes(i.session_id));
+      const made = new Map<string, number>();
+      for (const i of own) {
+        const qty = Math.max(0, Number(i.actual_qty) || 0);
+        const code = identifyItemSku({ sku_id: i.sku_id, sku_code_text: i.sku_code_text, actual: 0, started_at: null, finished_at: null }, catalogue)?.code;
+        if (qty > 0 && code) made.set(code, (made.get(code) ?? 0) + qty);
+      }
+      const logged = own.reduce((sum, i) => sum + Math.max(0, Number(i.actual_qty) || 0), 0);
+      const offPlan = kept?.jobs?.length ? productsOffPlan({ jobs: kept.jobs }, [...made.keys()], skuFamily(catalogue)) : [];
+      const target = kept ? kept.expected_total : result.expectedTotal;
+      const report = lineReport({
+        line,
+        target,
+        targetSetAt: kept?.frozen_at ?? null,
+        targetVersion: kept?.engine_version ?? null,
+        ragPlan: reportData.data?.rag.find((r) => r.line === name)?.plan_qty ?? null,
+        logged,
+        miss: targetVersusLogged(kept?.expected_total, logged),
+        planned: (kept?.jobs?.length ? kept.jobs : result.jobs).map((j) => ({ sku: j.sku ?? "—", expected: null })),
+        made: [...made.entries()].map(([sku, qty]) => ({ sku, qty })),
+        offPlan,
+        stops: stopsByReason(reportData.data?.downtimes ?? [], name, shift),
+        clock: stripWindow ? machineClock(reportData.data?.status ?? [], name, stripWindow.startMs, stripWindow.endMs, clock) : null,
+        grossMinutes: stripWindow?.grossMinutes ?? 720,
+        leader: reportData.data?.leaders.find((l) => l.line === name)?.leader_name ?? null,
+        comment: reportData.data?.comments.find((c) => c.line === name)?.comment ?? null,
+      });
+      return { line, kept, logged, offPlan, report };
+    });
+  }, [built, forecastRows.data, data, date, shift, catalogue, reportData.data, stripWindow, clock]);
+
+  const exportReport = () => {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map(({ report: r }) => ({
+      Line: r.line, Target: r.target, "Target set": r.targetSetAt ? londonTime(r.targetSetAt) : null, "RAG plan": r.ragPlan, Logged: r.logged, "Miss %": r.miss,
+      Leader: r.leader, "First ran": r.clock?.firstRun ? londonTime(r.clock.firstRun) : null, "Last ran": r.clock?.lastRun ? londonTime(r.clock.lastRun) : null, "Running min": r.clock?.runningMinutes ?? null, "Log covered min": r.clock?.coveredMinutes ?? null,
+      "Stops min": r.stopMinutes, Expected: r.planned.map((p) => p.sku).join(", "), Made: r.made.map((m) => `${m.sku} ${m.qty}`).join(", "), Why: r.why.join(" "), Comment: r.comment,
+    }))), "Shift");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.flatMap(({ report: r }) => r.stops.map((s) => ({ Line: r.line, Reason: s.reason, Minutes: s.minutes })))), "Stops");
+    XLSX.writeFile(wb, `smart-target_${date}_${shift}.xlsx`);
+  };
+
   const loading = isLoading || skusLoading;
   const assumptions = built?.lines[0]?.result.assumptions ?? [];
   const planned = built?.lines.filter((l) => l.result.jobs.length) ?? [];
@@ -675,15 +739,31 @@ export default function SmartTargetPage() {
                 : `${planned.length} of 6 lines have a plan. ${forecast.length} can be forecast.`}
             </p>
             {queueText(queue.state) && <p className="text-sm text-muted-foreground">{queueText(queue.state)}</p>}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => printRef.current && printElementAsDocument(printRef.current, `Smart Target ${date} ${shift}`, { landscape: true, css: ".shift-report-print{display:block !important}" })}
+              >
+                <Printer className="mr-2 h-4 w-4" /> Print shift report
+              </Button>
+              <Button variant="outline" size="sm" onClick={exportReport}>
+                <Download className="mr-2 h-4 w-4" /> Export to Excel
+              </Button>
+            </div>
+            <div ref={printRef} className="shift-report-print hidden">
+              <h2 className="mb-3 text-lg font-semibold">Smart Target, {date}, {shift === "DAY" ? "day" : "night"} shift</h2>
+              {rows.map(({ report }) => (
+                <div key={report.line} className="mb-4 break-inside-avoid border-t pt-3">
+                  <h3 className="mb-2 font-semibold">Line {report.line}</h3>
+                  <ShiftReport report={report} />
+                </div>
+              ))}
+            </div>
             <div className="divide-y overflow-hidden rounded-lg border bg-card">
               <StripHeader shift={shift} gross={shiftWindow(date, shift)?.grossMinutes ?? 720} nowPct={nowPct} />
-              {built.lines.map(({ line, result, notes, basis, sessionIds }) => {
-                const kept = forecastRows.data?.rows.find((r) => r.session_date === date && r.shift === shift && r.line === line) ?? null;
-                const own = (data?.items ?? []).filter((i) => sessionIds.includes(i.session_id));
-                const codes = own
-                  .filter((i) => Number(i.actual_qty) > 0)
-                  .map((i) => identifyItemSku({ sku_id: i.sku_id, sku_code_text: i.sku_code_text, actual: 0, started_at: null, finished_at: null }, catalogue)?.code)
-                  .filter((c): c is string => !!c);
+              {built.lines.map(({ line, result, notes, basis }) => {
+                const row = rows.find((r) => r.line === line)!;
                 return (
                 <LineRow
                   key={line}
@@ -692,9 +772,10 @@ export default function SmartTargetPage() {
                   result={result}
                   notes={notes}
                   basis={basis}
-                  kept={kept}
-                  logged={own.reduce((sum, i) => sum + Math.max(0, Number(i.actual_qty) || 0), 0)}
-                  offPlan={kept?.jobs?.length ? productsOffPlan({ jobs: kept.jobs }, codes, skuFamily(catalogue)) : []}
+                  kept={row.kept}
+                  logged={row.logged}
+                  offPlan={row.offPlan}
+                  report={row.report}
                 />
                 );
               })}
