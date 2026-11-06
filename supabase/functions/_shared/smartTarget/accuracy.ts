@@ -28,6 +28,8 @@ export interface StoredForecast {
   shown: boolean;
   expected_total: number | null;
   frozen_at: string;
+  /** What the forecast was built from; a job marked estimated keeps it out of the main measure. */
+  jobs?: { estimated?: boolean }[] | null;
 }
 
 export interface LineAccuracy {
@@ -37,6 +39,8 @@ export interface LineAccuracy {
   frozenLate: number;
   noNumber: number;
   noActual: number;
+  /** Forecasts resting on an estimate: kept, listed, not scored (Q62a). */
+  estimated: number;
   medianAbsPctError: number | null;
   within10: number;
   within20: number;
@@ -77,11 +81,12 @@ export function accuracyByLine(forecasts: StoredForecast[], actuals: Map<string,
     const own = forecasts
       .filter((f) => f.line === line)
       .sort((a, b) => (a.session_date === b.session_date ? (a.shift < b.shift ? 1 : -1) : a.session_date < b.session_date ? 1 : -1));
-    const acc: LineAccuracy = { line, scored: 0, frozenLate: 0, noNumber: 0, noActual: 0, medianAbsPctError: null, within10: 0, within20: 0, recent: [] };
+    const acc: LineAccuracy = { line, scored: 0, frozenLate: 0, noNumber: 0, noActual: 0, estimated: 0, medianAbsPctError: null, within10: 0, within20: 0, recent: [] };
     const errors: number[] = [];
     for (const f of own) {
       if (!frozenOnTime(f)) { acc.frozenLate++; continue; }
       if (f.expected_total === null) { acc.noNumber++; continue; }
+      if (f.jobs?.some((j) => j.estimated)) { acc.estimated++; continue; }
       const actual = actuals.get(`${f.session_date}|${f.shift}|${line}`);
       if (!actual) { acc.noActual++; continue; }
       const errorPct = ((f.expected_total - actual) / actual) * 100;
@@ -120,7 +125,7 @@ export function lineCautions(accuracy: LineAccuracy[] | null, tested: Partial<Re
     const a = accuracy?.find((x) => x.line === line);
     if (!a || a.scored < SHOW_MIN_SCORED || a.medianAbsPctError === null) {
       const miss = tested[line];
-      return { line, caution: miss === undefined ? null : `Tested on shifts since 01/10, Line ${line} missed by a median ${miss}%, over the ${SHOW_MAX_MEDIAN_ERROR}% goal. Read its number as a guide (${a?.scored ?? 0} of ${SHOW_MIN_SCORED} shifts measured so far).` };
+      return { line, caution: miss === undefined ? null : `Tested on shifts since 15/09, Line ${line} missed by a median ${miss}%, over the ${SHOW_MAX_MEDIAN_ERROR}% goal. Read its number as a guide (${a?.scored ?? 0} of ${SHOW_MIN_SCORED} shifts measured so far).` };
     }
     return {
       line,

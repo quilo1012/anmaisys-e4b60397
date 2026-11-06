@@ -15,9 +15,14 @@
 
 import { forecastShift, parseLineNo, shiftWindow, type LineNo, type ShiftType } from "./engine.ts";
 import { identifyItemSku, type SkuCatalogue } from "../production/lineSku.ts";
-import { familyFromName } from "./rates.ts";
+import { familyFromName, isSampleProduct } from "./rates.ts";
 import { setupMinutes, type SmartTargetSession } from "./input.ts";
 import type { HistoryShift } from "./rates.ts";
+
+/** Whether a SKU is a sample, from its code and its name in the product list. */
+export function skuIsSample(catalogue: SkuCatalogue): (sku: string) => boolean {
+  return (sku) => isSampleProduct(sku, identifyItemSku({ sku_id: null, sku_code_text: sku, actual: 0, started_at: null, finished_at: null }, catalogue)?.name);
+}
 
 /** A SKU's product family, from its name in the product list. */
 export function skuFamily(catalogue: SkuCatalogue): (sku: string) => string | null {
@@ -34,8 +39,8 @@ export const FACTOR_WINDOW_DAYS = 56;
  */
 export const FORECAST_LINES: readonly LineNo[] = [1, 2, 3, 4, 5, 6];
 
-/** Median miss, in percent, of the lines over the goal, from the base's test on shifts since 01/10. */
-export const WIDE_MARGIN_LINES: Partial<Record<LineNo, number>> = { 1: 22, 3: 18 };
+/** Median miss, in percent, of the lines over the goal, from the fair test on shifts since 15/09. */
+export const WIDE_MARGIN_LINES: Partial<Record<LineNo, number>> = { 3: 22 };
 
 /** The first and last session dates the factor reads for a forecast on `date`. */
 export function factorWindow(date: string): { from: string; to: string } {

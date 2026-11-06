@@ -31,7 +31,7 @@ import {
   type ShiftType,
 } from "./engine.ts";
 import { queuedProduct, type QueueRow } from "./queue.ts";
-import { lineRates, LINE_RATES_CONFIG, withEstimates, type CleanCycle, type HistoryShift, type LineFactor } from "./rates.ts";
+import { isEstimateRate, isSampleProduct, LINE_RATES_CONFIG, planRates, type CleanCycle, type HistoryShift, type LineFactor } from "./rates.ts";
 
 /** A run more than this before a shift starts does nothing. */
 export const AHEAD_FIRST_TRY_MINUTES = 40;
@@ -131,9 +131,10 @@ export function planFromQueue(line: LineNo, queue: QueueRow[], minutesToStart: n
     const last = jobs[jobs.length - 1];
     if (last && p.sku !== null && last.sku === p.sku) {
       last.orderQty = last.orderQty !== null && last.orderQty !== undefined && p.qty !== null ? last.orderQty + p.qty : null;
+      last.batches = (last.batches ?? 1) + 1;
       continue;
     }
-    jobs.push({ jobId: p.id, sku: p.sku, sequence: jobs.length + 1, orderQty: p.qty });
+    jobs.push({ jobId: p.id, sku: p.sku, sequence: jobs.length + 1, orderQty: p.qty, batches: 1 });
   }
   return { jobs, previousSku, notes };
 }
@@ -148,7 +149,7 @@ export interface AheadRow {
   confidence: string;
   factor: number | null;
   factor_shifts: number | null;
-  jobs: { sku: string | null | undefined; order: number | null | undefined; expected: number | null; basis: string | null }[];
+  jobs: { sku: string | null | undefined; order: number | null | undefined; expected: number | null; basis: string | null; estimated: boolean }[];
   engine_version: string;
   notes: string[];
 }
@@ -166,6 +167,8 @@ export interface AheadInput {
   history: HistoryShift[];
   /** A SKU's product family, so the line's own shifts can overrule a rate far from them. */
   familyOf?: (sku: string) => string | null;
+  /** Whether a SKU is a sample; by its code alone if not given. */
+  isSample?: (sku: string) => boolean;
   /** The last product logged on the shift before, per line, for a queue with nothing running. */
   previousSkus?: Partial<Record<LineNo, string | undefined>>;
   /** Lines whose number reaches the tablet. */
@@ -182,8 +185,17 @@ export function forecastAhead(input: AheadInput): { rows: AheadRow[]; forecasts:
   const forecasts = new Map<LineNo, ShiftForecast>();
   for (const line of LINES) {
     const factor = input.factors.find((f) => f.line === line) ?? null;
-    const rates = lineRates(line, input.cycles, factor, input.history, input.familyOf);
-    const plan = planFromQueue(line, input.queue, input.minutesToStart, rates);
+    const inputs = {
+      cycles: input.cycles,
+      factor,
+      history: input.history,
+      familyOf: input.familyOf ?? (() => null),
+      isSample: input.isSample ?? ((sku: string) => isSampleProduct(sku)),
+    };
+    // The running job's quantity needs its rate, and the rates need the plan's products.
+    const first = planRates(line, planFromQueue(line, input.queue, 0, []).jobs, inputs);
+    const plan = planFromQueue(line, input.queue, input.minutesToStart, first.rates);
+    const { jobs: plannedJobs, rates } = planRates(line, plan.jobs, inputs);
     const shown = input.shownLines.includes(line);
     if (!plan.jobs.length) {
       if (input.final) {
@@ -200,11 +212,11 @@ export function forecastAhead(input: AheadInput): { rows: AheadRow[]; forecasts:
       date: input.date,
       shift: input.shift,
       line,
-      jobs: plan.jobs,
+      jobs: plannedJobs,
       previousSku: plan.previousSku ?? input.previousSkus?.[line],
       breaks: null,
       downtime: [],
-      rates: withEstimates(line, plan.jobs.map((j) => j.sku), rates),
+      rates,
       events: [],
       eventSemantics: null,
     }, LINE_RATES_CONFIG);
@@ -218,7 +230,7 @@ export function forecastAhead(input: AheadInput): { rows: AheadRow[]; forecasts:
       confidence: result.confidence,
       factor: factor?.factor ?? null,
       factor_shifts: factor?.shiftsUsed ?? null,
-      jobs: result.jobs.map((j) => ({ sku: j.sku, order: j.orderQty, expected: j.expectedContainers, basis: j.allocation?.basis ?? null })),
+      jobs: result.jobs.map((j) => ({ sku: j.sku, order: j.orderQty, expected: j.expectedContainers, basis: j.allocation?.basis ?? null, estimated: isEstimateRate(j.rate?.source) })),
       engine_version: ENGINE_VERSION,
       notes: plan.notes,
     });

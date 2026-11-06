@@ -98,6 +98,8 @@ export interface PlannedJob {
   plannedEnd?: string | null;
   /** The planning reference only. Never treated as what was produced. */
   orderQty?: number | null;
+  /** How many queued batches this job is, where known. */
+  batches?: number;
   /** A SKU-specific value, where Production has given one. */
   mixingMinutes?: number | null;
   changeoverMinutes?: number | null;

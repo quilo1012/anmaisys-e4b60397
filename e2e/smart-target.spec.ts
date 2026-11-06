@@ -163,12 +163,12 @@ test("shows the iTouch cycles it holds and lists the ones Production must fix", 
   // Capsules are outside v1: left out, not reported as a fault.
   await expect(page.getByText("CAPS1")).toHaveCount(0);
   // A cycle is not a forecast. Line 1 is also one of the lines held back (Q24).
-  await expect(page.getByTestId("smart-target-line-1")).toContainText("Line 1 missed by a median 22%");
+  await expect(page.getByTestId("smart-target-line-1")).toContainText("Not enough data");
   await expect(page.getByRole("button", { name: "Import iTouch cycles" })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
-test("forecasts Line 2 from its own last eight weeks, and shows Line 1 with a caution", async ({ page }) => {
+test("forecasts Line 2 from its own last eight weeks, and says why Line 1 has no number", async ({ page }) => {
   const at = "2026-11-04T20:16:00Z";
   const src = "iTouch Product Details (test)";
   const errors = await stub(page, [
@@ -185,13 +185,12 @@ test("forecasts Line 2 from its own last eight weeks, and shows Line 1 with a ca
   await expect(line2).toContainText("3,000");
 
   const line1 = page.getByTestId("smart-target-line-1");
-  await expect(line1).toContainText("Line 1 missed by a median 22%");
-  await expect(line1).toContainText("Wide margin");
+  await expect(line1).toContainText("Not enough data");
   await page.screenshot({ path: "e2e/.results/smart-target-forecast.png", fullPage: true });
   expect(errors).toEqual([]);
 });
 
-test("uses the line's base, or the rate it reached where iTouch's cycle is wrong, and lists the cycle to fix", async ({ page }) => {
+test("uses the rate the line reached where iTouch's cycle is wrong, and lists the cycle to fix", async ({ page }) => {
   const at = "2026-11-04T20:16:00Z";
   const src = "iTouch Product Details (test)";
   // Line 5 has no base. Its COL165SR cycle has the decimal point in the wrong place, as
@@ -207,10 +206,9 @@ test("uses the line's base, or the rate it reached where iTouch's cycle is wrong
   await open(page);
 
   const line5 = page.getByTestId("smart-target-line-5");
-  await expect(line5).toContainText("Rate observed on this line (5 shifts)");
+  await expect(line5).toContainText("Rate from the line's last 5 shifts of this product");
   await expect(line5).toContainText("3,000");
   await expect(line5).not.toContainText("No rate for COL165SR");
-  await expect(page.getByTestId("smart-target-line-2")).toContainText("Rate from the line's base");
 
   const fix = page.getByTestId("smart-target-fix-itouch");
   await expect(fix).toContainText("COL165SR");
@@ -220,27 +218,27 @@ test("uses the line's base, or the rate it reached where iTouch's cycle is wrong
   await page.screenshot({ path: "e2e/.results/smart-target-why.png", fullPage: true });
   await expect(line5).toContainText("Why this target");
   await expect(fix).toContainText("31,810");
-  await expect(fix).toContainText("Has a rate from the line's base or history");
+  await expect(fix).toContainText("Has a rate from the line's recent shifts");
   expect(errors).toEqual([]);
 });
 
 test("with nothing in Production Control, the plan is iTouch's queue, batches as one job", async ({ page }) => {
   const at = "2026-11-03T07:00:00Z";
   const errors = await stub(page, [
-    { machine: "Filler Line 4", sku: "CRE500", cycle_seconds: 3.9, cavities: null, source: "iTouch (test)", imported_at: at },
+    { machine: "Filler Line 2", sku: "COL165SR", cycle_seconds: 2.9, cavities: null, source: "iTouch (test)", imported_at: at },
   ], true, [], 2, [
-    { line: "Line 4", seq: 15, sku: "CRE500 - B15", order_qty: 2500, done_qty: 0, status: "Scheduled", fetched_at: at },
-    { line: "Line 4", seq: 16, sku: "CRE500 - B16", order_qty: 2500, done_qty: 0, status: "Scheduled", fetched_at: at },
+    { line: "Line 2", seq: 15, sku: "COL165SR - B15", order_qty: 2500, done_qty: 0, status: "Scheduled", fetched_at: at },
+    { line: "Line 2", seq: 16, sku: "COL165SR - B16", order_qty: 2500, done_qty: 0, status: "Scheduled", fetched_at: at },
   ]);
   await page.setViewportSize({ width: 1440, height: 1100 });
   await open(page);
-  const line4 = page.getByTestId("smart-target-line-4");
-  await expect(line4).toContainText("CRE500");
-  await expect(line4).not.toContainText("B15");
-  await expect(line4).toContainText("Order 5,000");
-  await expect(line4).toContainText("Plan from the iTouch queue read at 07:00");
-  await expect(line4).toContainText("Rate from the line's base");
-  await expect(line4).toContainText("5,000");
+  const line2 = page.getByTestId("smart-target-line-2");
+  await expect(line2).toContainText("COL165SR");
+  await expect(line2).not.toContainText("B15");
+  await expect(line2).toContainText("Order 5,000");
+  await expect(line2).toContainText("Plan from the iTouch queue read at 07:00");
+  await expect(line2).toContainText("Rate from the line's last 5 shifts of this product");
+  await expect(line2).toContainText("Why this target");
   expect(errors).toEqual([]);
 });
 

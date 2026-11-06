@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { familyFromName, FAMILY_SOURCE, explainTarget, fixSuggestion, ESTIMATED_SOURCE, withEstimates, BASE_SOURCE, baseRates, cyclesToFix, lineRates, observedRates, productsWithoutCode, OBSERVED_SOURCE, type HistoryShift } from "./smartTargetRates";
+import { cyclesToFix, explainTarget, familyFromName, fixSuggestion, FAMILY_SOURCE, isEstimateRate, isSampleProduct, lastShiftsRates, NO_HISTORY_SOURCE, planRates, productsWithoutCode, SAMPLE_BATCH_MINUTES, SAMPLE_SOURCE, type HistoryShift } from "./smartTargetRates";
 import { lineCautions, SHOW_MIN_SCORED, type LineAccuracy } from "./smartTargetAccuracy";
 import { historyFromSessions } from "./smartTargetHistory";
 import { buildSkuCatalogue } from "./lineSku";
@@ -12,85 +12,6 @@ const shift = (n: number, line: 4 | 2, made: [string | null, number][], over: Pa
   netMinutes: 645,
   setupMinutes: 0,
   ...over,
-});
-
-describe("observed rates (Q43a): the line's own speed where iTouch has no usable cycle", () => {
-  // Line 4, measured 05/11: PERUCRE500 filled alone about 7,530 a shift.
-  const history = [
-    shift(1, 4, [["PERUCRE500", 7530]]),
-    shift(2, 4, [["PERUCRE500", 7400]]),
-    shift(3, 4, [["PERUCRE500", 7700]], { setupMinutes: 25 }),
-    shift(4, 4, [["PERUCRE500", 3000], ["CRE250", 5000]]), // two products: not used
-    shift(5, 4, [["CRE500", 7651]]),
-  ];
-
-  it("is the median of shifts that filled only that product, net of setup, and says where it came from", () => {
-    const [r, ...rest] = observedRates(4, history);
-    expect(rest).toEqual([]); // CRE500 has one shift, 3 needed
-    expect(r.sku).toBe("PERUCRE500");
-    // 7530 / 645 min × 60 = 700.5/h is the median of 688.4, 700.5 and 745.2.
-    expect(r.value).toBe(700.5);
-    expect(r).toMatchObject({ unit: "containers/hour", status: "provisional", sampleShifts: 3 });
-    expect(r.source.startsWith(OBSERVED_SOURCE)).toBe(true);
-  });
-
-  it("never replaces iTouch: it only fills products iTouch has no usable cycle for", () => {
-    // Line 5 has no base, so only these two sources answer there.
-    const line5 = history.map((h) => ({ ...h, line: 5 as const }));
-    const cycles = [{ line: 5 as const, sku: "PERUCRE500", idealPerHour: 1161, cycleSeconds: 3.1, source: "iTouch" }];
-    const factor = { line: 5 as const, factor: 0.62, shiftsUsed: 66, excluded: [] };
-    const rates = lineRates(5, cycles, factor, line5);
-    expect(rates).toHaveLength(1);
-    expect(rates[0].source.startsWith("iTouch")).toBe(true);
-    expect(lineRates(5, [], factor, line5)[0].source.startsWith(OBSERVED_SOURCE)).toBe(true);
-    // A line with no factor still gets its observed rates.
-    expect(lineRates(5, [], null, line5)).toHaveLength(1);
-  });
-});
-
-describe("the line base", () => {
-  it("comes first on the lines it improved, and carries where it came from", () => {
-    const cycles = [{ line: 4 as const, sku: "PERUCRE500", idealPerHour: 923, cycleSeconds: 3.9, source: "iTouch" }];
-    const [r] = lineRates(4, cycles, { line: 4, factor: 0.65, shiftsUsed: 66, excluded: [] }, []).filter((x) => x.sku === "PERUCRE500");
-    expect(r.value).toBe(787);
-    expect(r.source.startsWith(BASE_SOURCE)).toBe(true);
-    expect(r.sampleShifts).toBe(25);
-  });
-
-  it("leaves Line 5 on iTouch × factor, where it did not improve", () => {
-    expect(baseRates(5)).toEqual([]);
-    expect(baseRates(4).length).toBeGreaterThan(50);
-  });
-
-  it("holds plausible rates only, with no product twice on a line", () => {
-    for (const line of [1, 2, 3, 4, 6] as const) {
-      const rows = baseRates(line);
-      expect(new Set(rows.map((r) => r.sku)).size).toBe(rows.length);
-      for (const r of rows) expect(r.value).toBeGreaterThan(0);
-    }
-  });
-
-  it("does not hide a product it does not know: iTouch × factor and observed still answer", () => {
-    const cycles = [{ line: 4 as const, sku: "NOSUCHSKU2", idealPerHour: 1000, cycleSeconds: 3.6, source: "iTouch" }];
-    const r = lineRates(4, cycles, { line: 4, factor: 0.5, shiftsUsed: 9, excluded: [] }, []).find((x) => x.sku === "NOSUCHSKU2");
-    expect(r?.value).toBe(500);
-  });
-});
-
-describe("a product with no rate anywhere (Q56a)", () => {
-  const rate = (sku: string, value: number) => ({ line: 2 as const, sku, value, unit: "containers/hour", status: "provisional" as const, sampleShifts: 9, source: "x" });
-
-  it("gets the median of the line's rates, marked as an estimate, and known rates stay", () => {
-    const out = withEstimates(2, ["A", "BLENDEDCOLX", "blendedcolx", null], [rate("A", 100), rate("B", 300), rate("C", 900)]);
-    expect(out).toHaveLength(4);
-    expect(out[3]).toMatchObject({ sku: "BLENDEDCOLX", value: 300, sampleShifts: 0 });
-    expect(out[3].source.startsWith(ESTIMATED_SOURCE)).toBe(true);
-    expect(out[0].value).toBe(100);
-  });
-
-  it("makes nothing up for a line with no rates at all", () => {
-    expect(withEstimates(2, ["BLENDEDCOLX"], [])).toEqual([]);
-  });
 });
 
 describe("Fix in iTouch (Q44a): only what the lines actually filled", () => {
@@ -136,7 +57,7 @@ describe("Fix in iTouch (Q44a): only what the lines actually filled", () => {
 
 describe("cautions beside a line's number", () => {
   const acc = (line: 1 | 2, scored: number, median: number | null): LineAccuracy => ({
-    line, scored, frozenLate: 0, noNumber: 0, noActual: 0, medianAbsPctError: median, within10: 0, within20: 0, recent: [],
+    line, scored, frozenLate: 0, noNumber: 0, noActual: 0, estimated: 0, medianAbsPctError: median, within10: 0, within20: 0, recent: [],
   });
 
   it("uses the tested margin until a line has 10 measured shifts", () => {
@@ -156,9 +77,9 @@ describe("the solution and the reason shown for a target", () => {
   const rate = (value: number, source: string, sampleShifts = 25) => ({ line: 4 as const, sku: "CRE500", value, unit: "containers/hour", status: "provisional" as const, sampleShifts, source });
 
   it("turns the line's rate into the cycle to enter, as for Line 4's CRE500", () => {
-    const s = fixSuggestion("CRE500", [rate(720, `${BASE_SOURCE} of 06/11/2026: 25 shifts`)], 0.62);
+    const s = fixSuggestion("CRE500", [rate(720, `${FAMILY_SOURCE}: last 25 shifts`)], 0.62);
     expect(s).toMatchObject({ perHour: 720, cycleSeconds: 3.1 });
-    expect(s.why).toMatch(/25 shifts on this line.*720\/h at the line's 62% performance is a 3.1 s cycle/);
+    expect(s.why).toMatch(/last 25 shifts of this product.*720\/h at the line's 62% performance is a 3.1 s cycle/);
   });
 
   it("says to time a run when there is nothing to go on, and never suggests an impossible cycle", () => {
@@ -174,43 +95,84 @@ describe("the solution and the reason shown for a target", () => {
       job({ sku: "BEEFXPCA", expectedContainers: 729, allocation: { basis: "order_qty_at_rate", completesOrder: false, productiveMinutes: 150 } }),
       job({ expectedContainers: null }),
     ] as never);
-    expect(whole).toBe("BEEFXPOM: 1,776, the whole order, about 365 min at 292/h (iTouch's cycle × the line's performance).");
-    expect(cut).toBe("BEEFXPCA: 729 = 292/h × 150 min left in the shift (iTouch's cycle × the line's performance).");
+    expect(whole).toBe("BEEFXPOM: 1,776, the whole order, about 365 min at 292/h (an estimate: the line's usual rate).");
+    expect(cut).toBe("BEEFXPCA: 729 = 292/h × 150 min left in the shift (an estimate: the line's usual rate).");
     expect(none).toBeUndefined();
   });
 });
 
-describe("the line's own shifts of a product family overrule a rate far from them", () => {
-  it("reads the family from the name, up to the fill size, without the market", () => {
-    expect(familyFromName("ESSENTIAL PROTEIN 1.6KG BANANA")).toBe("ESSENTIAL PROTEIN 1.6KG");
+describe("the rule: the line's last shifts of this product (Q62a)", () => {
+  const names: Record<string, string> = { EP16B: "ESSENTIAL PROTEIN 1.6KG BANANA", EP16WCC: "ESSENTIAL PROTEIN 1.6KG WHITE CHOC", CW825V: "CRITICAL WHEY 825G VANILLA" };
+  const inputs = {
+    cycles: [{ line: 1 as const, sku: "CW825V", idealPerHour: 720, cycleSeconds: 5, source: "iTouch" }],
+    factor: { line: 1 as const, factor: 0.5, shiftsUsed: 40, excluded: [] },
+    familyOf: (sku: string) => familyFromName(names[sku]),
+    isSample: (sku: string) => isSampleProduct(sku, names[sku]),
+  };
+  const shift = (n: number, made: [string, number][]): HistoryShift => ({
+    key: `2026-10-${String(n).padStart(2, "0")}|DAY|1`, line: 1, made: made.map(([sku, qty]) => ({ sku, qty })), netMinutes: 645, setupMinutes: 45,
+  });
+  const job = (sku: string, orderQty: number | null = 3000, batches = 1) => ({ jobId: sku, sku, sequence: 1, orderQty, batches });
+
+  it("reads the family up to the fill size, without the market", () => {
     expect(familyFromName("ESSENTIAL PROTEIN 1.6KG WHITE CHOCOLATE - PERU")).toBe("ESSENTIAL PROTEIN 1.6KG");
-    expect(familyFromName("CREATINE MONOHYDRATE 500G - PERU")).toBe("CREATINE MONOHYDRATE 500G");
     expect(familyFromName("NO SIZE HERE")).toBeNull();
   });
 
-  // Line 3 has no shift of NOSUCH in the base. Its iTouch rate is 293/h; the real shifts make about 1,600.
-  const familyOf = (sku: string) => (sku.startsWith("NOSUCH") ? "ESSENTIAL PROTEIN 1.6KG" : null);
-  const shifts = (n: number) => Array.from({ length: n }, (_, i): HistoryShift => ({
-    key: `2026-11-0${i + 1}|DAY|3`, line: 3 as never, made: [{ sku: i % 2 ? "NOSUCHA" : "NOSUCHB", qty: 1600 }], netMinutes: 645, setupMinutes: 30,
-  }));
-  const cycles = [{ line: 3 as const, sku: "NOSUCHWCC", idealPerHour: 600, cycleSeconds: 6, source: "iTouch" }];
-  const factor = { line: 3 as const, factor: 0.489, shiftsUsed: 66, excluded: [] };
-  const rateOf = (history: HistoryShift[]) => lineRates(3, cycles, factor, history, familyOf).find((r) => r.sku === "NOSUCHWCC")!;
-
-  it("takes a flavour never run there from its family's shifts, as for EP16WCC on Line 1", () => {
-    const r = rateOf(shifts(3));
-    expect(r.value).toBe(156.1);
-    expect(r.sampleShifts).toBe(3);
-    expect(r.source.startsWith(FAMILY_SOURCE)).toBe(true);
+  it("gives a flavour never run there its family's rate, as EP16WCC on Line 1: about 1,600 a shift, not 3,000", () => {
+    const history = [1, 2, 3].map((n) => shift(n, [["EP16B", 1600]]));
+    const { rates } = planRates(1, [job("EP16WCC")], { ...inputs, history });
+    expect(rates[0]).toMatchObject({ value: 160, sampleShifts: 3 });
+    expect(rates[0].source.startsWith(FAMILY_SOURCE)).toBe(true);
+    expect(isEstimateRate(rates[0].source)).toBe(false);
   });
 
-  it("leaves the rate alone with under 3 shifts, or when they are close to it", () => {
-    expect(rateOf(shifts(2)).value).toBeCloseTo(293.4, 1);
-    const close = shifts(3).map((h) => ({ ...h, made: [{ sku: "NOSUCHA", qty: 2500 }] }));
-    expect(rateOf(close).value).toBeCloseTo(293.4, 1);
+  it("uses only the last 5 shifts, oldest dropped", () => {
+    const history = [100, 100, 100, 1600, 1600, 1600, 1600, 1600].map((q, i) => shift(i + 1, [["EP16B", q]]));
+    expect(lastShiftsRates(1, { ...inputs, history }).get("ESSENTIAL PROTEIN 1.6KG")).toEqual({ perHour: 160, shifts: 5 });
   });
 
-  it("never looks at a family when not asked to", () => {
-    expect(lineRates(3, cycles, factor, shifts(3)).find((r) => r.sku === "NOSUCHWCC")?.value).toBeCloseTo(293.4, 1);
+  it("needs 2 shifts, and otherwise marks iTouch × factor as having no history", () => {
+    const { rates } = planRates(1, [job("CW825V")], { ...inputs, history: [shift(1, [["CW825V", 1000]])] });
+    expect(rates[0].value).toBe(360);
+    expect(rates[0].source.startsWith(NO_HISTORY_SOURCE)).toBe(true);
+    expect(isEstimateRate(rates[0].source)).toBe(true);
+  });
+
+  it("falls back to the line's usual rate, an estimate, and has nothing to say for a line with no shifts", () => {
+    const history = [1, 2].map((n) => shift(n, [["EP16B", 1600]]));
+    const { rates } = planRates(1, [job("NOSUCH")], { ...inputs, history });
+    expect(rates[0]).toMatchObject({ value: 160, sampleShifts: 0 });
+    expect(isEstimateRate(rates[0].source)).toBe(true);
+    expect(planRates(1, [job("NOSUCH")], { ...inputs, history: [] }).rates).toEqual([]);
+  });
+
+  it("does not learn a family's rate from a shift with samples in it", () => {
+    const history = [1, 2].map((n) => shift(n, [["EP16B", 1600], ["BLENDEDCOLX", 40]]));
+    expect(lastShiftsRates(1, { ...inputs, history }).size).toBe(0);
+  });
+});
+
+describe("sample bags are timed by the batch (Q63a, Q64a)", () => {
+  const inputs = { cycles: [], factor: null, history: [], familyOf: () => null, isSample: (sku: string) => isSampleProduct(sku) };
+
+  it("recognises BLENDED and SAMPLE, in the code or the name", () => {
+    expect(isSampleProduct("BLENDEDCOLIMMUNBOG")).toBe(true);
+    expect(isSampleProduct("HYDRATION + POWDER TROPICAL SAMPLE BAGS")).toBe(true);
+    expect(isSampleProduct("XYZ", "ABE CANDY ICE BLAST SAMPLE")).toBe(true);
+    expect(isSampleProduct("CRE500", "CREATINE 500G")).toBe(false);
+  });
+
+  it("makes a job take 185 min a batch, with its changeover and mixing inside that", () => {
+    const { jobs, rates } = planRates(2, [{ jobId: "a", sku: "BLENDEDCOLX", sequence: 1, orderQty: 100, batches: 2 }], inputs);
+    expect(rates[0].source.startsWith(SAMPLE_SOURCE)).toBe(true);
+    expect((jobs[0].orderQty! / rates[0].value) * 60).toBeCloseTo(2 * SAMPLE_BATCH_MINUTES, 0);
+    expect(jobs[0]).toMatchObject({ changeoverMinutes: 0, mixingMinutes: 0 });
+    expect(isEstimateRate(rates[0].source)).toBe(false);
+  });
+
+  it("assumes one batch of about 46 bags when no quantity is known", () => {
+    const { jobs } = planRates(2, [{ jobId: "a", sku: "BLENDEDCOLX", sequence: 1, orderQty: null }], inputs);
+    expect(jobs[0].orderQty).toBe(46);
   });
 });

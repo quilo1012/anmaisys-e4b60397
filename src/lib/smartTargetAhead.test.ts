@@ -121,23 +121,24 @@ describe("forecastAhead", () => {
     expect(rows.map((r) => [r.line, r.shown])).toEqual([[1, true], [2, false]]);
   });
 
-  it("gives a number for a product whose base row rests on few shifts, as on 06/11 (Line 6)", () => {
-    const { rows } = forecastAhead({ ...base, cycles: [], factors: [], shownLines: [6], final: false, queue: [
-      q("Line 6", 1, "CWBAG450V - B2", 3333, 0, "Scheduled"),
-      q("Line 6", 2, "CW825V - B3", 1818, 0, "Scheduled"),
+  it("times Line 2's samples by the batch, so they take the shift, as on 06/11 (Q63a)", () => {
+    const made = (n: number) => ({ key: `2026-10-0${n}|DAY|2`, line: 2 as const, made: [{ sku: "AUISOCLEARCF", qty: 5000 }], netMinutes: 645, setupMinutes: 30 });
+    const { rows } = forecastAhead({ ...base, cycles: [], factors: [], shownLines: [2], final: false, history: [made(1), made(2)], queue: [
+      q("Line 2", 1, "BLENDEDCOLDEBLOATLGT - B2", 80, 0, "Scheduled"),
+      q("Line 2", 2, "BLENDEDCOLIMMUNBOG", 33, 0, "Scheduled"),
+      q("Line 2", 3, "BLENDEDCOLIMMUNBR", 50, 0, "Scheduled"),
+      q("Line 2", 4, "AUISOCLEARCF - B1", 1888, 0, "Scheduled"),
     ] });
-    expect(rows[0]).toMatchObject({ line: 6, status: "ok" });
-    expect(rows[0].expected_total).toBeGreaterThan(0);
-    expect(rows[0].jobs.every((j) => j.expected !== null)).toBe(true);
+    expect(rows[0].jobs.slice(0, 3).map((j) => j.expected)).toEqual([80, 33, 50]);
+    // 3 × 185 min leaves about 90 min of 645, less a change, at about 488/h: far from 3,000.
+    expect(rows[0].expected_total).toBeGreaterThan(163);
+    expect(rows[0].expected_total).toBeLessThan(1000);
+    expect(rows[0].jobs.every((j) => !j.estimated)).toBe(true);
   });
 
-  it("a tiny product with no rate no longer blanks the line, as on Line 2 on 06/11 (Q56a)", () => {
-    const { rows } = forecastAhead({ ...base, cycles: [], factors: [], shownLines: [2], final: false, queue: [
-      q("Line 2", 1, "BLENDEDCOLDEBLOATLGT - B2", 80, 0, "Scheduled"),
-      q("Line 2", 2, "COL165SR", 1000, 0, "Scheduled"),
-    ] });
-    expect(rows[0].expected_total).toBeGreaterThan(0);
-    expect(rows[0].jobs.every((j) => j.expected !== null)).toBe(true);
+  it("marks a forecast resting on an estimate", () => {
+    const { rows } = forecastAhead({ ...base, shownLines: [2], final: false, queue: [q("Line 2", 1, "A", 100000, 0)] });
+    expect(rows[0].jobs[0].estimated).toBe(true);
   });
 
   it("takes the last product logged when nothing in the queue is running, so the same product pays no change", () => {
