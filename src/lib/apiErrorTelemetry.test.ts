@@ -139,6 +139,28 @@ describe("a read that probes for a column the code can live without", () => {
     expect(logged.mock.calls[0][1]).toContain("signup_invite_code");
   });
 
+  /**
+   * O tablet pergunta sempre que o líder abre o Target, e a resposta já tem dono: o 149
+   * espera pela troca (Q41a). A 06/11 foram nove entradas em duas horas, de dois operadores,
+   * e todas diziam o que a lista já diz.
+   */
+  it("uma função pendente declarada como silenciosa não entra no registo", async () => {
+    serving({
+      code: "PGRST202",
+      message: "Could not find the function public.smart_target_line_targets(p_date, p_shift) in the schema cache",
+    }, 404);
+    const res = await window.fetch("https://x.supabase.co/rest/v1/rpc/smart_target_line_targets", { method: "POST" });
+    expect(logged).not.toHaveBeenCalled();
+    // O ecrã precisa da resposta intacta: é o PGRST202 que lhe diz para não desenhar nada.
+    expect((await res.json()).code).toBe("PGRST202");
+  });
+
+  it("a mesma função silenciosa continua a ser falta se o erro for outro", async () => {
+    serving({ code: "42501", message: "permission denied for function smart_target_line_targets" }, 403);
+    await window.fetch("https://x.supabase.co/rest/v1/rpc/smart_target_line_targets", { method: "POST" });
+    expect(logged.mock.calls[0][0]).toBe("RLS_ERROR");
+  });
+
   it("uma função que ninguém declarou continua a ser falta", async () => {
     // A direcção que apanha coisas: silenciar por PGRST202 matava esta também.
     serving({

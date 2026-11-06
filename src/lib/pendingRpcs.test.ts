@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
-import { isPendingRpc, PENDING_RPCS } from "./pendingRpcs";
+import { isPendingRpc, isSilentPendingRpc, PENDING_RPCS } from "./pendingRpcs";
 
 const root = resolve(__dirname, "../..");
 
@@ -48,6 +48,17 @@ describe("isPendingRpc", () => {
 
   it("aguenta mensagem ausente", () => {
     for (const nada of [null, undefined, ""]) expect(isPendingRpc(nada)).toBe(false);
+  });
+
+  it("só o alvo do Smart Target é silencioso, e diz porquê", () => {
+    expect(PENDING_RPCS.filter((p) => p.silent).map((p) => p.name)).toEqual(["smart_target_line_targets"]);
+    expect(isSilentPendingRpc(
+      "Could not find the function public.smart_target_line_targets(p_date, p_shift) in the schema cache",
+    )).toBe(true);
+    expect(isSilentPendingRpc(
+      "Could not find the function public.signup_invite_code without parameters in the schema cache",
+    )).toBe(false);
+    expect(isSilentPendingRpc(null)).toBe(false);
   });
 });
 
