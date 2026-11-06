@@ -12,8 +12,7 @@ import type { StoredForecast } from "@/lib/smartTargetAccuracy";
  *
  * While a shift runs, the first time this page has a complete forecast it is saved:
  * one row per planned line, the shown lines and the held-back ones (in shadow). The
- * database keeps the first save per line and ignores later ones, so a forecast never
- * changes after it is made. Nothing is saved for a past or future shift, and nothing
+ * database keeps the first number per line, so a forecast with a number never changes. Nothing is saved for a past or future shift, and nothing
  * while the iTouch queue is still being read, because the quantities would be missing.
  */
 
@@ -63,10 +62,16 @@ export function useFreezeSmartTargetForecasts(date: string, shift: ShiftType, to
 
   useEffect(() => {
     if (!ready || !toFreeze || !log.data?.installed || !isCurrentShift(date, shift)) return;
-    const already = new Set(log.data.rows.filter((r) => r.session_date === date && r.shift === shift).map((r) => r.line));
-    const keyOf = (line: number) => `${date}|${shift}|${line}`;
+    const today = log.data.rows.filter((r) => r.session_date === date && r.shift === shift);
+    // A forecast with a number never changes. One without a number can be replaced by one
+    // with it (Q57a, BLOCO 150).
+    const withNumber = new Set(today.filter((r) => r.expected_total !== null).map((r) => r.line));
+    const withoutNumber = new Set(today.filter((r) => r.expected_total === null).map((r) => r.line));
+    const keyOf = (l: LineToFreeze) => `${date}|${shift}|${l.line}|${l.forecast.expectedTotal !== null}`;
     const rows = toFreeze
-      .filter((l) => l.forecast.jobs.length > 0 && !already.has(l.line) && !saved.current.has(keyOf(l.line)))
+      .filter((l) => l.forecast.jobs.length > 0 && !withNumber.has(l.line) && !saved.current.has(keyOf(l)))
+      .filter((l) => l.forecast.expectedTotal !== null || !withoutNumber.has(l.line));
+    const payload = rows
       .map((l) => ({
         line: l.line,
         shown: l.shown,
@@ -85,11 +90,11 @@ export function useFreezeSmartTargetForecasts(date: string, shift: ShiftType, to
         engine_version: ENGINE_VERSION,
       }));
     if (!rows.length) return;
-    rows.forEach((r) => saved.current.add(keyOf(r.line)));
+    rows.forEach((l) => saved.current.add(keyOf(l)));
     (async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error } = await (supabase as any).rpc("save_smart_target_forecasts", { p_date: date, p_shift: shift, p_rows: rows });
-      if (error) rows.forEach((r) => saved.current.delete(keyOf(r.line)));
+      const { error } = await (supabase as any).rpc("save_smart_target_forecasts", { p_date: date, p_shift: shift, p_rows: payload });
+      if (error) rows.forEach((l) => saved.current.delete(keyOf(l)));
       else await qc.invalidateQueries({ queryKey: ["smart_target_forecasts"] });
     })();
   }, [ready, toFreeze, log.data, date, shift, qc]);

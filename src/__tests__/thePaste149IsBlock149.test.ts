@@ -25,10 +25,9 @@ const code = (sql: string) =>
   sql.split("\n").filter((l) => l.trim() && !l.trim().startsWith("--")).join("\n");
 
 describe("APLICAR-149 is BLOCO 149 and nothing else", () => {
-  it("BLOCO 149 is the migration, and the last block", () => {
+  it("BLOCO 149 is the migration", () => {
     expect(block149).toBeTruthy();
     expect(block149).toContain(migration.trimEnd());
-    expect(all.trimEnd().endsWith(migration.trimEnd())).toBe(true);
   });
 
   it("carries the block byte for byte and adds only comments", () => {

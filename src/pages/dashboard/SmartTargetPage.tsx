@@ -32,6 +32,8 @@ import {
   lineRates,
   BASE_LINES,
   BASE_SOURCE,
+  ESTIMATED_SOURCE,
+  withEstimates,
   LINE_RATES_CONFIG,
   OBSERVED_SOURCE,
   productsWithoutCode,
@@ -164,6 +166,11 @@ function JobBlock({ job }: { job: JobForecast }) {
       {job.allocation?.basis === "order_qty_at_rate" && (
         <div className="text-2xs text-warning-strong">
           {job.allocation.completesOrder ? "Order completes at this rate" : "Cut short: rate × time left"}
+        </div>
+      )}
+      {job.rate?.source.startsWith(ESTIMATED_SOURCE) && (
+        <div className="text-2xs text-warning-strong" title={job.rate.source}>
+          Estimated: no rate for this product
         </div>
       )}
       {job.rate?.source.startsWith(BASE_SOURCE) && (
@@ -511,7 +518,7 @@ export default function SmartTargetPage() {
           : fromQueue.filled
           ? [...l.notes, `Order quantity for ${fromQueue.filled} job${fromQueue.filled === 1 ? "" : "s"} from the iTouch queue read at ${londonTime(queue.rows[0].fetched_at)}: what was left to make then.`]
           : l.notes;
-        const result = forecastShift({ ...input, rates: ownRates }, LINE_RATES_CONFIG);
+        const result = forecastShift({ ...input, rates: withEstimates(l.line, input.jobs.map((j) => j.sku), ownRates) }, LINE_RATES_CONFIG);
         return { ...l, notes, basis, result, shown, factor };
       }),
     };

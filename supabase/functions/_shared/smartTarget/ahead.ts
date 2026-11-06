@@ -31,7 +31,7 @@ import {
   type ShiftType,
 } from "./engine.ts";
 import { queuedProduct, type QueueRow } from "./queue.ts";
-import { lineRates, LINE_RATES_CONFIG, type CleanCycle, type HistoryShift, type LineFactor } from "./rates.ts";
+import { lineRates, LINE_RATES_CONFIG, withEstimates, type CleanCycle, type HistoryShift, type LineFactor } from "./rates.ts";
 
 /** A run more than this before a shift starts does nothing. */
 export const AHEAD_FIRST_TRY_MINUTES = 40;
@@ -200,7 +200,7 @@ export function forecastAhead(input: AheadInput): { rows: AheadRow[]; forecasts:
       previousSku: plan.previousSku,
       breaks: null,
       downtime: [],
-      rates,
+      rates: withEstimates(line, plan.jobs.map((j) => j.sku), rates),
       events: [],
       eventSemantics: null,
     }, LINE_RATES_CONFIG);
