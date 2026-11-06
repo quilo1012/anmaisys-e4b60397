@@ -394,7 +394,7 @@ test("a line shows the target kept for the shift, what was logged, and not the r
   await stub(page, [
     { machine: "Filler Line 2", sku: "COL165SR", cycle_seconds: 2.9, cavities: null, source: "t", imported_at: at },
   ], true, items, 2, [], [
-    { session_date: DATE, shift: "DAY", line: 2, shown: true, expected_total: 2903, frozen_at: at, jobs: [], engine_version: "smart-target-engine/1.0" },
+    { session_date: DATE, shift: "DAY", line: 2, shown: true, expected_total: 2903, frozen_at: at, jobs: [{ sku: "ABEENG" }], engine_version: "smart-target-engine/1.0" },
   ]);
   await page.setViewportSize({ width: 1440, height: 1100 });
   await open(page);
@@ -403,5 +403,6 @@ test("a line shows the target kept for the shift, what was logged, and not the r
   await expect(line2).toContainText("target set 07:39");
   await expect(page.getByTestId("smart-target-logged-2")).toHaveText(/Logged 1,432 · target \+103%/);
   await expect(line2).toContainText("Calculated now: 3,000");
+  await expect(line2).toContainText("Plan changed: COL165SR was not in it.");
 });
 

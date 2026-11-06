@@ -12,7 +12,7 @@ import { useSkuCatalogue } from "@/hooks/useSkuCatalogue";
 import { useItouchCycles } from "@/hooks/useItouchCycles";
 import { useSmartTargetHistory } from "@/hooks/useSmartTargetHistory";
 import { useSmartTargetQueue, type QueueState } from "@/hooks/useSmartTargetQueue";
-import { planFromQueue } from "@/lib/smartTargetAhead";
+import { planFromQueue, productsOffPlan } from "@/lib/smartTargetAhead";
 import { fillFromQueue } from "@/lib/smartTargetQueue";
 import { useFreezeSmartTargetForecasts, useSmartTargetForecastRows, type LineToFreeze } from "@/hooks/useSmartTargetForecastLog";
 import {
@@ -200,7 +200,7 @@ interface RateBasis {
   to: string;
 }
 
-function LineCard({ line, result, notes, basis, kept, logged }: { line: number; result: ShiftForecast; notes: string[]; basis: RateBasis | null; kept: StoredForecast | null; logged: number }) {
+function LineCard({ line, result, notes, basis, kept, logged, offPlan }: { line: number; result: ShiftForecast; notes: string[]; basis: RateBasis | null; kept: StoredForecast | null; logged: number; offPlan: string[] }) {
   const status = STATUS[result.status];
   if (!result.jobs.length) {
     return (
@@ -256,6 +256,11 @@ function LineCard({ line, result, notes, basis, kept, logged }: { line: number; 
             <div className="mt-1 text-xs tabular-nums" data-testid={`smart-target-logged-${line}`}>
               Logged {logged.toLocaleString()}
               {miss !== null && <span className="text-muted-foreground"> · target {miss > 0 ? "+" : ""}{miss}%</span>}
+            </div>
+          )}
+          {offPlan.length > 0 && (
+            <div className="mt-1 max-w-xs text-xs font-medium text-warning-strong">
+              Plan changed: {offPlan.join(", ")} {offPlan.length === 1 ? "was" : "were"} not in it. The target stays as set.
             </div>
           )}
           {kept && kept.expected_total !== result.expectedTotal && (
@@ -619,17 +624,26 @@ export default function SmartTargetPage() {
             </p>
             {queueText(queue.state) && <p className="text-sm text-muted-foreground">{queueText(queue.state)}</p>}
             <div className="space-y-3">
-              {built.lines.map(({ line, result, notes, basis, sessionIds }) => (
+              {built.lines.map(({ line, result, notes, basis, sessionIds }) => {
+                const kept = forecastRows.data?.rows.find((r) => r.session_date === date && r.shift === shift && r.line === line) ?? null;
+                const own = (data?.items ?? []).filter((i) => sessionIds.includes(i.session_id));
+                const codes = own
+                  .filter((i) => Number(i.actual_qty) > 0)
+                  .map((i) => identifyItemSku({ sku_id: i.sku_id, sku_code_text: i.sku_code_text, actual: 0, started_at: null, finished_at: null }, catalogue)?.code)
+                  .filter((c): c is string => !!c);
+                return (
                 <LineCard
                   key={line}
                   line={line}
                   result={result}
                   notes={notes}
                   basis={basis}
-                  kept={forecastRows.data?.rows.find((r) => r.session_date === date && r.shift === shift && r.line === line) ?? null}
-                  logged={(data?.items ?? []).filter((i) => sessionIds.includes(i.session_id)).reduce((sum, i) => sum + Math.max(0, Number(i.actual_qty) || 0), 0)}
+                  kept={kept}
+                  logged={own.reduce((sum, i) => sum + Math.max(0, Number(i.actual_qty) || 0), 0)}
+                  offPlan={kept?.jobs?.length ? productsOffPlan({ jobs: kept.jobs }, codes, skuFamily(catalogue)) : []}
                 />
-              ))}
+                );
+              })}
             </div>
             {built.otherLines.length > 0 && (
               <p className="text-sm text-muted-foreground">

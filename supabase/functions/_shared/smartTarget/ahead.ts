@@ -239,11 +239,20 @@ export function forecastAhead(input: AheadInput): { rows: AheadRow[]; forecasts:
 }
 
 /** Logged products the frozen plan did not have, in the order they were logged. */
-export function productsOffPlan(target: { jobs: { sku: string | null | undefined }[] }, loggedCodes: string[]): string[] {
-  const planned = new Set(target.jobs.map((j) => normaliseSku(j.sku)).filter(Boolean));
+export function productsOffPlan(
+  target: { jobs: { sku?: string | null | undefined }[] },
+  loggedCodes: string[],
+  familyOf: (sku: string) => string | null = () => null,
+): string[] {
+  // Same family is the same product: PERUCRE500 running where CRE500 was queued is on plan.
+  const keyOf = (sku: string | null | undefined) => {
+    const code = normaliseSku(sku);
+    return code ? familyOf(code) ?? code : null;
+  };
+  const planned = new Set(target.jobs.map((j) => keyOf(j.sku)).filter(Boolean));
   const out: string[] = [];
   for (const code of loggedCodes) {
-    const key = normaliseSku(code);
+    const key = keyOf(code);
     if (key && !planned.has(key) && !out.includes(code)) out.push(code);
   }
   return out;
