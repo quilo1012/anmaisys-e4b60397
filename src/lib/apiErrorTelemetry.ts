@@ -1,7 +1,7 @@
 import { logSystemError } from "@/lib/telemetry";
 import { isUserCorrectable } from "@/lib/userCorrectable";
 import { isProbedColumn } from "@/lib/schemaProbes";
-import { isPendingRpc, isSilentPendingRpc } from "@/lib/pendingRpcs";
+import { isPendingRpc } from "@/lib/pendingRpcs";
 
 // Automatic backend-failure capture. supabase-js issues every PostgREST / RPC /
 // edge-function call through the global fetch, so wrapping fetch once lets Root
@@ -80,7 +80,6 @@ export function installApiErrorTelemetry(): void {
       }
 
       if (body?.code && IGNORED_CODES.has(body.code)) return res;
-      if (body?.code === "PGRST202" && isSilentPendingRpc(body?.message)) return res;
 
       // 401/403 (and Postgres 42501) are almost always RLS; everything else API.
       const isRls = res.status === 401 || res.status === 403 || body?.code === "42501";
