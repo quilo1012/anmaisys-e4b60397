@@ -58,14 +58,15 @@ type ForecastRows = ReturnType<typeof useSmartTargetForecastRows>;
  */
 export function useFreezeSmartTargetForecasts(date: string, shift: ShiftType, toFreeze: LineToFreeze[] | null, ready: boolean, log: ForecastRows) {
   const qc = useQueryClient();
-  const saved = useRef<string | null>(null);
+  // Per line, because a line can get its plan while the page stays open.
+  const saved = useRef(new Set<string>());
 
   useEffect(() => {
-    const id = `${date}|${shift}`;
-    if (!ready || !toFreeze || !log.data?.installed || saved.current === id || !isCurrentShift(date, shift)) return;
+    if (!ready || !toFreeze || !log.data?.installed || !isCurrentShift(date, shift)) return;
     const already = new Set(log.data.rows.filter((r) => r.session_date === date && r.shift === shift).map((r) => r.line));
+    const keyOf = (line: number) => `${date}|${shift}|${line}`;
     const rows = toFreeze
-      .filter((l) => l.forecast.jobs.length > 0 && !already.has(l.line))
+      .filter((l) => l.forecast.jobs.length > 0 && !already.has(l.line) && !saved.current.has(keyOf(l.line)))
       .map((l) => ({
         line: l.line,
         shown: l.shown,
@@ -83,12 +84,13 @@ export function useFreezeSmartTargetForecasts(date: string, shift: ShiftType, to
         })),
         engine_version: ENGINE_VERSION,
       }));
-    saved.current = id;
     if (!rows.length) return;
+    rows.forEach((r) => saved.current.add(keyOf(r.line)));
     (async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any).rpc("save_smart_target_forecasts", { p_date: date, p_shift: shift, p_rows: rows });
-      if (!error) await qc.invalidateQueries({ queryKey: ["smart_target_forecasts"] });
+      if (error) rows.forEach((r) => saved.current.delete(keyOf(r.line)));
+      else await qc.invalidateQueries({ queryKey: ["smart_target_forecasts"] });
     })();
   }, [ready, toFreeze, log.data, date, shift, qc]);
 }
