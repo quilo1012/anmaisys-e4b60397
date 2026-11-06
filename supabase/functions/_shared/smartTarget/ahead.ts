@@ -30,7 +30,7 @@ import {
   type ShiftForecast,
   type ShiftType,
 } from "./engine.ts";
-import type { QueueRow } from "./queue.ts";
+import { queuedProduct, type QueueRow } from "./queue.ts";
 import { lineRates, type CleanCycle, type HistoryShift, type LineFactor } from "./rates.ts";
 
 /** A run more than this before a shift starts does nothing. */
@@ -104,7 +104,7 @@ export function planFromQueue(line: LineNo, queue: QueueRow[], minutesToStart: n
   let previousSku: string | undefined;
   const plan: { sku: string | null; qty: number | null; id: string }[] = [];
   rows.forEach((q, i) => {
-    const sku = normaliseSku(q.sku);
+    const sku = queuedProduct(q.sku);
     let qty = left(q);
     if (i === 0 && q.status === "Running") {
       previousSku = sku ?? undefined;

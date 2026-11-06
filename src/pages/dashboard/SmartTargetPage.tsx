@@ -12,6 +12,7 @@ import { useSkuCatalogue } from "@/hooks/useSkuCatalogue";
 import { useItouchCycles } from "@/hooks/useItouchCycles";
 import { useSmartTargetHistory } from "@/hooks/useSmartTargetHistory";
 import { useSmartTargetQueue, type QueueState } from "@/hooks/useSmartTargetQueue";
+import { planFromQueue } from "@/lib/smartTargetAhead";
 import { fillFromQueue } from "@/lib/smartTargetQueue";
 import { useFreezeSmartTargetForecasts, useSmartTargetForecastRows, type LineToFreeze } from "@/hooks/useSmartTargetForecastLog";
 import {
@@ -498,11 +499,20 @@ export default function SmartTargetPage() {
         // Plan rows with no quantity take what was left of iTouch's order for the same SKU
         // when the queue was read (Q26b).
         const fromQueue = fillFromQueue(l.line, l.input.jobs, queue.rows);
-        const notes = fromQueue.filled
+        // Nothing logged on this line yet: the plan is what iTouch has queued for it (Q32a).
+        // Once Production Control has a plan for the line, that plan answers instead.
+        const queuePlan = l.input.jobs.length ? null : planFromQueue(l.line, queue.rows, 0, ownRates);
+        const usesQueuePlan = !!queuePlan?.jobs.length;
+        const input = usesQueuePlan
+          ? { ...l.input, jobs: queuePlan.jobs, previousSku: queuePlan.previousSku ?? l.input.previousSku }
+          : { ...l.input, jobs: fromQueue.jobs };
+        const notes = usesQueuePlan
+          ? [...l.notes, `Plan from the iTouch queue read at ${londonTime(queue.rows[0].fetched_at)}: Production Control has nothing for this line yet.`, ...queuePlan.notes]
+          : fromQueue.filled
           ? [...l.notes, `Order quantity for ${fromQueue.filled} job${fromQueue.filled === 1 ? "" : "s"} from the iTouch queue read at ${londonTime(queue.rows[0].fetched_at)}: what was left to make then.`]
           : l.notes;
-        const result = forecastShift({ ...l.input, jobs: fromQueue.jobs, rates });
-        const shadow = shown ? result : forecastShift({ ...l.input, jobs: fromQueue.jobs, rates: ownRates });
+        const result = forecastShift({ ...input, rates });
+        const shadow = shown ? result : forecastShift({ ...input, rates: ownRates });
         return { ...l, notes, basis, result, shadow, shown, factor };
       }),
     };
@@ -559,7 +569,7 @@ export default function SmartTargetPage() {
           <>
             <p className="text-sm text-muted-foreground" aria-live="polite">
               {planned.length === 0
-                ? "No line has a plan for this shift. Plans come from the iTouch import in Production Control."
+                ? "No line has a plan for this shift, in Production Control or in the iTouch queue."
                 : `${planned.length} of 6 lines have a plan. ${forecast.length} can be forecast.`}
             </p>
             {queueText(queue.state) && <p className="text-sm text-muted-foreground">{queueText(queue.state)}</p>}
