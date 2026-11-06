@@ -1,13 +1,12 @@
 -- APLICAR 149 — o alvo do Smart Target fica pronto antes de o turno começar.
 --
--- PT: Colar no SQL editor da base de PRODUÇÃO, o ficheiro inteiro. Desde a troca é o
--- AN Maintenance (apblxaaktftinstoidvp): Supabase → SQL editor. É o BLOCO 149 do
--- APPLY-ALL-IN-ORDER.sql, byte a byte. Precisa do 147 e do 148 aplicados NESSA base.
+-- PT: Colar no SQL editor do PMSYSTEM (More → Cloud → SQL editor), o ficheiro inteiro. É o
+-- BLOCO 149 do APPLY-ALL-IN-ORDER.sql, byte a byte. Depois do 147 e do 148. Na troca para o
+-- AN Maintenance, cola-se lá com o endereço do cron trocado (Q50a).
 --
 -- Porquê (Smart Target, Q32–Q40): o operador tem de ter o alvo quando começa o turno. A
 -- função smart-target-ahead faz o alvo de cada linha a partir da fila do iTouch, 30 e 10
--- minutos antes de cada turno, e o tablet mostra-o (atrás do PIN do líder, como o alvo
--- do RAG).
+-- minutos antes de cada turno, e o tablet mostra-o no topo do My Production.
 --
 -- O que muda:
 -- 1. smart_target_forecasts ganha 4 colunas (por hora, origem, hora da leitura da fila,
@@ -15,7 +14,7 @@
 -- 2. As duas funções de gravação passam a aceitar o servidor (service_role). A origem é
 --    decidida pela função, nunca pelo cliente.
 -- 3. Ação nova smarttarget.line_target e a função smart_target_line_targets(): o tablet
---    lê o alvo do turno; as Linhas 1, 3 e 6 vêm sem números.
+--    lê o alvo do turno; as linhas que ficam só no escritório vêm sem números.
 -- 4. Um cron, smart-target-ahead, às :30 e :50 das 04, 05, 16 e 17 UTC.
 --
 -- ANTES de colar: publicar a função smart-target-ahead (com --no-verify-jwt) e voltar a
@@ -25,9 +24,9 @@
 -- Depois de colar: correr VERIFY-149-alvo-antes-do-turno.sql (só lê). Pode colar-se
 -- duas vezes.
 --
--- EN: Paste the whole file into the PRODUCTION database (AN Maintenance since the
--- switch); it is BLOCO 149. Needs 147 and 148 there. Deploy smart-target-ahead
--- (--no-verify-jwt) and redeploy intouch-list-scheduled-jobs first. Then run VERIFY-149.
+-- EN: Paste the whole file into the PMSYSTEM SQL editor; it is BLOCO 149. Needs 147 and 148.
+-- Deploy smart-target-ahead (no JWT check) and redeploy intouch-list-scheduled-jobs first.
+-- Then run VERIFY-149. At the AN Maintenance switch, paste it there with the cron URL changed.
 
 -- ================================================================
 -- BLOCO 149
@@ -227,7 +226,7 @@ select cron.schedule(
   '30,50 4,5,16,17 * * *',
   $cron$
   select net.http_post(
-    url := 'https://apblxaaktftinstoidvp.supabase.co/functions/v1/smart-target-ahead',
+    url := 'https://ybtrzqzliepknpzqdajx.supabase.co/functions/v1/smart-target-ahead',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'CRON_SECRET' limit 1)

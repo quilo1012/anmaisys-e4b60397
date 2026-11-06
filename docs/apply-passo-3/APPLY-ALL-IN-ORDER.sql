@@ -19511,7 +19511,7 @@ select cron.schedule(
   '30,50 4,5,16,17 * * *',
   $cron$
   select net.http_post(
-    url := 'https://apblxaaktftinstoidvp.supabase.co/functions/v1/smart-target-ahead',
+    url := 'https://ybtrzqzliepknpzqdajx.supabase.co/functions/v1/smart-target-ahead',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
       'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'CRON_SECRET' limit 1)

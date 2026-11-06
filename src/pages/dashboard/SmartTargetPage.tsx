@@ -30,6 +30,7 @@ import {
   cyclesToFix,
   lineFactors,
   lineRates,
+  BASE_LINES,
   BASE_SOURCE,
   OBSERVED_SOURCE,
   productsWithoutCode,
@@ -51,18 +52,12 @@ import {
 } from "@/lib/smartTargetInput";
 
 /**
- * Smart Target, as a diagnostic: what the engine can forecast for each line and
- * shift today, and, line by line, why it cannot forecast the rest.
+ * Smart Target: what each line can be expected to fill this shift, how the number was
+ * made, and, line by line, what is still missing where there is no number.
  *
- * Read-only. It writes nothing, and no target anywhere changes because of it.
- * Most lines will read "—" until the inputs listed at the top arrive. That is
- * the point of the page: the gaps are the work left to do, and a stand-in number
- * would hide them.
- *
- * Each line is drawn as its run of jobs in iTouch order, with the changeovers
- * between them. That part is real today, because it needs only the sequence.
- * The blocks are all the same width on purpose: without a rate there is no
- * duration, and drawing one would be the stand-in this page refuses.
+ * Each line is drawn as its run of jobs in iTouch order, with the changeovers between
+ * them. It saves the running shift's forecast once and never changes a target anywhere
+ * else. A line with no rate reads "—": a stand-in number would hide the gap.
  */
 
 const STATUS: Record<ShiftForecast["status"], { label: string; className: string }> = {
@@ -74,8 +69,8 @@ const STATUS: Record<ShiftForecast["status"], { label: string; className: string
 
 /** The rates item once factors are computed: what is live, and what is held back. */
 const RATES_LIVE = {
-  label: "Rates: every line, shown once it proves itself",
-  why: `Rates come from each line's base (its logged shifts, the Standard Line Targets reports and iTouch), then iTouch's ideal speed × the line's performance over the last eight weeks, then the rate the line reached on shifts that filled only that product (all provisional). A line's number is shown while its last ${SHOW_MIN_SCORED}+ measured shifts miss by a median of ${SHOW_MAX_MEDIAN_ERROR}% or less; until then Lines 2, 4 and 5 are shown and 1, 3 and 6 are forecast in shadow.`,
+  label: "Rates: every line, on the tablet once it proves itself",
+  why: `Rates come from each line's base (its logged shifts, the Standard Line Targets reports and iTouch), then iTouch's ideal speed × the line's performance over the last eight weeks, then the rate the line reached on shifts that filled only that product (all provisional). The office sees every line. A line's number reaches the tablet while its last ${SHOW_MIN_SCORED}+ measured shifts miss by a median of ${SHOW_MAX_MEDIAN_ERROR}% or less.`,
   owner: "Production: correct the cycles listed under Fix in iTouch",
 };
 
@@ -189,7 +184,7 @@ function JobBlock({ job }: { job: JobForecast }) {
 
 interface RateBasis {
   factor: LineFactor | null;
-  /** Null when the line is shown; otherwise why its number is held back. */
+  /** Null when the number reaches the tablet; otherwise why it stays in the office. */
   heldBack: string | null;
   from: string;
   to: string;
@@ -210,7 +205,7 @@ function LineCard({ line, result, notes, basis }: { line: number; result: ShiftF
       </Card>
     );
   }
-  const gaps = basis?.heldBack ? [basis.heldBack] : lineGaps(result);
+  const gaps = lineGaps(result);
   // Every warning the engine raised for this line, once each. Two are left out because
   // they would say the same on every line: the previous SKU is listed once at the bottom
   // of the page, and every job is sized from its order since iTouch's expected times
@@ -232,6 +227,7 @@ function LineCard({ line, result, notes, basis }: { line: number; result: ShiftF
           <h3 className="text-lg font-semibold leading-none tracking-tight">Line {line}</h3>
           <div className="flex flex-wrap gap-1.5">
             <Badge variant="outline" className={cn("font-medium", status.className)}>{status.label}</Badge>
+            {basis?.heldBack && <Badge variant="outline" className="font-medium">Office only</Badge>}
             {result.expectedTotal !== null && (
               <Badge variant="outline" className="font-medium">
                 {result.confidence === "medium" ? "Medium confidence" : "Low confidence"}
@@ -259,11 +255,17 @@ function LineCard({ line, result, notes, basis }: { line: number; result: ShiftF
           <dt className="text-muted-foreground">Rate</dt>
           <dd>
             {basis?.factor?.factor != null
-              ? `iTouch ideal × ${Math.round(basis.factor.factor * 100)}%, this line's performance over ${basis.factor.shiftsUsed} shifts (${basis.from} to ${basis.to})${basis.heldBack ? ", not shown" : ""}`
+              ? `${BASE_LINES.includes(line as LineNo) ? "The line's base where it knows the product, then " : ""}iTouch ideal × ${Math.round(basis.factor.factor * 100)}%, this line's performance over ${basis.factor.shiftsUsed} shifts (${basis.from} to ${basis.to})`
               : basis
-                ? `No performance factor yet: ${basis.factor?.shiftsUsed ?? 0} measurable shifts between ${basis.from} and ${basis.to}, 5 needed.`
+                ? `${BASE_LINES.includes(line as LineNo) ? "The line's base where it knows the product. " : ""}No performance factor yet: ${basis.factor?.shiftsUsed ?? 0} measurable shifts between ${basis.from} and ${basis.to}, 5 needed.`
                 : "Loading the last eight weeks…"}
           </dd>
+          {basis?.heldBack && (
+            <>
+              <dt className="text-muted-foreground">Tablet</dt>
+              <dd>{basis.heldBack}</dd>
+            </>
+          )}
           <dt className="text-muted-foreground">Changeover and mixing</dt>
           <dd className="tabular-nums">{setup} min <span className="text-muted-foreground">(provisional durations)</span></dd>
           {gaps.length > 0 && (
@@ -299,8 +301,8 @@ function AccuracyCard({ accuracy, installed, shown }: { accuracy: LineAccuracy[]
         <p className="text-sm text-muted-foreground">
           Last four weeks. Each shift's forecast is kept as it was first made; only those made in the first{" "}
           {ON_TIME_MINUTES / 60} hours of the shift count. Actual is what operators logged (provisional until iTouch's
-          filling events are confirmed). Lines not shown above are measured too. A line is shown while it has at least{" "}
-          {SHOW_MIN_SCORED} measured shifts and a median miss of {SHOW_MAX_MEDIAN_ERROR}% or less.
+          filling events are confirmed). A line's number reaches the tablet while it has at least {SHOW_MIN_SCORED} measured
+          shifts and a median miss of {SHOW_MAX_MEDIAN_ERROR}% or less.
         </p>
       </CardHeader>
       <CardContent>
@@ -329,7 +331,7 @@ function AccuracyCard({ accuracy, installed, shown }: { accuracy: LineAccuracy[]
               <tbody>
                 {accuracy.map((a) => (
                   <tr key={a.line} className="border-t">
-                    <td className="py-1.5 pr-3">Line {a.line}{shown.has(a.line) ? "" : " (not shown)"}</td>
+                    <td className="py-1.5 pr-3">Line {a.line}{shown.has(a.line) ? "" : " (office only)"}</td>
                     <td className="py-1.5 pr-3 text-right tabular-nums">{a.scored}</td>
                     <td className="py-1.5 pr-3 text-right tabular-nums">{a.medianAbsPctError === null ? "—" : `${a.medianAbsPctError}%`}</td>
                     <td className="py-1.5 pr-3 text-right tabular-nums">{pct(a.within10, a.scored)}</td>
@@ -489,10 +491,7 @@ export default function SmartTargetPage() {
         const factor = rateBasis?.factors.find((f) => f.line === l.line) ?? null;
         const vis = visibility.find((v) => v.line === l.line);
         const shown = vis?.shown ?? false;
-        // Every line gets its own rates for the forecast log. Only the shown lines put them
-        // on screen; lines 1, 3 and 6 are forecast in shadow so their error is measured too.
         const ownRates = rateBasis ? lineRates(l.line, rateBasis.cycles, factor, rateBasis.history) : [];
-        const rates = shown ? ownRates : [];
         const basis: RateBasis | null = rateBasis
           ? { factor, heldBack: shown ? null : vis?.heldBack ?? null, from: rateBasis.from, to: rateBasis.to }
           : null;
@@ -511,15 +510,14 @@ export default function SmartTargetPage() {
           : fromQueue.filled
           ? [...l.notes, `Order quantity for ${fromQueue.filled} job${fromQueue.filled === 1 ? "" : "s"} from the iTouch queue read at ${londonTime(queue.rows[0].fetched_at)}: what was left to make then.`]
           : l.notes;
-        const result = forecastShift({ ...input, rates });
-        const shadow = shown ? result : forecastShift({ ...input, rates: ownRates });
-        return { ...l, notes, basis, result, shadow, shown, factor };
+        const result = forecastShift({ ...input, rates: ownRates });
+        return { ...l, notes, basis, result, shown, factor };
       }),
     };
   }, [data, date, shift, catalogue, rateBasis, queue.rows, visibility]);
 
   const toFreeze = useMemo<LineToFreeze[] | null>(
-    () => built?.lines.map((l) => ({ line: l.line, shown: l.shown, forecast: l.shadow, factor: l.factor })) ?? null,
+    () => built?.lines.map((l) => ({ line: l.line, shown: l.shown, forecast: l.result, factor: l.factor })) ?? null,
     [built],
   );
   // Freeze only a complete forecast: rates known, and the iTouch queue read (or known to be unavailable).
@@ -539,7 +537,6 @@ export default function SmartTargetPage() {
           title="Smart Target"
           description="What each line can be expected to fill this shift, and what is still missing to say it"
           icon={<Target className="h-5 w-5" />}
-          badge={<Badge variant="outline">Diagnostic</Badge>}
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <Input

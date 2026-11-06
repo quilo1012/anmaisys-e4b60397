@@ -127,7 +127,7 @@ describe("which lines are shown (Q45a)", () => {
   it("keeps the starting choice until a line has 10 measured shifts", () => {
     const v = lineVisibility([acc(1, SHOW_MIN_SCORED - 1, 5), acc(2, 3, 40)], [2, 4, 5], reasons);
     expect(v.find((x) => x.line === 1)).toMatchObject({ shown: false });
-    expect(v.find((x) => x.line === 1)?.heldBack).toMatch(/Line 1 varied in October\. Shown by itself once 10 measured shifts .* \(9 of 10 shifts measured so far\)/);
+    expect(v.find((x) => x.line === 1)?.heldBack).toMatch(/Line 1 varied in October\. On the tablet once 10 measured shifts .* \(9 of 10 shifts measured so far\)/);
     expect(v.find((x) => x.line === 2)).toMatchObject({ shown: true, heldBack: null });
   });
 
@@ -135,7 +135,7 @@ describe("which lines are shown (Q45a)", () => {
     const v = lineVisibility([acc(1, 12, 14.5), acc(2, 20, 18)], [2, 4, 5], reasons);
     expect(v.find((x) => x.line === 1)).toMatchObject({ shown: true, heldBack: null });
     expect(v.find((x) => x.line === 2)).toMatchObject({ shown: false });
-    expect(v.find((x) => x.line === 2)?.heldBack).toBe("Over its last 20 measured shifts Line 2 missed by a median 18%. Shown again once that is 15% or less.");
+    expect(v.find((x) => x.line === 2)?.heldBack).toBe("Over its last 20 measured shifts Line 2 missed by a median 18%. Back on the tablet once that is 15% or less.");
   });
 
   it("15% exactly is shown, and with no accuracy at all the starting choice stands", () => {

@@ -112,13 +112,13 @@ export interface LineVisibility {
 }
 
 /**
- * Which lines show their number (decided 05/11, Q45a).
+ * Which lines' numbers reach the tablet (decided 05/11, Q45a and Q52a). The office sees all.
  *
- * Until a line has SHOW_MIN_SCORED measured shifts, the starting choice stands (`initial`:
- * Lines 2, 4 and 5 shown, 1, 3 and 6 in shadow, from the October backtest). From then on
+ * Until a line has SHOW_MIN_SCORED measured shifts, the starting choice stands (`initial`,
+ * from the base's test). From then on
  * its own record decides, both ways: shown while its median error is at most
- * SHOW_MAX_MEDIAN_ERROR, back in shadow when it is not. Accuracy counts shadow forecasts
- * too, so a held-back line can earn its way on.
+ * SHOW_MAX_MEDIAN_ERROR, off the tablet when it is not. Accuracy counts every line's
+ * forecast, so a line off the tablet can earn its way on.
  */
 export function lineVisibility(
   accuracy: LineAccuracy[] | null,
@@ -135,7 +135,7 @@ export function lineVisibility(
         shown,
         heldBack: shown
           ? null
-          : `${initialReason[line] ?? `Line ${line} is forecast in shadow.`} Shown by itself once ${SHOW_MIN_SCORED} measured shifts miss by a median of ${SHOW_MAX_MEDIAN_ERROR}% or less (${progress}).`,
+          : `${initialReason[line] ?? `Line ${line} stays off the tablet.`} On the tablet once ${SHOW_MIN_SCORED} measured shifts miss by a median of ${SHOW_MAX_MEDIAN_ERROR}% or less (${progress}).`,
       };
     }
     const shown = a.medianAbsPctError <= SHOW_MAX_MEDIAN_ERROR;
@@ -144,7 +144,7 @@ export function lineVisibility(
       shown,
       heldBack: shown
         ? null
-        : `Over its last ${a.scored} measured shifts Line ${line} missed by a median ${a.medianAbsPctError}%. Shown again once that is ${SHOW_MAX_MEDIAN_ERROR}% or less.`,
+        : `Over its last ${a.scored} measured shifts Line ${line} missed by a median ${a.medianAbsPctError}%. Back on the tablet once that is ${SHOW_MAX_MEDIAN_ERROR}% or less.`,
     };
   });
 }

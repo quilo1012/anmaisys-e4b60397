@@ -222,6 +222,7 @@ export function observedRates(line: LineNo, history: HistoryShift[], minShifts =
   return out;
 }
 
+export { BASE_LINES };
 export const BASE_SOURCE = "Line base";
 
 const baseRows = RATE_BASE_ROWS.trim().split("\n").map((row) => {

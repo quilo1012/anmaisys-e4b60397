@@ -30,7 +30,7 @@ select '149 anon não grava',
             then 'ANON EXECUTA' else 'ok' end
 union all
 select '149 cron ligado, aponta para esta base',
-       coalesce((select case when j.active and j.command like '%apblxaaktftinstoidvp%' then 'ok'
+       coalesce((select case when j.active and j.command like '%ybtrzqzliepknpzqdajx%' then 'ok'
                              when not j.active then 'DESLIGADO'
                              else 'URL DE OUTRA BASE' end
                    from cron.job j where j.jobname = 'smart-target-ahead'), 'FALTA')

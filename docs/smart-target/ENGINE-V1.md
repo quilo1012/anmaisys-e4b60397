@@ -231,3 +231,12 @@ Tested by building rates only from shifts before a cut-off and scoring the later
 | 15/10 (205 shifts) | 15.8% | 14.2% |
 
 Line 4 is the clearest gain (12–15% to 8–10%). Line 5 was not improved (15, 15 and 16% against 14, 12 and 17%), so it stays on iTouch × factor. Line 1 stays poor whichever rate is used (19–39%). The order is base, then iTouch × factor, then the rate observed on the line. The targets rest on operator-logged quantities and stay provisional.
+
+## Finishing version 1 (06/11/2026, Q50–Q55)
+
+- **Q50a.** The target before the shift goes live on the current database, without waiting for the AN Maintenance switch. At the switch, BLOCO 149 and both functions are applied there, with the cron URL changed.
+- **Q51a.** The operator sees the Smart Target at the top of My Production, with no PIN. The RAG target stays behind the leader's PIN.
+- **Q52a.** Lines 2, 4, 5 and 6 reach the tablet. Lines 1 and 3 show their number in the office, marked "Office only" with the reason. From 10 measured shifts on, the 15% rule decides.
+- **Q53a. Version 1 is done when:** lines with jobs in iTouch have a target saved before each shift without anyone opening the page; the operator sees it; each shift is measured by itself; the page no longer reads "Diagnostic"; and lines on the tablet have a median miss of 15% or less over 10 real shifts. The 10% goal comes after that.
+- **Q54a.** Version 2 holds the 48-hour horizon and batches. The Unleashed sheet with a Line column is analysed in Excel meanwhile. Batches need fill weights, and only 80 of 1,312 products have one.
+- **Q55a.** The base is rebuilt every four weeks with `scripts/smart-target-base`, delivered as a PR with the before and after. Next: 04/12/2026.
