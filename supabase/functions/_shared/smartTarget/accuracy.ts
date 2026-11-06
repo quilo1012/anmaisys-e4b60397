@@ -99,52 +99,32 @@ export function accuracyByLine(forecasts: StoredForecast[], actuals: Map<string,
   });
 }
 
-/** Shifts a line must have measured before its own record decides whether it is shown (Q45a). */
+/** Shifts a line must have measured before its own record replaces the tested margin. */
 export const SHOW_MIN_SCORED = 10;
-/** Median absolute error, in percent, at or under which a measured line is shown (Q45a). */
+/** The goal: median absolute miss, in percent, at or under which a line needs no caution. */
 export const SHOW_MAX_MEDIAN_ERROR = 15;
 
-export interface LineVisibility {
+export interface LineCaution {
   line: LineNo;
-  shown: boolean;
-  /** Why the number is held back; null when shown. */
-  heldBack: string | null;
+  /** What to tell the reader about a line over the goal; null when it is within it. */
+  caution: string | null;
 }
 
 /**
- * Which lines' numbers reach the tablet (decided 05/11, Q45a and Q52a). The office sees all.
- *
- * Until a line has SHOW_MIN_SCORED measured shifts, the starting choice stands (`initial`,
- * from the base's test). From then on
- * its own record decides, both ways: shown while its median error is at most
- * SHOW_MAX_MEDIAN_ERROR, off the tablet when it is not. Accuracy counts every line's
- * forecast, so a line off the tablet can earn its way on.
+ * Which lines' numbers need a caution beside them. Until a line has SHOW_MIN_SCORED measured
+ * shifts, the margin from the base's test stands (`tested`). From then on its own record
+ * decides, both ways. No line loses its number over this.
  */
-export function lineVisibility(
-  accuracy: LineAccuracy[] | null,
-  initial: readonly LineNo[],
-  initialReason: Partial<Record<LineNo, string>>,
-): LineVisibility[] {
+export function lineCautions(accuracy: LineAccuracy[] | null, tested: Partial<Record<LineNo, number>>): LineCaution[] {
   return ([1, 2, 3, 4, 5, 6] as LineNo[]).map((line) => {
     const a = accuracy?.find((x) => x.line === line);
     if (!a || a.scored < SHOW_MIN_SCORED || a.medianAbsPctError === null) {
-      const shown = initial.includes(line);
-      const progress = `${a?.scored ?? 0} of ${SHOW_MIN_SCORED} shifts measured so far`;
-      return {
-        line,
-        shown,
-        heldBack: shown
-          ? null
-          : `${initialReason[line] ?? `Line ${line} stays off the tablet.`} On the tablet once ${SHOW_MIN_SCORED} measured shifts miss by a median of ${SHOW_MAX_MEDIAN_ERROR}% or less (${progress}).`,
-      };
+      const miss = tested[line];
+      return { line, caution: miss === undefined ? null : `Tested on shifts since 01/10, Line ${line} missed by a median ${miss}%, over the ${SHOW_MAX_MEDIAN_ERROR}% goal. Read its number as a guide (${a?.scored ?? 0} of ${SHOW_MIN_SCORED} shifts measured so far).` };
     }
-    const shown = a.medianAbsPctError <= SHOW_MAX_MEDIAN_ERROR;
     return {
       line,
-      shown,
-      heldBack: shown
-        ? null
-        : `Over its last ${a.scored} measured shifts Line ${line} missed by a median ${a.medianAbsPctError}%. Back on the tablet once that is ${SHOW_MAX_MEDIAN_ERROR}% or less.`,
+      caution: a.medianAbsPctError <= SHOW_MAX_MEDIAN_ERROR ? null : `Over its last ${a.scored} measured shifts Line ${line} missed by a median ${a.medianAbsPctError}%, over the ${SHOW_MAX_MEDIAN_ERROR}% goal. Read its number as a guide.`,
     };
   });
 }

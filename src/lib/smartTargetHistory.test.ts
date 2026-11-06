@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { factorWindow, FORECAST_LINES, HELD_BACK_REASON, historyFromSessions, type HistoryItem } from "./smartTargetHistory";
+import { factorWindow, FORECAST_LINES, WIDE_MARGIN_LINES, historyFromSessions, type HistoryItem } from "./smartTargetHistory";
 import { buildSkuCatalogue } from "./lineSku";
 import { cleanCycles, lineFactors } from "./smartTargetRates";
 
@@ -63,9 +63,9 @@ describe("historyFromSessions", () => {
   });
 });
 
-describe("which lines show a number before any has its own record", () => {
-  it("is Lines 2, 4, 5 and 6, and every other line has its reason written down (then Q45a decides)", () => {
-    expect(FORECAST_LINES).toEqual([2, 4, 5, 6]);
-    for (const line of [1, 3] as const) expect(HELD_BACK_REASON[line]).toMatch(/missed by a median \d+%\.$/);
+describe("which lines show a number", () => {
+  it("is every line, with the tested margin of the two over the goal", () => {
+    expect(FORECAST_LINES).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(WIDE_MARGIN_LINES).toEqual({ 1: 22, 3: 18 });
   });
 });

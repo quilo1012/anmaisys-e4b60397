@@ -246,3 +246,5 @@ Line 4 is the clearest gain (12–15% to 8–10%). Line 5 was not improved (15, 
 
 - **Q59b (06/11).** A SKU change on Line 5 costs 16 min in all, measured, in place of 25 + 40. Built from earlier shifts and scored on later ones, it missed by 10.8, 10.3 and 15.2% against 13.8, 12.0 and 16.6%. It is what shows in the totals, not a clocked time, so Production should confirm it. The other lines keep 25 + mixing: measuring them gave no clear gain, and Line 4 got worse. Line 6 is worth measuring again with more shifts.
 - **Rows tie on when they were logged (06/11).** Operators' rows all have `display_order` 0, so the last job of a shift was chance. The pre-shift run now also reads the last product logged, for a queue with nothing running.
+
+- **Every line on the tablet (06/11, replaces Q45a and Q52a).** Lines 1 and 3 read "No target yet" on the tablet, which looked broken. Every line now shows its number. A line over the 15% goal keeps it and shows a caution: on the tablet "A guide: this line usually misses by about N%", in the office "Wide margin" with the reason. Each shift's accuracy is still measured.

@@ -166,7 +166,7 @@ export interface AheadInput {
   history: HistoryShift[];
   /** The last product logged on the shift before, per line, for a queue with nothing running. */
   previousSkus?: Partial<Record<LineNo, string | undefined>>;
-  /** Lines whose number is shown, from lineVisibility() (Q45a). */
+  /** Lines whose number reaches the tablet. */
   shownLines: readonly LineNo[];
 }
 
