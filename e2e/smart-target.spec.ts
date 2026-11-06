@@ -186,6 +186,7 @@ test("forecasts Line 2 from its own last eight weeks, and holds Line 1 back with
 
   const line1 = page.getByTestId("smart-target-line-1");
   await expect(line1).toContainText("Line 1 varies too much from shift to shift");
+  await expect(line1).toContainText("Office only");
   await expect(line1).toContainText("Not enough data");
   await page.screenshot({ path: "e2e/.results/smart-target-forecast.png", fullPage: true });
   expect(errors).toEqual([]);
@@ -335,7 +336,7 @@ test("shows how close the kept forecasts were, against what was logged", async (
   await expect(row2).toContainText("50%"); // within ±10%
   await expect(row2).toContainText("100%"); // within ±20%
   await expect(row2).toContainText("1 made late");
-  await expect(card.getByRole("row", { name: /^Line 1 \(not shown\)/ })).toBeVisible();
+  await expect(card.getByRole("row", { name: /^Line 1 \(office only\)/ })).toBeVisible();
   expect(errors).toEqual([]);
 });
 

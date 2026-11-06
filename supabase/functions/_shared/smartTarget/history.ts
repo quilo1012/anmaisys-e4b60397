@@ -22,16 +22,16 @@ import type { HistoryShift } from "./rates.ts";
 export const FACTOR_WINDOW_DAYS = 56;
 
 /**
- * Lines shown before any has its own measured record (October backtest). From 10
- * measured shifts on, `lineVisibility()` in accuracy.ts decides per line (Q45a).
+ * Lines whose number reaches the tablet before any has its own measured record, from the
+ * base's test on shifts since 01/10 (Q52a). From 10 measured shifts on, `lineVisibility()`
+ * in accuracy.ts decides per line (Q45a). Every line's number is shown in the office.
  */
-export const FORECAST_LINES: readonly LineNo[] = [2, 4, 5];
+export const FORECAST_LINES: readonly LineNo[] = [2, 4, 5, 6];
 
-/** Why a line is held back, measured 05/11/2026 (factor from Aug–Sep, tested on Oct–4 Nov). */
+/** Why a line's number stays off the tablet, from the same test. */
 export const HELD_BACK_REASON: Partial<Record<LineNo, string>> = {
-  1: "Line 1 varies too much from shift to shift: forecasting October missed by a median 25%. Forecast in shadow.",
-  3: "Line 3 varies too much from shift to shift: forecasting October missed by a median 21%. Forecast in shadow.",
-  6: "Line 6 varies too much from shift to shift: forecasting October missed by a median 19%. Forecast in shadow.",
+  1: "Line 1 varies too much from shift to shift: tested on shifts since 01/10 it missed by a median 22%.",
+  3: "Line 3 varies too much from shift to shift: tested on shifts since 01/10 it missed by a median 18%.",
 };
 
 /** The first and last session dates the factor reads for a forecast on `date`. */

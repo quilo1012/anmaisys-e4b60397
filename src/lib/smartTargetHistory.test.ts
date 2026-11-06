@@ -64,8 +64,8 @@ describe("historyFromSessions", () => {
 });
 
 describe("which lines show a number before any has its own record", () => {
-  it("is Lines 2, 4 and 5, and every other line has its reason written down (then Q45a decides)", () => {
-    expect(FORECAST_LINES).toEqual([2, 4, 5]);
-    for (const line of [1, 3, 6] as const) expect(HELD_BACK_REASON[line]).toMatch(/missed by a median \d+%\. Forecast in shadow\.$/);
+  it("is Lines 2, 4, 5 and 6, and every other line has its reason written down (then Q45a decides)", () => {
+    expect(FORECAST_LINES).toEqual([2, 4, 5, 6]);
+    for (const line of [1, 3] as const) expect(HELD_BACK_REASON[line]).toMatch(/missed by a median \d+%\.$/);
   });
 });

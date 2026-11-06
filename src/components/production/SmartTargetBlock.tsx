@@ -3,8 +3,8 @@ import { productsOffPlan, useSmartLineTarget, type SmartLineTargetState } from "
 import { londonHM } from "@/lib/shifts";
 
 /**
- * Smart Target's number for the shift, made before it started (Q34a). It sits behind the
- * same leader PIN as the RAG target: the tablet has always kept targets locked.
+ * Smart Target's number for the shift, at the top of the operator's screen with no PIN
+ * (Q51a). It is frozen once made; the leader-PIN target beside it is the RAG plan.
  */
 export function SmartTargetBlock({ line, loggedCodes }: { line: string; loggedCodes: string[] }) {
   const { sessionDate, shift } = useLoggingShift();
@@ -19,7 +19,7 @@ export function SmartTargetView({ state, loggedCodes }: { state: SmartLineTarget
   const setAt = t ? londonHM(new Date(t.frozen_at)) : null;
   const offPlan = t && t.jobs.length ? productsOffPlan(t, loggedCodes) : [];
   return (
-    <div className="mt-3 pt-3 border-t" data-testid="smart-line-target">
+    <div className="rounded-lg border bg-card px-4 py-3" data-testid="smart-line-target">
       <div className="text-xs text-muted-foreground">
         Smart Target{setAt ? ` · set ${setAt}` : ""}{t?.source === "page" ? " (during the shift)" : ""}
       </div>

@@ -63,7 +63,7 @@ describe("the target made before the shift", () => {
   });
 
   it("the cron calls a function the gateway lets through without a user token", () => {
-    expect(code(migration)).toMatch(/functions\/v1\/smart-target-ahead/);
+    expect(code(migration)).toMatch(/ybtrzqzliepknpzqdajx\.supabase\.co\/functions\/v1\/smart-target-ahead/);
     expect(config).toMatch(/\[functions\.smart-target-ahead\]\nverify_jwt = false/);
   });
 
