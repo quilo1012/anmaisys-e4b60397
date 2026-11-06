@@ -39,6 +39,14 @@ Other databases, none of them production:
 - `bjwwtusdcwjqfwtoxzcq` (AN PMSYSTEM), `ammlyqnjlhioukpgldgc` (PM System, a 12/09 copy) and
   `zljsksshbauwbdgaavpi` — paused or unused copies.
 
+**Where SQL and migrations go now.** A paste (`docs/apply-passo-3/APLICAR-*.sql`) goes into the
+SQL Editor of the AN Maintenance project in the Supabase dashboard — not Lovable's
+More → Cloud → SQL editor, which is the old database. The older paste files still say
+"PMSYSTEM (More → Cloud → SQL editor)"; that line is out of date. Any cron a migration
+schedules calls `https://apblxaaktftinstoidvp.supabase.co/functions/v1/…`. The Lovable agent
+only ever applies migrations to the old database, so a migration merged here reaches
+production only when it is pasted or applied to AN Maintenance.
+
 In AN Maintenance, the schemas `arquivo_2026_09` and `arquivo_dbpush_20261105` hold what was
 there before the migration (an earlier attempt and a stray `supabase db push`). They are
 history: nothing reads them, and they are not part of the app.
