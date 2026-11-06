@@ -413,3 +413,54 @@ test("a line shows the target kept for the shift, what was logged, and not the r
   await page.screenshot({ path: "e2e/.results/smart-target-strips.png", fullPage: true });
 });
 
+test("a line opens its shift report: expected, what happened, where the time went, and why", async ({ page }) => {
+  const at = `${DATE}T07:39:00Z`;
+  const items = [{ id: "i21", session_id: "s2", display_order: 1, sku_id: "sku-col", sku_code_text: null, planned_qty: 3000, created_at: at, actual_qty: 1432 }];
+  await stub(page, [
+    { machine: "Filler Line 2", sku: "COL165SR", cycle_seconds: 2.9, cavities: null, source: "t", imported_at: at },
+  ], true, items, 2, [], [
+    { session_date: DATE, shift: "DAY", line: 2, shown: true, expected_total: 2903, frozen_at: at, jobs: [{ sku: "COL165SR" }], engine_version: "smart-target-engine/1.0" },
+  ]);
+  const json = (route: Route, data: unknown) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(data) });
+  await page.route(/production_downtimes/, (route) => json(route, [
+    { id: "d1", line: "Line 2", shift: "DAY", reason: "Filling Blender/ Blending", category: "Line", duration_minutes: 172 },
+    { id: "d2", line: "Line 2", shift: "DAY", reason: "Breaks", category: "Planned", duration_minutes: 80 },
+  ]));
+  await page.route(/intouch_status_log/, (route) => json(route, [
+    { id: 1, line: "Line 2", status: 4, changed_at: `${DATE}T06:20:00Z` },
+    { id: 2, line: "Line 2", status: 7, changed_at: `${DATE}T09:41:00Z` },
+    // Another line through the day shows the log alive, up to where it stops at 17:00.
+    ...Array.from({ length: 21 }, (_, i) => ({
+      id: 10 + i,
+      line: "Line 6",
+      status: 7,
+      changed_at: `${DATE}T${String(7 + Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}:00Z`,
+    })),
+  ]));
+  await page.route(/rag_weekly_entries/, (route) => json(route, [{ line: "Line 2", plan_qty: 1550 }]));
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await open(page);
+  const line2 = page.getByTestId("smart-target-line-2");
+  await line2.locator("summary").click();
+  const report = line2.getByTestId("shift-report-2");
+  await expect(report).toBeVisible();
+  await expect(report).toContainText("1,550");
+  await expect(report).toContainText("First ran 06:20, last ran 09:41");
+  await expect(report).toContainText("Running 201 min");
+  await expect(report).toContainText("Biggest stop: Filling Blender/ Blending, 172 min.");
+  await expect(report).toContainText("Logged 1,471 under the target.");
+  await expect(report).toContainText("The machine log was off from 17:00 to 18:00");
+
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: "Export to Excel" }).click()]);
+  expect(download.suggestedFilename()).toBe(`smart-target_${DATE}_DAY.xlsx`);
+
+  // The print copy is hidden on the page and has to come out shown, with every line in it.
+  await page.getByRole("button", { name: "Print shift report" }).click();
+  const printed = page.frameLocator('iframe[aria-hidden="true"]').locator(".shift-report-print");
+  await expect(printed).toBeVisible();
+  await expect(printed).toContainText("Line 6");
+  await expect(printed).toContainText("Filling Blender/ Blending");
+  await line2.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "e2e/.results/smart-target-report.png", fullPage: true });
+});
+
