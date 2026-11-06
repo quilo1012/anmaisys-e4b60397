@@ -220,6 +220,26 @@ test("uses the line's base, or the rate it reached where iTouch's cycle is wrong
   expect(errors).toEqual([]);
 });
 
+test("with nothing in Production Control, the plan is iTouch's queue, batches as one job", async ({ page }) => {
+  const at = "2026-11-03T07:00:00Z";
+  const errors = await stub(page, [
+    { machine: "Filler Line 4", sku: "CRE500", cycle_seconds: 3.9, cavities: null, source: "iTouch (test)", imported_at: at },
+  ], true, [], 2, [
+    { line: "Line 4", seq: 15, sku: "CRE500 - B15", order_qty: 2500, done_qty: 0, status: "Scheduled", fetched_at: at },
+    { line: "Line 4", seq: 16, sku: "CRE500 - B16", order_qty: 2500, done_qty: 0, status: "Scheduled", fetched_at: at },
+  ]);
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await open(page);
+  const line4 = page.getByTestId("smart-target-line-4");
+  await expect(line4).toContainText("CRE500");
+  await expect(line4).not.toContainText("B15");
+  await expect(line4).toContainText("Order 5,000");
+  await expect(line4).toContainText("Plan from the iTouch queue read at 07:00");
+  await expect(line4).toContainText("Rate from the line's base");
+  await expect(line4).toContainText("5,000");
+  expect(errors).toEqual([]);
+});
+
 test("forecasts the last job with no order as the line's capacity to the end of the shift", async ({ page }) => {
   const at = "2026-11-04T20:16:00Z";
   const src = "iTouch Product Details (test)";

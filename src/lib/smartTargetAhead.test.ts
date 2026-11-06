@@ -6,7 +6,7 @@ import {
   NO_ITOUCH_JOBS,
   productsOffPlan,
 } from "./smartTargetAhead";
-import type { QueueRow } from "./smartTargetQueue";
+import { fillFromQueue, queuedProduct, type QueueRow } from "./smartTargetQueue";
 import type { CleanCycle, LineFactor } from "./smartTargetRates";
 import type { RateRecord } from "./smartTargetEngine";
 
@@ -64,6 +64,32 @@ describe("planFromQueue", () => {
     const plan = planFromQueue(2, [q("Line 2", 1, "a", 1000, 1000), q("Line 2", 2, "b", null, null)], 30, []);
     expect(plan.previousSku).toBeUndefined();
     expect(plan.jobs.map((j) => [j.sku, j.orderQty])).toEqual([["B", null]]);
+  });
+});
+
+describe("batches in iTouch's queue", () => {
+  it("are one job of one product, as on 06/11: CRE500 - B15 to B20 on Line 4", () => {
+    const plan = planFromQueue(4, [
+      q("Line 4", 15, "CRE500 - B15", 2500, 0, "Scheduled"),
+      q("Line 4", 16, "CRE500 - B16", 2500, 0, "Scheduled"),
+      q("Line 5", 1, "BEEFXPCA -B1", 1777, 0, "Scheduled"),
+    ], 0, []);
+    expect(plan.jobs.map((j) => [j.sku, j.orderQty])).toEqual([["CRE500", 5000]]);
+    expect(planFromQueue(5, [q("Line 5", 1, "BEEFXPCA -B1", 1777, 0)], 0, []).jobs[0].sku).toBe("BEEFXPCA");
+  });
+
+  it("fill a plan row with the whole run, not its first batch", () => {
+    const { jobs, filled } = fillFromQueue(4, [{ jobId: "a", sku: "CRE500", sequence: 1, orderQty: null }], [
+      q("Line 4", 15, "CRE500 - B15", 2500, 500),
+      q("Line 4", 16, "CRE500 - B16", 2500, 0),
+    ]);
+    expect(filled).toBe(1);
+    expect(jobs[0].orderQty).toBe(4500);
+  });
+
+  it("leave a part code that only looks like a batch alone", () => {
+    expect(queuedProduct("PERUCRE1KG - 26")).toBe("PERUCRE1KG - 26");
+    expect(queuedProduct("BCAA")).toBe("BCAA");
   });
 });
 

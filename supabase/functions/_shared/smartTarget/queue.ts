@@ -37,6 +37,15 @@ export interface QueueRow {
   status: string | null;
 }
 
+/**
+ * The product of a queued works order. iTouch's queue holds one order per batch, with the
+ * batch in the part code ("CRE500 - B15", "BEEFXPCA -B1"), so without this no queued order
+ * matches a plan row, a cycle or a rate.
+ */
+export function queuedProduct(sku: string | null | undefined): string | null {
+  return normaliseSku(String(sku ?? "").replace(/\s*-\s*B\d+\s*$/i, ""));
+}
+
 /** The function's sections into the rows save_smart_target_queue() stores. */
 export function queueRowsFromSections(sections: { line: string; items: ScheduledJobItem[] }[]): QueueRow[] {
   const out: QueueRow[] = [];
@@ -69,10 +78,19 @@ export function isCurrentShift(date: string, shift: ShiftType, now: Date = new D
  * the same SKU on that line. Returns the jobs and how many were filled.
  */
 export function fillFromQueue(line: LineNo, jobs: PlannedJob[], queue: QueueRow[]): { jobs: PlannedJob[]; filled: number } {
-  const pool = queue
-    .filter((q) => parseLineNo(q.line) === line)
-    .sort((a, b) => a.seq - b.seq)
-    .map((q) => ({ ...q, key: normaliseSku(q.sku), used: false }));
+  // Batches of one product in a row are one order for the plan row that makes them.
+  const pool: (QueueRow & { key: string | null; used: boolean })[] = [];
+  for (const q of queue.filter((x) => parseLineNo(x.line) === line).sort((a, b) => a.seq - b.seq)) {
+    const key = queuedProduct(q.sku);
+    const last = pool[pool.length - 1];
+    const isBatch = key !== normaliseSku(q.sku);
+    if (isBatch && last && last.key === key && last.order_qty !== null && q.order_qty !== null) {
+      last.order_qty += q.order_qty;
+      last.done_qty = (last.done_qty ?? 0) + (q.done_qty ?? 0);
+    } else {
+      pool.push({ ...q, key, used: false });
+    }
+  }
   let filled = 0;
   const out = jobs.map((j) => {
     if (j.orderQty && j.orderQty > 0) return j;
