@@ -8633,6 +8633,16 @@ export type Database = {
         Args: { p_message: string; p_request_id: string }
         Returns: string
       }
+      migr_export: {
+        Args: {
+          p_after?: string
+          p_arg?: string
+          p_kind: string
+          p_limit?: number
+          p_token: string
+        }
+        Returns: Json
+      }
       move_machine_to_line: {
         Args: { _machine_id: string; _new_line: string; _notes?: string }
         Returns: undefined
