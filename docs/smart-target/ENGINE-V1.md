@@ -275,3 +275,5 @@ Replay of 06/11 day shift with this rule, from the iTouch queue read at 07:00 an
 - **iTouch's queue reports nothing done.** Every row on both shifts read 0 done and "Scheduled"; finished batches just leave the list. So "order − made" subtracts nothing and the running-job correction (Q38) never fires.
 - **What ran was not what was queued.** Line 5 was queued `BEEFXPCA` and logged `BEEFXP900CA`; Line 6 was queued `CWBAG450V` and logged `CW4V`, then `CW825V`; Line 4 queued `CRE500` and logged `PERUCRE500`. A forecast from the queue cannot see this.
 - `BEEFXP900CA` is named "BEEF-XP CHERRY APPLE" in the product list, with no size, so it has no family and reads as no history.
+
+- **Q65a (06/11).** The plan stays iTouch's queue, which the Production Office keeps up to date before the shift. A line card says "Plan changed" when a logged product is not in the kept plan; a market variant of a planned product (`PERUCRE500` for `CRE500`) does not count.

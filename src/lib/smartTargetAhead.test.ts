@@ -162,3 +162,17 @@ describe("productsOffPlan", () => {
     expect(productsOffPlan(target, ["AFCIB"])).toEqual([]);
   });
 });
+
+describe("what counts as off the plan (Q65a)", () => {
+  const familyOf = (sku: string) => (sku.endsWith("CRE500") ? "CREATINE 500G" : sku === "CW4V" ? "CRITICAL WHEY 450G" : null);
+
+  it("does not flag a market variant of the same product, as Line 4 on 06/11", () => {
+    expect(productsOffPlan({ jobs: [{ sku: "CRE500" }] }, ["PERUCRE500"], familyOf)).toEqual([]);
+  });
+
+  it("flags another product, as Lines 5 and 6 on 06/11", () => {
+    expect(productsOffPlan({ jobs: [{ sku: "BEEFXPOM" }, { sku: "BEEFXPCA" }] }, ["BEEFXPOM", "BEEFXP900CA"], familyOf)).toEqual(["BEEFXP900CA"]);
+    expect(productsOffPlan({ jobs: [{ sku: "CWBAG450V" }] }, ["CW4V", "CW825V"], familyOf)).toEqual(["CW4V", "CW825V"]);
+  });
+});
+
