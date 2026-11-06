@@ -15,7 +15,7 @@ import { Plus, Trash2, Pencil, Upload, Search, Download, Eraser, Undo2, Boxes, M
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import ExcelJS from "exceljs";
-import { skuDeleteError, skuUpdatePayload } from "@/lib/skuCatalog";
+import { assertSkuRowsChanged, skuDeleteError, skuUpdatePayload } from "@/lib/skuCatalog";
 import { Switch } from "@/components/ui/switch";
 
 interface Sku { id: string; code: string; name: string; category: string | null; target_per_hour: number | null; weight: number | null; active: boolean }
