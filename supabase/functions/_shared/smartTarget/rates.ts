@@ -255,11 +255,63 @@ export function baseRates(line: LineNo): RateRecord[] {
     }));
 }
 
+export const FAMILY_SOURCE = "Recent shifts of this product";
+/** Fewest shifts of one product family on a line before they can overrule a rate. */
+export const FAMILY_MIN_SHIFTS = 3;
+/** How far apart the rate and those shifts must be before they overrule it. */
+export const FAMILY_MAX_APART = 1.3;
+
+/**
+ * A product family from a product name: everything up to and including the fill size, without
+ * the market. "ESSENTIAL PROTEIN 1.6KG BANANA" and "...WHITE CHOCOLATE" are one family, on
+ * the same blender, fill and tub. A name with no fill size has no family.
+ */
+export function familyFromName(name: string | null | undefined): string | null {
+  const clean = String(name ?? "").toUpperCase().replace(/\[.*$/, "").replace(/\b(PERU|KSA|NOT FOR EU)\b/g, " ").replace(/\s+/g, " ").trim();
+  return /^(.*?\d+(?:\.\d+)?\s*(?:KG|G))\b/.exec(clean)?.[1] ?? null;
+}
+
+/**
+ * What the line reached per hour on shifts that filled one product family, flavours included:
+ * family → the median of containers ÷ (net − setup), with at least FAMILY_MIN_SHIFTS shifts.
+ */
+function familyRates(line: LineNo, history: HistoryShift[], familyOf: (sku: string) => string | null) {
+  const byFamily = new Map<string, number[]>();
+  for (const h of history) {
+    if (h.line !== line) continue;
+    const made = h.made.filter((m) => m.qty > 0);
+    const families = new Set(made.map((m) => (m.sku ? familyOf(m.sku) : null)));
+    const family = families.size === 1 ? [...families][0] : null;
+    const available = h.netMinutes - h.setupMinutes;
+    if (!family || available <= 0) continue;
+    const total = made.reduce((sum, m) => sum + m.qty, 0);
+    byFamily.set(family, [...(byFamily.get(family) ?? []), (total / available) * 60]);
+  }
+  const out = new Map<string, { perHour: number; shifts: number }>();
+  for (const [family, perHour] of byFamily) {
+    if (perHour.length >= FAMILY_MIN_SHIFTS) out.set(family, { perHour: median(perHour), shifts: perHour.length });
+  }
+  return out;
+}
+
 /**
  * Every rate the line has, best first: the line's base, then iTouch's ideal × the line's
  * factor, then the rate observed on the line for products neither of those covers.
+ *
+ * A check on top, given `familyOf`: where the line's own shifts of that product family are
+ * FAMILY_MAX_APART or more from the rate, those shifts win. A line's factor is an average
+ * over everything it fills, and on 06/11 it put Essential Protein 1.6 kg on Line 1 at 293/h
+ * against the 160/h its last 8 shifts reached, so a shift target of 3,000 where the line
+ * makes about 1,600. Scored on later shifts, this rule did no harm on the three cut-offs
+ * (17.0, 15.0 and 15.8% against 17.0, 15.9 and 15.8%): it is a guard, not a better model.
  */
-export function lineRates(line: LineNo, cycles: CleanCycle[], factor: LineFactor | null, history: HistoryShift[]): RateRecord[] {
+export function lineRates(
+  line: LineNo,
+  cycles: CleanCycle[],
+  factor: LineFactor | null,
+  history: HistoryShift[],
+  familyOf?: (sku: string) => string | null,
+): RateRecord[] {
   const out: RateRecord[] = [];
   const covered = new Set<string | null>();
   for (const r of [...baseRates(line), ...(factor ? ratesForLine(line, cycles, factor) : []), ...observedRates(line, history)]) {
@@ -268,7 +320,19 @@ export function lineRates(line: LineNo, cycles: CleanCycle[], factor: LineFactor
     covered.add(key);
     out.push(r);
   }
-  return out;
+  if (!familyOf) return out;
+  const families = familyRates(line, history, familyOf);
+  return out.map((r) => {
+    const family = familyOf(r.sku);
+    const seen = family ? families.get(family) : undefined;
+    if (!seen || Math.max(seen.perHour / r.value, r.value / seen.perHour) < FAMILY_MAX_APART) return r;
+    return {
+      ...r,
+      value: Math.round(seen.perHour * 10) / 10,
+      sampleShifts: seen.shifts,
+      source: `${FAMILY_SOURCE}: median of ${seen.shifts} shifts of ${family} on Line ${line}`,
+    };
+  });
 }
 
 export const ESTIMATED_SOURCE = "Estimated";
@@ -383,7 +447,9 @@ export function explainTarget(jobs: JobForecast[]): string[] {
   return jobs.flatMap((j) => {
     if (j.expectedContainers === null || !j.rate) return [];
     const perHour = Math.round(j.rate.perHour);
-    const from = j.rate.source.startsWith(BASE_SOURCE)
+    const from = j.rate.source.startsWith(FAMILY_SOURCE)
+      ? `the line's last ${j.rate.sampleShifts} shifts of this product`
+      : j.rate.source.startsWith(BASE_SOURCE)
       ? `the line's base, ${j.rate.sampleShifts} shifts`
       : j.rate.source.startsWith(OBSERVED_SOURCE)
         ? `observed on this line, ${j.rate.sampleShifts} shifts`

@@ -24,7 +24,7 @@ import {
   SHOW_MIN_SCORED,
   type LineAccuracy,
 } from "@/lib/smartTargetAccuracy";
-import { FORECAST_LINES, WIDE_MARGIN_LINES, historyFromSessions } from "@/lib/smartTargetHistory";
+import { FORECAST_LINES, WIDE_MARGIN_LINES, historyFromSessions, skuFamily } from "@/lib/smartTargetHistory";
 import {
   cleanCycles,
   cyclesToFix,
@@ -36,6 +36,7 @@ import {
   fixSuggestion,
   type FixSuggestion,
   ESTIMATED_SOURCE,
+  FAMILY_SOURCE,
   withEstimates,
   LINE_RATES_CONFIG,
   OBSERVED_SOURCE,
@@ -175,6 +176,11 @@ function JobBlock({ job }: { job: JobForecast }) {
       {job.rate?.source.startsWith(ESTIMATED_SOURCE) && (
         <div className="text-2xs text-warning-strong" title={job.rate.source}>
           Estimated: no rate for this product
+        </div>
+      )}
+      {job.rate?.source.startsWith(FAMILY_SOURCE) && (
+        <div className="text-2xs text-muted-foreground" title={job.rate.source}>
+          Rate from the line's last {job.rate.sampleShifts} shifts of this product
         </div>
       )}
       {job.rate?.source.startsWith(BASE_SOURCE) && (
@@ -523,7 +529,7 @@ export default function SmartTargetPage() {
       lines: inputs.lines.map((l) => {
         const factor = rateBasis?.factors.find((f) => f.line === l.line) ?? null;
         const shown = FORECAST_LINES.includes(l.line);
-        const ownRates = rateBasis ? lineRates(l.line, rateBasis.cycles, factor, rateBasis.history) : [];
+        const ownRates = rateBasis ? lineRates(l.line, rateBasis.cycles, factor, rateBasis.history, skuFamily(catalogue)) : [];
         const basis: RateBasis | null = rateBasis
           ? { factor, caution: cautions.find((c) => c.line === l.line)?.caution ?? null, from: rateBasis.from, to: rateBasis.to }
           : null;

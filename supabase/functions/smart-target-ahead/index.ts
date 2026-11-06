@@ -21,7 +21,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aheadShift, forecastAhead } from "../_shared/smartTarget/ahead.ts";
 import { queueRowsFromSections, type QueueRow, type ScheduledJobItem } from "../_shared/smartTarget/queue.ts";
 import { cleanCycles, lineFactors, type CycleRecord } from "../_shared/smartTarget/rates.ts";
-import { FORECAST_LINES, factorWindow, historyFromSessions, type HistoryItem } from "../_shared/smartTarget/history.ts";
+import { FORECAST_LINES, factorWindow, skuFamily, historyFromSessions, type HistoryItem } from "../_shared/smartTarget/history.ts";
 import { buildShiftInputs, previousShiftOf, type SmartTargetItem, type SmartTargetSession } from "../_shared/smartTarget/input.ts";
 import { buildSkuCatalogue } from "../_shared/production/lineSku.ts";
 
@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
 
     const { cycles, factors, history, catalogue } = await factorsFor(date);
     const previousSkus = await previousSkusFor(date, shift, catalogue);
-    const { rows } = forecastAhead({ date, shift, minutesToStart, final, queue: queue.rows, cycles, factors, history, shownLines: FORECAST_LINES, previousSkus });
+    const { rows } = forecastAhead({ date, shift, minutesToStart, final, queue: queue.rows, cycles, factors, history, shownLines: FORECAST_LINES, previousSkus, familyOf: skuFamily(catalogue) });
     const toSave = rows
       .filter((r) => !done.has(r.line) && (r.expected_total !== null || !saidNothing.has(r.line)))
       .map((r) => ({ ...r, source: "ahead", queue_read_at: new Date().toISOString() }));

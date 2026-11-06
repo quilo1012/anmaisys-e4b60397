@@ -164,6 +164,8 @@ export interface AheadInput {
   factors: LineFactor[];
   /** The eight weeks the factor read, for the rates observed on each line (Q43a). */
   history: HistoryShift[];
+  /** A SKU's product family, so the line's own shifts can overrule a rate far from them. */
+  familyOf?: (sku: string) => string | null;
   /** The last product logged on the shift before, per line, for a queue with nothing running. */
   previousSkus?: Partial<Record<LineNo, string | undefined>>;
   /** Lines whose number reaches the tablet. */
@@ -180,7 +182,7 @@ export function forecastAhead(input: AheadInput): { rows: AheadRow[]; forecasts:
   const forecasts = new Map<LineNo, ShiftForecast>();
   for (const line of LINES) {
     const factor = input.factors.find((f) => f.line === line) ?? null;
-    const rates = lineRates(line, input.cycles, factor, input.history);
+    const rates = lineRates(line, input.cycles, factor, input.history, input.familyOf);
     const plan = planFromQueue(line, input.queue, input.minutesToStart, rates);
     const shown = input.shownLines.includes(line);
     if (!plan.jobs.length) {
