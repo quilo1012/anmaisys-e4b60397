@@ -1,6 +1,8 @@
 import { useLoggingShift } from "@/contexts/LoggingShiftContext";
 import { productsOffPlan, useSmartLineTarget, type SmartLineTargetState } from "@/hooks/useSmartLineTarget";
 import { londonHM } from "@/lib/shifts";
+import { WIDE_MARGIN_LINES } from "@/lib/smartTargetHistory";
+import type { LineNo } from "@/lib/smartTargetEngine";
 
 /**
  * Smart Target's number for the shift, at the top of the operator's screen with no PIN
@@ -37,6 +39,9 @@ export function SmartTargetView({ state, loggedCodes }: { state: SmartLineTarget
           <div className="text-xs text-muted-foreground">
             containers{t.expected_per_hour !== null ? ` · ${Math.round(t.expected_per_hour).toLocaleString()} per hour` : ""} · provisional
           </div>
+          {WIDE_MARGIN_LINES[t.line as LineNo] !== undefined && (
+            <div className="text-xs text-muted-foreground">A guide: this line usually misses by about {WIDE_MARGIN_LINES[t.line as LineNo]}%.</div>
+          )}
         </>
       )}
       {offPlan.length > 0 && (

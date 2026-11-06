@@ -163,12 +163,12 @@ test("shows the iTouch cycles it holds and lists the ones Production must fix", 
   // Capsules are outside v1: left out, not reported as a fault.
   await expect(page.getByText("CAPS1")).toHaveCount(0);
   // A cycle is not a forecast. Line 1 is also one of the lines held back (Q24).
-  await expect(page.getByTestId("smart-target-line-1")).toContainText("Line 1 varies too much from shift to shift");
+  await expect(page.getByTestId("smart-target-line-1")).toContainText("Line 1 missed by a median 22%");
   await expect(page.getByRole("button", { name: "Import iTouch cycles" })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
-test("forecasts Line 2 from its own last eight weeks, and holds Line 1 back with the reason", async ({ page }) => {
+test("forecasts Line 2 from its own last eight weeks, and shows Line 1 with a caution", async ({ page }) => {
   const at = "2026-11-04T20:16:00Z";
   const src = "iTouch Product Details (test)";
   const errors = await stub(page, [
@@ -185,8 +185,8 @@ test("forecasts Line 2 from its own last eight weeks, and holds Line 1 back with
   await expect(line2).toContainText("3,000");
 
   const line1 = page.getByTestId("smart-target-line-1");
-  await expect(line1).toContainText("Line 1 varies too much from shift to shift");
-  await expect(line1).toContainText("Office only");
+  await expect(line1).toContainText("Line 1 missed by a median 22%");
+  await expect(line1).toContainText("Wide margin");
   await page.screenshot({ path: "e2e/.results/smart-target-forecast.png", fullPage: true });
   expect(errors).toEqual([]);
 });
@@ -335,11 +335,11 @@ test("shows how close the kept forecasts were, against what was logged", async (
   await expect(row2).toContainText("50%"); // within ±10%
   await expect(row2).toContainText("100%"); // within ±20%
   await expect(row2).toContainText("1 made late");
-  await expect(card.getByRole("row", { name: /^Line 1 \(office only\)/ })).toBeVisible();
+  await expect(card.getByRole("row", { name: /^Line 1\b/ })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
-test("keeps the running shift's forecast once, shown and held-back lines alike", async ({ page }) => {
+test("keeps the running shift's forecast once, every line alike", async ({ page }) => {
   await page.addInitScript(([ref, session]) => {
     window.localStorage.setItem(`sb-${ref}-auth-token`, JSON.stringify(session));
   }, [PROJECT_REF, FAKE_SESSION] as const);
@@ -383,5 +383,5 @@ test("keeps the running shift's forecast once, shown and held-back lines alike",
   await page.waitForTimeout(1500);
   expect(saves).toHaveLength(1);
   const rows = saves[0].p_rows.sort((a, b) => a.line - b.line);
-  expect(rows.map((r) => [r.line, r.shown, r.expected_total !== null])).toEqual([[1, false, true], [2, true, true]]);
+  expect(rows.map((r) => [r.line, r.shown, r.expected_total !== null])).toEqual([[1, true, true], [2, true, true]]);
 });

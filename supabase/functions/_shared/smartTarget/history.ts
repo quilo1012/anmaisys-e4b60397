@@ -22,17 +22,14 @@ import type { HistoryShift } from "./rates.ts";
 export const FACTOR_WINDOW_DAYS = 56;
 
 /**
- * Lines whose number reaches the tablet before any has its own measured record, from the
- * base's test on shifts since 01/10 (Q52a). From 10 measured shifts on, `lineVisibility()`
- * in accuracy.ts decides per line (Q45a). Every line's number is shown in the office.
+ * Every line shows its number, office and tablet alike (decided 06/11: a line with no target
+ * on the tablet read as broken). A line that misses by more than the 15% goal says so beside
+ * the number instead of losing it.
  */
-export const FORECAST_LINES: readonly LineNo[] = [2, 4, 5, 6];
+export const FORECAST_LINES: readonly LineNo[] = [1, 2, 3, 4, 5, 6];
 
-/** Why a line's number stays off the tablet, from the same test. */
-export const HELD_BACK_REASON: Partial<Record<LineNo, string>> = {
-  1: "Line 1 varies too much from shift to shift: tested on shifts since 01/10 it missed by a median 22%.",
-  3: "Line 3 varies too much from shift to shift: tested on shifts since 01/10 it missed by a median 18%.",
-};
+/** Median miss, in percent, of the lines over the goal, from the base's test on shifts since 01/10. */
+export const WIDE_MARGIN_LINES: Partial<Record<LineNo, number>> = { 1: 22, 3: 18 };
 
 /** The first and last session dates the factor reads for a forecast on `date`. */
 export function factorWindow(date: string): { from: string; to: string } {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ESTIMATED_SOURCE, withEstimates, BASE_SOURCE, baseRates, cyclesToFix, lineRates, observedRates, productsWithoutCode, OBSERVED_SOURCE, type HistoryShift } from "./smartTargetRates";
-import { lineVisibility, SHOW_MIN_SCORED, type LineAccuracy } from "./smartTargetAccuracy";
+import { lineCautions, SHOW_MIN_SCORED, type LineAccuracy } from "./smartTargetAccuracy";
 import { historyFromSessions } from "./smartTargetHistory";
 import { buildSkuCatalogue } from "./lineSku";
 
@@ -134,28 +134,20 @@ describe("Fix in iTouch (Q44a): only what the lines actually filled", () => {
   });
 });
 
-describe("which lines are shown (Q45a)", () => {
+describe("cautions beside a line's number", () => {
   const acc = (line: 1 | 2, scored: number, median: number | null): LineAccuracy => ({
     line, scored, frozenLate: 0, noNumber: 0, noActual: 0, medianAbsPctError: median, within10: 0, within20: 0, recent: [],
   });
-  const reasons = { 1: "Line 1 varied in October." };
 
-  it("keeps the starting choice until a line has 10 measured shifts", () => {
-    const v = lineVisibility([acc(1, SHOW_MIN_SCORED - 1, 5), acc(2, 3, 40)], [2, 4, 5], reasons);
-    expect(v.find((x) => x.line === 1)).toMatchObject({ shown: false });
-    expect(v.find((x) => x.line === 1)?.heldBack).toMatch(/Line 1 varied in October\. On the tablet once 10 measured shifts .* \(9 of 10 shifts measured so far\)/);
-    expect(v.find((x) => x.line === 2)).toMatchObject({ shown: true, heldBack: null });
+  it("uses the tested margin until a line has 10 measured shifts", () => {
+    const c = lineCautions([acc(1, SHOW_MIN_SCORED - 1, 5), acc(2, 3, 40)], { 1: 22 });
+    expect(c.find((x) => x.line === 1)?.caution).toMatch(/missed by a median 22%.*\(9 of 10 shifts measured so far\)/);
+    expect(c.find((x) => x.line === 2)?.caution).toBeNull();
   });
 
-  it("then lets each line's own record decide, both ways", () => {
-    const v = lineVisibility([acc(1, 12, 14.5), acc(2, 20, 18)], [2, 4, 5], reasons);
-    expect(v.find((x) => x.line === 1)).toMatchObject({ shown: true, heldBack: null });
-    expect(v.find((x) => x.line === 2)).toMatchObject({ shown: false });
-    expect(v.find((x) => x.line === 2)?.heldBack).toBe("Over its last 20 measured shifts Line 2 missed by a median 18%. Back on the tablet once that is 15% or less.");
-  });
-
-  it("15% exactly is shown, and with no accuracy at all the starting choice stands", () => {
-    expect(lineVisibility([acc(1, 10, 15)], [], {})[0].shown).toBe(true);
-    expect(lineVisibility(null, [2, 4, 5], {}).filter((v) => v.shown).map((v) => v.line)).toEqual([2, 4, 5]);
+  it("then lets each line's own record decide, both ways, and 15% exactly needs none", () => {
+    const c = lineCautions([acc(1, 12, 15), acc(2, 20, 18)], { 1: 22 });
+    expect(c.find((x) => x.line === 1)?.caution).toBeNull();
+    expect(c.find((x) => x.line === 2)?.caution).toMatch(/last 20 measured shifts Line 2 missed by a median 18%/);
   });
 });

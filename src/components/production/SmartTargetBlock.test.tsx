@@ -32,6 +32,12 @@ describe("the Smart Target on the line tablet", () => {
     expect(screen.getByText(/No jobs were in iTouch before the shift/)).toBeInTheDocument();
   });
 
+  it("shows a wide-margin line's number, with the caution beside it", () => {
+    show(target({ line: 1, expected_total: 2903 }));
+    expect(screen.getByText("2,903")).toBeInTheDocument();
+    expect(screen.getByText(/usually misses by about 22%/)).toBeInTheDocument();
+  });
+
   it("says so when no target was made, and shows nothing before BLOCO 149", () => {
     show(null);
     expect(screen.getByText("Not made for this shift.")).toBeInTheDocument();

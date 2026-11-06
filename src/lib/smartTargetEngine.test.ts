@@ -588,3 +588,22 @@ describe("Q26: the last job with no order quantity runs to the end of the shift"
     expect(r.jobs[1].reasons[0]).toMatch(/earlier job's time is unknown/);
   });
 });
+
+describe("Q59b: Line 5's measured SKU change", () => {
+  const rates = ["A", "B"].flatMap((sku) => [rate(sku, { line: "Line 5" }), rate(sku, { line: "Line 4" })]);
+  const jobs = [job("1", "A", 1, { orderQty: 100 }), job("2", "B", 2, { orderQty: 100 })];
+
+  it("charges 16 min in all on Line 5, and still 25 + mixing elsewhere", () => {
+    const l5 = forecastShift(input({ line: "Line 5", previousSku: "A", jobs, rates }));
+    expect(l5.jobs[1]).toMatchObject({ transition: "sku_change", changeoverMinutes: 16, mixingMinutes: 0 });
+    const l4 = forecastShift(input({ line: "Line 4", previousSku: "A", jobs, rates }));
+    expect(l4.jobs[1]).toMatchObject({ transition: "sku_change", changeoverMinutes: 25, mixingMinutes: 30 });
+  });
+
+  it("still mixes the first job when nothing is known before it, and a job's own override wins", () => {
+    const first = forecastShift(input({ line: "Line 5", previousSku: undefined, jobs, rates }));
+    expect(first.jobs[0]).toMatchObject({ transition: "first_unknown", mixingMinutes: 40 });
+    const own = forecastShift(input({ line: "Line 5", previousSku: "A", jobs: [jobs[0], { ...jobs[1], mixingMinutes: 5, changeoverMinutes: 7 }], rates }));
+    expect(own.jobs[1]).toMatchObject({ changeoverMinutes: 7, mixingMinutes: 5 });
+  });
+});

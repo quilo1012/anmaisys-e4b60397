@@ -164,7 +164,9 @@ export interface AheadInput {
   factors: LineFactor[];
   /** The eight weeks the factor read, for the rates observed on each line (Q43a). */
   history: HistoryShift[];
-  /** Lines whose number is shown, from lineVisibility() (Q45a). */
+  /** The last product logged on the shift before, per line, for a queue with nothing running. */
+  previousSkus?: Partial<Record<LineNo, string | undefined>>;
+  /** Lines whose number reaches the tablet. */
   shownLines: readonly LineNo[];
 }
 
@@ -197,7 +199,7 @@ export function forecastAhead(input: AheadInput): { rows: AheadRow[]; forecasts:
       shift: input.shift,
       line,
       jobs: plan.jobs,
-      previousSku: plan.previousSku,
+      previousSku: plan.previousSku ?? input.previousSkus?.[line],
       breaks: null,
       downtime: [],
       rates: withEstimates(line, plan.jobs.map((j) => j.sku), rates),

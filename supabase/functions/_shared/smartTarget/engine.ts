@@ -62,6 +62,14 @@ export interface EngineConfig {
    * "every_job": before every job. Not confirmed with Production.
    */
   mixingAt: "sku_start" | "every_job";
+  /**
+   * Per line: minutes a SKU change costs in all, mixing included, measured from the line's
+   * shifts in place of changeover + mixing. Line 5 measured 16 min (decided 06/11, Q59b):
+   * built from earlier shifts and scored on later ones, it missed by 10.8, 10.3 and 15.2%
+   * against 13.8, 12.0 and 16.6% with 65 min. It is what shows in the totals, not a time
+   * anyone has clocked. The first job of a shift with nothing known before it still mixes.
+   */
+  measuredChangeMinutes: Partial<Record<LineNo, number>>;
   /** Whether the blender can mix while the line is on break. */
   mixingMayOverlapBreak: boolean;
   /** Below this many history shifts, a rate is treated as too thin to use. */
@@ -75,6 +83,7 @@ export const DEFAULT_CONFIG: EngineConfig = {
   mixingAt: "sku_start",
   mixingMayOverlapBreak: false,
   minHistoryShifts: 5,
+  measuredChangeMinutes: { 5: 16 },
 };
 
 // ── Inputs ────────────────────────────────────────────────────────────────
@@ -496,7 +505,9 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
       ? `Breaks: ${breakTotal} min at the times given.`
       : `Breaks: ${cfg.breakMinutes} min allowance, times unknown — spread evenly across the shift; overlap with mixing or changeover cannot be credited.`,
     `Mixing: ${cfg.mixingMinutes[line]} min on Line ${line} (provisional default), charged ${cfg.mixingAt === "sku_start" ? "at the first job of each SKU" : "before every job"}; ${cfg.mixingMayOverlapBreak ? "may" : "may not"} overlap a break.`,
-    `Changeover: ${cfg.changeoverMinutes} min per SKU change (estimate, not measured), followed by mixing, not overlapping it.`,
+    cfg.measuredChangeMinutes[line] !== undefined
+      ? `SKU change on Line ${line}: ${cfg.measuredChangeMinutes[line]} min in all, measured from its shifts, not clocked.`
+      : `Changeover: ${cfg.changeoverMinutes} min per SKU change (estimate, not measured), followed by mixing, not overlapping it.`,
     `Rates with fewer than ${cfg.minHistoryShifts} history shifts are not used.`,
   );
 
@@ -556,9 +567,11 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
       warnings.push({ code: "TRANSITION_UNKNOWN", jobId: job.jobId, message: "This job or the one before it has no SKU, so no changeover or mixing is charged here." });
     }
 
-    const changeover = transition === "sku_change" ? job.changeoverMinutes ?? cfg.changeoverMinutes : 0;
+    const measuredChange = cfg.measuredChangeMinutes[line];
+    const changeover = transition === "sku_change" ? job.changeoverMinutes ?? measuredChange ?? cfg.changeoverMinutes : 0;
     const mixing =
       transition === "sku_unknown" ? 0
+        : transition === "sku_change" && measuredChange !== undefined && job.mixingMinutes == null ? 0
         : cfg.mixingAt === "every_job" || transition !== "same_sku" ? job.mixingMinutes ?? cfg.mixingMinutes[line] : 0;
     const resolved = sku ? resolveRate(rates, line, sku, cfg) : { status: "missing" as RateStatus, rate: null };
     if (!sku) reasons.push("The job has no SKU.");

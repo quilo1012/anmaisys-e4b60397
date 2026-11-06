@@ -18,13 +18,13 @@ import { useFreezeSmartTargetForecasts, useSmartTargetForecastRows, type LineToF
 import {
   accuracyByLine,
   actualTotals,
-  lineVisibility,
+  lineCautions,
   ON_TIME_MINUTES,
   SHOW_MAX_MEDIAN_ERROR,
   SHOW_MIN_SCORED,
   type LineAccuracy,
 } from "@/lib/smartTargetAccuracy";
-import { FORECAST_LINES, HELD_BACK_REASON, historyFromSessions } from "@/lib/smartTargetHistory";
+import { FORECAST_LINES, WIDE_MARGIN_LINES, historyFromSessions } from "@/lib/smartTargetHistory";
 import {
   cleanCycles,
   cyclesToFix,
@@ -72,8 +72,8 @@ const STATUS: Record<ShiftForecast["status"], { label: string; className: string
 
 /** The rates item once factors are computed: what is live, and what is held back. */
 const RATES_LIVE = {
-  label: "Rates: every line, on the tablet once it proves itself",
-  why: `Rates come from each line's base (its logged shifts, the Standard Line Targets reports and iTouch), then iTouch's ideal speed × the line's performance over the last eight weeks, then the rate the line reached on shifts that filled only that product (all provisional). The office sees every line. A line's number reaches the tablet while its last ${SHOW_MIN_SCORED}+ measured shifts miss by a median of ${SHOW_MAX_MEDIAN_ERROR}% or less.`,
+  label: "Rates: every line",
+  why: `Rates come from each line's base (its logged shifts, the Standard Line Targets reports and iTouch), then iTouch's ideal speed × the line's performance over the last eight weeks, then the rate the line reached on shifts that filled only that product (all provisional). Every line shows its number. A line missing by more than ${SHOW_MAX_MEDIAN_ERROR}% over ${SHOW_MIN_SCORED}+ measured shifts shows a caution beside it.`,
   owner: "Production: correct the cycles listed under Fix in iTouch",
 };
 
@@ -192,8 +192,8 @@ function JobBlock({ job }: { job: JobForecast }) {
 
 interface RateBasis {
   factor: LineFactor | null;
-  /** Null when the number reaches the tablet; otherwise why it stays in the office. */
-  heldBack: string | null;
+  /** Null when the line is within the goal; otherwise the caution beside its number. */
+  caution: string | null;
   from: string;
   to: string;
 }
@@ -235,7 +235,7 @@ function LineCard({ line, result, notes, basis }: { line: number; result: ShiftF
           <h3 className="text-lg font-semibold leading-none tracking-tight">Line {line}</h3>
           <div className="flex flex-wrap gap-1.5">
             <Badge variant="outline" className={cn("font-medium", status.className)}>{status.label}</Badge>
-            {basis?.heldBack && <Badge variant="outline" className="font-medium">Office only</Badge>}
+            {basis?.caution && <Badge variant="outline" className="font-medium">Wide margin</Badge>}
             {result.expectedTotal !== null && (
               <Badge variant="outline" className="font-medium">
                 {result.confidence === "medium" ? "Medium confidence" : "Low confidence"}
@@ -268,10 +268,10 @@ function LineCard({ line, result, notes, basis }: { line: number; result: ShiftF
                 ? `${BASE_LINES.includes(line as LineNo) ? "The line's base where it knows the product. " : ""}No performance factor yet: ${basis.factor?.shiftsUsed ?? 0} measurable shifts between ${basis.from} and ${basis.to}, 5 needed.`
                 : "Loading the last eight weeks…"}
           </dd>
-          {basis?.heldBack && (
+          {basis?.caution && (
             <>
-              <dt className="text-muted-foreground">Tablet</dt>
-              <dd>{basis.heldBack}</dd>
+              <dt className="text-muted-foreground">Margin</dt>
+              <dd>{basis.caution}</dd>
             </>
           )}
           <dt className="text-muted-foreground">Changeover and mixing</dt>
@@ -301,7 +301,7 @@ function LineCard({ line, result, notes, basis }: { line: number; result: ShiftF
 const pct = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : "—");
 
 /** How the frozen forecasts did against what was logged, per line, over four weeks. */
-function AccuracyCard({ accuracy, installed, shown }: { accuracy: LineAccuracy[] | null; installed: boolean; shown: ReadonlySet<number> }) {
+function AccuracyCard({ accuracy, installed }: { accuracy: LineAccuracy[] | null; installed: boolean }) {
   return (
     <Card data-testid="smart-target-accuracy">
       <CardHeader className="pb-2">
@@ -309,8 +309,8 @@ function AccuracyCard({ accuracy, installed, shown }: { accuracy: LineAccuracy[]
         <p className="text-sm text-muted-foreground">
           Last four weeks. Each shift's forecast is kept as it was first made; only those made in the first{" "}
           {ON_TIME_MINUTES / 60} hours of the shift count. Actual is what operators logged (provisional until iTouch's
-          filling events are confirmed). A line's number reaches the tablet while it has at least {SHOW_MIN_SCORED} measured
-          shifts and a median miss of {SHOW_MAX_MEDIAN_ERROR}% or less.
+          filling events are confirmed). The goal is a median miss of {SHOW_MAX_MEDIAN_ERROR}% or less over at least {SHOW_MIN_SCORED}
+          measured shifts; a line over it keeps its number and shows a caution.
         </p>
       </CardHeader>
       <CardContent>
@@ -339,7 +339,7 @@ function AccuracyCard({ accuracy, installed, shown }: { accuracy: LineAccuracy[]
               <tbody>
                 {accuracy.map((a) => (
                   <tr key={a.line} className="border-t">
-                    <td className="py-1.5 pr-3">Line {a.line}{shown.has(a.line) ? "" : " (office only)"}</td>
+                    <td className="py-1.5 pr-3">Line {a.line}</td>
                     <td className="py-1.5 pr-3 text-right tabular-nums">{a.scored}</td>
                     <td className="py-1.5 pr-3 text-right tabular-nums">{a.medianAbsPctError === null ? "—" : `${a.medianAbsPctError}%`}</td>
                     <td className="py-1.5 pr-3 text-right tabular-nums">{pct(a.within10, a.scored)}</td>
@@ -466,8 +466,7 @@ export default function SmartTargetPage() {
     const history = historyFromSessions(historyQuery.data.sessions, historyQuery.data.items, catalogue);
     return accuracyByLine(forecastRows.data.rows, actualTotals(history));
   }, [forecastRows.data, historyQuery.data, catalogue]);
-  const visibility = useMemo(() => lineVisibility(accuracy, FORECAST_LINES, HELD_BACK_REASON), [accuracy]);
-  const shownSet = useMemo(() => new Set(visibility.filter((v) => v.shown).map((v) => v.line as number)), [visibility]);
+  const cautions = useMemo(() => lineCautions(accuracy, WIDE_MARGIN_LINES), [accuracy]);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["smart_target_inputs", date],
@@ -497,11 +496,10 @@ export default function SmartTargetPage() {
       otherLines: inputs.otherLines,
       lines: inputs.lines.map((l) => {
         const factor = rateBasis?.factors.find((f) => f.line === l.line) ?? null;
-        const vis = visibility.find((v) => v.line === l.line);
-        const shown = vis?.shown ?? false;
+        const shown = FORECAST_LINES.includes(l.line);
         const ownRates = rateBasis ? lineRates(l.line, rateBasis.cycles, factor, rateBasis.history) : [];
         const basis: RateBasis | null = rateBasis
-          ? { factor, heldBack: shown ? null : vis?.heldBack ?? null, from: rateBasis.from, to: rateBasis.to }
+          ? { factor, caution: cautions.find((c) => c.line === l.line)?.caution ?? null, from: rateBasis.from, to: rateBasis.to }
           : null;
         // Plan rows with no quantity take what was left of iTouch's order for the same SKU
         // when the queue was read (Q26b).
@@ -522,7 +520,7 @@ export default function SmartTargetPage() {
         return { ...l, notes, basis, result, shown, factor };
       }),
     };
-  }, [data, date, shift, catalogue, rateBasis, queue.rows, visibility]);
+  }, [data, date, shift, catalogue, rateBasis, queue.rows, cautions]);
 
   const toFreeze = useMemo<LineToFreeze[] | null>(
     () => built?.lines.map((l) => ({ line: l.line, shown: l.shown, forecast: l.result, factor: l.factor })) ?? null,
@@ -616,7 +614,7 @@ export default function SmartTargetPage() {
           </CardContent>
         </Card>
 
-        <AccuracyCard accuracy={accuracy} installed={forecastRows.data?.installed ?? true} shown={shownSet} />
+        <AccuracyCard accuracy={accuracy} installed={forecastRows.data?.installed ?? true} />
 
         <FixInItouchCard fix={rateBasis?.fix ?? null} noCode={rateBasis?.noCode ?? []} />
 
