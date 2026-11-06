@@ -483,11 +483,19 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
         const rows = Array.from(missing.entries()).map(([code, name]) => ({ code, name, active: true }));
         const { data: inserted, error } = await supabase
           .from("sku_products")
-          .upsert(rows, { onConflict: "code" })
+          // Never update an existing (e.g. deactivated) SKU: no rename, no re-enable.
+          .upsert(rows, { onConflict: "code", ignoreDuplicates: true })
           .select("id, code");
         if (error) throw error;
         for (const r of inserted ?? []) newSkuMap.set(r.code.toUpperCase(), r.id);
         createdSkus = inserted?.length ?? 0;
+        const unresolved = rows.map((r) => r.code).filter((c) => !newSkuMap.has(c.toUpperCase()));
+        if (unresolved.length) {
+          const { data: existing, error: exErr } = await supabase
+            .from("sku_products").select("id, code").in("code", unresolved);
+          if (exErr) throw exErr;
+          for (const r of existing ?? []) newSkuMap.set(r.code.toUpperCase(), r.id);
+        }
       }
 
       // Merge sections that resolve to the same line so we don't overwrite
