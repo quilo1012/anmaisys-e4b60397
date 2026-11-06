@@ -1,6 +1,6 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, CircleDashed, RefreshCw, Target } from "lucide-react";
+import { ArrowRight, ChevronRight, RefreshCw, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -45,10 +45,11 @@ import {
   type LineFactor,
 } from "@/lib/smartTargetRates";
 import { ItouchCyclesCard } from "@/components/smartTarget/ItouchCyclesCard";
+import { ShiftStrip, stripHours, stripSegments } from "@/components/smartTarget/ShiftStrip";
 import { getCurrentFactoryShift } from "@/lib/shifts";
 import { identifyItemSku } from "@/lib/lineSku";
 import { cn } from "@/lib/utils";
-import { forecastShift, type JobForecast, type LineNo, type ShiftForecast, type ShiftType } from "@/lib/smartTargetEngine";
+import { forecastShift, shiftWindow, type JobForecast, type LineNo, type ShiftForecast, type ShiftType } from "@/lib/smartTargetEngine";
 import {
   buildShiftInputs,
   previousShiftOf,
@@ -200,19 +201,17 @@ interface RateBasis {
   to: string;
 }
 
-function LineCard({ line, result, notes, basis, kept, logged, offPlan }: { line: number; result: ShiftForecast; notes: string[]; basis: RateBasis | null; kept: StoredForecast | null; logged: number; offPlan: string[] }) {
+const MISS_WARNING = 15;
+
+function LineRow({ line, result, notes, basis, kept, logged, offPlan, nowPct }: { line: number; result: ShiftForecast; notes: string[]; basis: RateBasis | null; kept: StoredForecast | null; logged: number; offPlan: string[]; nowPct: number | null }) {
   const status = STATUS[result.status];
+  const grid = "grid gap-x-4 gap-y-1.5 md:grid-cols-[4rem_minmax(0,1fr)_5.5rem_5rem_4rem] md:items-center";
   if (!result.jobs.length) {
     return (
-      <Card data-testid={`smart-target-line-${line}`} className="border-dashed bg-muted/20">
-        <CardContent className="flex items-center justify-between gap-3 py-4">
-          <div className="flex items-center gap-3">
-            <CircleDashed className="h-4 w-4 text-muted-foreground" />
-            <h3 className="font-semibold">Line {line}</h3>
-          </div>
-          <span className="text-sm text-muted-foreground">No plan for this shift</span>
-        </CardContent>
-      </Card>
+      <div data-testid={`smart-target-line-${line}`} className={cn(grid, "px-4 py-3")}>
+        <h3 className="font-semibold text-muted-foreground">Line {line}</h3>
+        <span className="text-sm text-muted-foreground">No plan for this shift</span>
+      </div>
     );
   }
   const gaps = lineGaps(result);
@@ -232,43 +231,65 @@ function LineCard({ line, result, notes, basis, kept, logged, offPlan }: { line:
   const setup = setupMinutes(result);
   const reasons = explainTarget(result.jobs);
   const miss = targetVersusLogged(kept?.expected_total, logged);
+  const { notReached, noTime } = stripSegments(result);
+  const target = kept ? kept.expected_total : result.expectedTotal;
   return (
-    <Card data-testid={`smart-target-line-${line}`}>
-      <CardHeader className="flex-row items-start justify-between gap-3 space-y-0 pb-3">
-        <div className="space-y-1">
-          <h3 className="text-lg font-semibold leading-none tracking-tight">Line {line}</h3>
-          <div className="flex flex-wrap gap-1.5">
-            <Badge variant="outline" className={cn("font-medium", status.className)}>{status.label}</Badge>
-            {basis?.caution && <Badge variant="outline" className="font-medium">Wide margin</Badge>}
-            {result.expectedTotal !== null && (
-              <Badge variant="outline" className="font-medium">
-                {result.confidence === "medium" ? "Medium confidence" : "Low confidence"}
-              </Badge>
-            )}
-          </div>
-        </div>
-        <div className="text-right">
-          <div className="text-3xl font-semibold tabular-nums leading-none">{fmt(kept ? kept.expected_total : result.expectedTotal)}</div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            {kept ? `target set ${londonTime(kept.frozen_at)}` : "expected containers, not set yet"}
-          </div>
-          {logged > 0 && (
-            <div className="mt-1 text-xs tabular-nums" data-testid={`smart-target-logged-${line}`}>
-              Logged {logged.toLocaleString()}
-              {miss !== null && <span className="text-muted-foreground"> · target {miss > 0 ? "+" : ""}{miss}%</span>}
+    <details data-testid={`smart-target-line-${line}`} className="group">
+      <summary className={cn(grid, "cursor-pointer list-none px-4 py-3 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden")}>
+        <h3 className="flex items-center gap-1 font-semibold">
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" aria-hidden="true" />
+          <span className="whitespace-nowrap">Line {line}</span>
+        </h3>
+        <div className="min-w-0">
+          <ShiftStrip result={result} nowPct={nowPct} />
+          {(offPlan.length > 0 || notReached.length > 0 || noTime.length > 0) && (
+            <div className="mt-1 space-y-0.5 text-xs">
+              {offPlan.length > 0 && (
+                <p className="font-medium text-warning-strong">
+                  Plan changed: {offPlan.join(", ")} {offPlan.length === 1 ? "was" : "were"} not in it. The target stays as set.
+                </p>
+              )}
+              {notReached.length > 0 && <p className="text-muted-foreground">Not reached this shift: {notReached.join(", ")}</p>}
+              {noTime.length > 0 && <p className="text-muted-foreground">No rate, so no time on the strip: {noTime.join(", ")}</p>}
             </div>
           )}
-          {offPlan.length > 0 && (
-            <div className="mt-1 max-w-xs text-xs font-medium text-warning-strong">
-              Plan changed: {offPlan.join(", ")} {offPlan.length === 1 ? "was" : "were"} not in it. The target stays as set.
-            </div>
+        </div>
+        <dl className="grid grid-cols-3 gap-2 md:contents">
+          <div className="md:text-right">
+            <dt className="text-xs text-muted-foreground md:sr-only">Target</dt>
+            <dd>
+              <span className="text-lg font-semibold tabular-nums">{fmt(target)}</span>
+              <span className="block text-2xs text-muted-foreground">{kept ? `set ${londonTime(kept.frozen_at)}` : "not set yet"}</span>
+            </dd>
+          </div>
+          <div className="md:text-right">
+            <dt className="text-xs text-muted-foreground md:sr-only">Logged</dt>
+            <dd className="tabular-nums" data-testid={`smart-target-logged-${line}`}>{logged > 0 ? logged.toLocaleString() : "—"}</dd>
+          </div>
+          <div className="md:text-right">
+            <dt className="text-xs text-muted-foreground md:sr-only">Miss</dt>
+            <dd
+              data-testid={`smart-target-miss-${line}`}
+              className={cn("tabular-nums", miss !== null && Math.abs(miss) > MISS_WARNING ? "font-semibold text-destructive-strong" : "text-muted-foreground")}
+            >
+              {miss === null ? "—" : `${miss > 0 ? "+" : ""}${miss}%`}
+            </dd>
+          </div>
+        </dl>
+      </summary>
+      <div className="space-y-3 border-t bg-muted/20 px-4 py-3 md:pl-[5.75rem]">
+        <div className="flex flex-wrap gap-1.5">
+          <Badge variant="outline" className={cn("font-medium", status.className)}>{status.label}</Badge>
+          {basis?.caution && <Badge variant="outline" className="font-medium">Wide margin</Badge>}
+          {result.expectedTotal !== null && (
+            <Badge variant="outline" className="font-medium">
+              {result.confidence === "medium" ? "Medium confidence" : "Low confidence"}
+            </Badge>
           )}
           {kept && kept.expected_total !== result.expectedTotal && (
-            <div className="mt-1 text-xs tabular-nums text-muted-foreground">Calculated now: {fmt(result.expectedTotal)}</div>
+            <span className="self-center text-xs tabular-nums text-muted-foreground">Calculated now: {fmt(result.expectedTotal)}</span>
           )}
         </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
         <div className="-mx-1 overflow-x-auto px-1 pb-1">
           <div className="flex min-w-max gap-2 sm:min-w-0 sm:flex-wrap">
             {result.jobs.map((j, i) => (
@@ -321,8 +342,28 @@ function LineCard({ line, result, notes, basis, kept, logged, offPlan }: { line:
             </>
           )}
         </dl>
-      </CardContent>
-    </Card>
+      </div>
+    </details>
+  );
+}
+
+/** Column heads over the strips: the hours of the shift, the three numbers, and where now is. */
+function StripHeader({ shift, gross, nowPct }: { shift: ShiftType; gross: number; nowPct: number | null }) {
+  return (
+    <div className="hidden gap-x-4 border-b px-4 py-2 text-xs text-muted-foreground md:grid md:grid-cols-[4rem_minmax(0,1fr)_5.5rem_5rem_4rem]">
+      <span />
+      <div className="relative h-4">
+        {stripHours(shift === "DAY" ? 6 : 18, gross).map((h) => (
+          <span key={h.left} className="absolute -translate-x-1/2 tabular-nums first:translate-x-0 last:-translate-x-full" style={{ left: `${h.left}%` }}>{h.label}</span>
+        ))}
+        {nowPct !== null && (
+          <span className="absolute top-0 -translate-x-1/2 rounded bg-foreground px-1 text-2xs font-medium leading-4 text-background" style={{ left: `${nowPct}%` }}>now</span>
+        )}
+      </div>
+      <span className="text-right">Target</span>
+      <span className="text-right">Logged</span>
+      <span className="text-right">Miss</span>
+    </div>
   );
 }
 
@@ -577,6 +618,17 @@ export default function SmartTargetPage() {
   const readyToFreeze = !!rateBasis && !!queue.state && queue.state.kind !== "reading";
   useFreezeSmartTargetForecasts(date, shift, toFreeze, readyToFreeze, forecastRows);
 
+  // Where now falls along the strips, for the shift running now. Moved once a minute.
+  const [clock, setClock] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setClock(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const stripWindow = shiftWindow(date, shift);
+  const nowPct = stripWindow && clock >= stripWindow.startMs && clock < stripWindow.endMs
+    ? ((clock - stripWindow.startMs) / 60_000 / stripWindow.grossMinutes) * 100
+    : null;
+
   const loading = isLoading || skusLoading;
   const assumptions = built?.lines[0]?.result.assumptions ?? [];
   const planned = built?.lines.filter((l) => l.result.jobs.length) ?? [];
@@ -623,7 +675,8 @@ export default function SmartTargetPage() {
                 : `${planned.length} of 6 lines have a plan. ${forecast.length} can be forecast.`}
             </p>
             {queueText(queue.state) && <p className="text-sm text-muted-foreground">{queueText(queue.state)}</p>}
-            <div className="space-y-3">
+            <div className="divide-y overflow-hidden rounded-lg border bg-card">
+              <StripHeader shift={shift} gross={shiftWindow(date, shift)?.grossMinutes ?? 720} nowPct={nowPct} />
               {built.lines.map(({ line, result, notes, basis, sessionIds }) => {
                 const kept = forecastRows.data?.rows.find((r) => r.session_date === date && r.shift === shift && r.line === line) ?? null;
                 const own = (data?.items ?? []).filter((i) => sessionIds.includes(i.session_id));
@@ -632,8 +685,9 @@ export default function SmartTargetPage() {
                   .map((i) => identifyItemSku({ sku_id: i.sku_id, sku_code_text: i.sku_code_text, actual: 0, started_at: null, finished_at: null }, catalogue)?.code)
                   .filter((c): c is string => !!c);
                 return (
-                <LineCard
+                <LineRow
                   key={line}
+                  nowPct={nowPct}
                   line={line}
                   result={result}
                   notes={notes}

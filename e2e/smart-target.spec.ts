@@ -400,9 +400,16 @@ test("a line shows the target kept for the shift, what was logged, and not the r
   await open(page);
   const line2 = page.getByTestId("smart-target-line-2");
   await expect(line2).toContainText("2,903");
-  await expect(line2).toContainText("target set 07:39");
-  await expect(page.getByTestId("smart-target-logged-2")).toHaveText(/Logged 1,432 · target \+103%/);
+  await expect(line2).toContainText("set 07:39");
+  await expect(page.getByTestId("smart-target-logged-2")).toHaveText("1,432");
+  await expect(page.getByTestId("smart-target-miss-2")).toHaveText("+103%");
   await expect(line2).toContainText("Calculated now: 3,000");
   await expect(line2).toContainText("Plan changed: COL165SR was not in it.");
+  // The explanation opens on demand, with the keyboard too.
+  await expect(line2.getByText("Why this target")).toBeHidden();
+  await line2.locator("summary").focus();
+  await page.keyboard.press("Enter");
+  await expect(line2.getByText("Why this target")).toBeVisible();
+  await page.screenshot({ path: "e2e/.results/smart-target-strips.png", fullPage: true });
 });
 

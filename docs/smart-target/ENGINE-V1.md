@@ -277,3 +277,5 @@ Replay of 06/11 day shift with this rule, from the iTouch queue read at 07:00 an
 - `BEEFXP900CA` is named "BEEF-XP CHERRY APPLE" in the product list, with no size, so it has no family and reads as no history.
 
 - **Q65a (06/11).** The plan stays iTouch's queue, which the Production Office keeps up to date before the shift. A line card says "Plan changed" when a logged product is not in the kept plan; a market variant of a planned product (`PERUCRE500` for `CRE500`) does not count.
+
+- **Shift strips (06/11, Q66a).** Each line is one row: a strip of the shift with blocks as wide as the time the forecast gives them, hatched for changeover and mixing, dashed for an estimate, and a line for now; then target, logged and miss, with the miss in red past 15%. The explanation opens from the row. No calculation changed.
