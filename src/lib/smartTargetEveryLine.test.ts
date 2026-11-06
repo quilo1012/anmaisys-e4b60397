@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { explainTarget, fixSuggestion, ESTIMATED_SOURCE, withEstimates, BASE_SOURCE, baseRates, cyclesToFix, lineRates, observedRates, productsWithoutCode, OBSERVED_SOURCE, type HistoryShift } from "./smartTargetRates";
+import { familyFromName, FAMILY_SOURCE, explainTarget, fixSuggestion, ESTIMATED_SOURCE, withEstimates, BASE_SOURCE, baseRates, cyclesToFix, lineRates, observedRates, productsWithoutCode, OBSERVED_SOURCE, type HistoryShift } from "./smartTargetRates";
 import { lineCautions, SHOW_MIN_SCORED, type LineAccuracy } from "./smartTargetAccuracy";
 import { historyFromSessions } from "./smartTargetHistory";
 import { buildSkuCatalogue } from "./lineSku";
@@ -177,5 +177,40 @@ describe("the solution and the reason shown for a target", () => {
     expect(whole).toBe("BEEFXPOM: 1,776, the whole order, about 365 min at 292/h (iTouch's cycle × the line's performance).");
     expect(cut).toBe("BEEFXPCA: 729 = 292/h × 150 min left in the shift (iTouch's cycle × the line's performance).");
     expect(none).toBeUndefined();
+  });
+});
+
+describe("the line's own shifts of a product family overrule a rate far from them", () => {
+  it("reads the family from the name, up to the fill size, without the market", () => {
+    expect(familyFromName("ESSENTIAL PROTEIN 1.6KG BANANA")).toBe("ESSENTIAL PROTEIN 1.6KG");
+    expect(familyFromName("ESSENTIAL PROTEIN 1.6KG WHITE CHOCOLATE - PERU")).toBe("ESSENTIAL PROTEIN 1.6KG");
+    expect(familyFromName("CREATINE MONOHYDRATE 500G - PERU")).toBe("CREATINE MONOHYDRATE 500G");
+    expect(familyFromName("NO SIZE HERE")).toBeNull();
+  });
+
+  // Line 3 has no shift of NOSUCH in the base. Its iTouch rate is 293/h; the real shifts make about 1,600.
+  const familyOf = (sku: string) => (sku.startsWith("NOSUCH") ? "ESSENTIAL PROTEIN 1.6KG" : null);
+  const shifts = (n: number) => Array.from({ length: n }, (_, i): HistoryShift => ({
+    key: `2026-11-0${i + 1}|DAY|3`, line: 3 as never, made: [{ sku: i % 2 ? "NOSUCHA" : "NOSUCHB", qty: 1600 }], netMinutes: 645, setupMinutes: 30,
+  }));
+  const cycles = [{ line: 3 as const, sku: "NOSUCHWCC", idealPerHour: 600, cycleSeconds: 6, source: "iTouch" }];
+  const factor = { line: 3 as const, factor: 0.489, shiftsUsed: 66, excluded: [] };
+  const rateOf = (history: HistoryShift[]) => lineRates(3, cycles, factor, history, familyOf).find((r) => r.sku === "NOSUCHWCC")!;
+
+  it("takes a flavour never run there from its family's shifts, as for EP16WCC on Line 1", () => {
+    const r = rateOf(shifts(3));
+    expect(r.value).toBe(156.1);
+    expect(r.sampleShifts).toBe(3);
+    expect(r.source.startsWith(FAMILY_SOURCE)).toBe(true);
+  });
+
+  it("leaves the rate alone with under 3 shifts, or when they are close to it", () => {
+    expect(rateOf(shifts(2)).value).toBeCloseTo(293.4, 1);
+    const close = shifts(3).map((h) => ({ ...h, made: [{ sku: "NOSUCHA", qty: 2500 }] }));
+    expect(rateOf(close).value).toBeCloseTo(293.4, 1);
+  });
+
+  it("never looks at a family when not asked to", () => {
+    expect(lineRates(3, cycles, factor, shifts(3)).find((r) => r.sku === "NOSUCHWCC")?.value).toBeCloseTo(293.4, 1);
   });
 });

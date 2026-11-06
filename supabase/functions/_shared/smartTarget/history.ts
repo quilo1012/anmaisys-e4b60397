@@ -15,8 +15,14 @@
 
 import { forecastShift, parseLineNo, shiftWindow, type LineNo, type ShiftType } from "./engine.ts";
 import { identifyItemSku, type SkuCatalogue } from "../production/lineSku.ts";
+import { familyFromName } from "./rates.ts";
 import { setupMinutes, type SmartTargetSession } from "./input.ts";
 import type { HistoryShift } from "./rates.ts";
+
+/** A SKU's product family, from its name in the product list. */
+export function skuFamily(catalogue: SkuCatalogue): (sku: string) => string | null {
+  return (sku) => familyFromName(identifyItemSku({ sku_id: null, sku_code_text: sku, actual: 0, started_at: null, finished_at: null }, catalogue)?.name);
+}
 
 /** How far back the factor looks. */
 export const FACTOR_WINDOW_DAYS = 56;
