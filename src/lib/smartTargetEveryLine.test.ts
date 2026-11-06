@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cyclesToFix, lineRates, observedRates, productsWithoutCode, OBSERVED_SOURCE, type HistoryShift } from "./smartTargetRates";
+import { BASE_SOURCE, baseRates, cyclesToFix, lineRates, observedRates, productsWithoutCode, OBSERVED_SOURCE, type HistoryShift } from "./smartTargetRates";
 import { lineVisibility, SHOW_MIN_SCORED, type LineAccuracy } from "./smartTargetAccuracy";
 import { historyFromSessions } from "./smartTargetHistory";
 import { buildSkuCatalogue } from "./lineSku";
@@ -35,13 +35,45 @@ describe("observed rates (Q43a): the line's own speed where iTouch has no usable
   });
 
   it("never replaces iTouch: it only fills products iTouch has no usable cycle for", () => {
-    const cycles = [{ line: 4 as const, sku: "PERUCRE500", idealPerHour: 1161, cycleSeconds: 3.1, source: "iTouch" }];
-    const rates = lineRates(4, cycles, { line: 4, factor: 0.62, shiftsUsed: 66, excluded: [] }, history);
+    // Line 5 has no base, so only these two sources answer there.
+    const line5 = history.map((h) => ({ ...h, line: 5 as const }));
+    const cycles = [{ line: 5 as const, sku: "PERUCRE500", idealPerHour: 1161, cycleSeconds: 3.1, source: "iTouch" }];
+    const factor = { line: 5 as const, factor: 0.62, shiftsUsed: 66, excluded: [] };
+    const rates = lineRates(5, cycles, factor, line5);
     expect(rates).toHaveLength(1);
     expect(rates[0].source.startsWith("iTouch")).toBe(true);
-    expect(lineRates(4, [], { line: 4, factor: 0.62, shiftsUsed: 66, excluded: [] }, history)[0].source.startsWith(OBSERVED_SOURCE)).toBe(true);
+    expect(lineRates(5, [], factor, line5)[0].source.startsWith(OBSERVED_SOURCE)).toBe(true);
     // A line with no factor still gets its observed rates.
-    expect(lineRates(4, [], null, history)).toHaveLength(1);
+    expect(lineRates(5, [], null, line5)).toHaveLength(1);
+  });
+});
+
+describe("the line base", () => {
+  it("comes first on the lines it improved, and carries where it came from", () => {
+    const cycles = [{ line: 4 as const, sku: "PERUCRE500", idealPerHour: 923, cycleSeconds: 3.9, source: "iTouch" }];
+    const [r] = lineRates(4, cycles, { line: 4, factor: 0.65, shiftsUsed: 66, excluded: [] }, []).filter((x) => x.sku === "PERUCRE500");
+    expect(r.value).toBe(787);
+    expect(r.source.startsWith(BASE_SOURCE)).toBe(true);
+    expect(r.sampleShifts).toBe(25);
+  });
+
+  it("leaves Line 5 on iTouch × factor, where it did not improve", () => {
+    expect(baseRates(5)).toEqual([]);
+    expect(baseRates(4).length).toBeGreaterThan(50);
+  });
+
+  it("holds plausible rates only, with no product twice on a line", () => {
+    for (const line of [1, 2, 3, 4, 6] as const) {
+      const rows = baseRates(line);
+      expect(new Set(rows.map((r) => r.sku)).size).toBe(rows.length);
+      for (const r of rows) expect(r.value).toBeGreaterThan(0);
+    }
+  });
+
+  it("does not hide a product it does not know: iTouch × factor and observed still answer", () => {
+    const cycles = [{ line: 4 as const, sku: "NOSUCHSKU2", idealPerHour: 1000, cycleSeconds: 3.6, source: "iTouch" }];
+    const r = lineRates(4, cycles, { line: 4, factor: 0.5, shiftsUsed: 9, excluded: [] }, []).find((x) => x.sku === "NOSUCHSKU2");
+    expect(r?.value).toBe(500);
   });
 });
 
@@ -51,7 +83,7 @@ describe("Fix in iTouch (Q44a): only what the lines actually filled", () => {
     shift(2, 4, [["PERUCRE500", 7400]]),
     shift(3, 4, [["PERUCRE500", 7700]]),
     shift(4, 4, [["CRE250", 11345]]),
-    shift(5, 2, [["CW132V", 900]], { unidentified: [{ text: "BODY FUEL WATERMELON 320G", qty: 400 }] }),
+    shift(5, 2, [["NOSUCHSKU1", 900]], { unidentified: [{ text: "BODY FUEL WATERMELON 320G", qty: 400 }] }),
   ];
   const cycles = [{ line: 4 as const, sku: "CRE250", idealPerHour: 1714, cycleSeconds: 2.1, source: "iTouch" }];
   const rejected = [
@@ -61,8 +93,8 @@ describe("Fix in iTouch (Q44a): only what the lines actually filled", () => {
 
   it("lists the rejected and missing cycles of products made, biggest first, and whether a rate covers them meanwhile", () => {
     expect(cyclesToFix(history, cycles, rejected)).toEqual([
-      { line: 4, sku: "PERUCRE500", itouchSeconds: 0.31, problem: rejected[0].reason, madeQty: 22630, shifts: 3, coveredByObserved: true },
-      { line: 2, sku: "CW132V", itouchSeconds: null, problem: "No cycle time for this product on this line in iTouch.", madeQty: 900, shifts: 1, coveredByObserved: false },
+      { line: 4, sku: "PERUCRE500", itouchSeconds: 0.31, problem: rejected[0].reason, madeQty: 22630, shifts: 3, coveredMeanwhile: true },
+      { line: 2, sku: "NOSUCHSKU1", itouchSeconds: null, problem: "No cycle time for this product on this line in iTouch.", madeQty: 900, shifts: 1, coveredMeanwhile: false },
     ]);
   });
 

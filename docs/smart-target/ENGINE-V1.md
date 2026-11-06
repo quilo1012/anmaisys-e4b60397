@@ -217,3 +217,17 @@ Line 4 showed "No rate for PERUCRE500". iTouch holds 0.31 s for CRE500 and PERUC
 - **Q43a. Observed rate as second choice.** Where iTouch has no usable cycle for a product on a line, the rate is the median of containers ÷ (net − setup) over the shifts in which that line filled only that product, with at least 3 such shifts. It is labelled "Rate observed on this line (N shifts)". iTouch × factor always comes first.
 - **Q44a. Fix in iTouch.** A card lists only the products the lines actually filled in the eight weeks that have no usable cycle, biggest first, and whether an observed rate covers them meanwhile. Under it are the products typed in Production Control that are not in the product list; these count for no line's performance.
 - **Q45a. Lines show themselves.** Until a line has 10 measured shifts, the starting choice stands: Lines 2, 4 and 5 shown, 1, 3 and 6 in shadow. From then on, each line is shown while its median miss is 15% or less, and goes back to shadow when it is not. The page, the pre-shift run and the tablet use the same rule (`lineVisibility`).
+
+## The base of targets by line and product (06/11/2026)
+
+`rateBase.ts` holds 801 rows, line × product, in containers per hour. Each is the geometric mean of up to three estimates: iTouch's cycle × the line factor, the Standard Line Targets reports by line, fill and container × the line ratio, and the line's logged shifts (923 shifts, 23/07 to 05/11). Market variants (PERU, KSA, NEU, BAG) share the shifts of their product on that line. `scripts/smart-target-base` rebuilds it.
+
+Tested by building rates only from shifts before a cut-off and scoring the later shift totals, median miss:
+
+| Built before | Today (iTouch × factor) | Base |
+|---|---|---|
+| 15/09 (486 shifts) | 17.0% | 13.7% |
+| 01/10 (336 shifts) | 15.9% | 13.0% |
+| 15/10 (205 shifts) | 15.8% | 14.2% |
+
+Line 4 is the clearest gain (12–15% to 8–10%). Line 5 was not improved (15, 15 and 16% against 14, 12 and 17%), so it stays on iTouch × factor. Line 1 stays poor whichever rate is used (19–39%). The order is base, then iTouch × factor, then the rate observed on the line. The targets rest on operator-logged quantities and stay provisional.
