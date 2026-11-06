@@ -6327,6 +6327,7 @@ export type Database = {
         Row: {
           confidence: string
           engine_version: string
+          expected_per_hour: number | null
           expected_total: number | null
           factor: number | null
           factor_shifts: number | null
@@ -6335,14 +6336,18 @@ export type Database = {
           id: string
           jobs: Json
           line: number
+          notes: Json
+          queue_read_at: string | null
           session_date: string
           shift: string
           shown: boolean
+          source: string
           status: string
         }
         Insert: {
           confidence: string
           engine_version: string
+          expected_per_hour?: number | null
           expected_total?: number | null
           factor?: number | null
           factor_shifts?: number | null
@@ -6351,14 +6356,18 @@ export type Database = {
           id?: string
           jobs?: Json
           line: number
+          notes?: Json
+          queue_read_at?: string | null
           session_date: string
           shift: string
           shown: boolean
+          source?: string
           status: string
         }
         Update: {
           confidence?: string
           engine_version?: string
+          expected_per_hour?: number | null
           expected_total?: number | null
           factor?: number | null
           factor_shifts?: number | null
@@ -6367,9 +6376,12 @@ export type Database = {
           id?: string
           jobs?: Json
           line?: number
+          notes?: Json
+          queue_read_at?: string | null
           session_date?: string
           shift?: string
           shown?: boolean
+          source?: string
           status?: string
         }
         Relationships: []
@@ -8633,16 +8645,6 @@ export type Database = {
         Args: { p_message: string; p_request_id: string }
         Returns: string
       }
-      migr_export: {
-        Args: {
-          p_after?: string
-          p_arg?: string
-          p_kind: string
-          p_limit?: number
-          p_token: string
-        }
-        Returns: Json
-      }
       move_machine_to_line: {
         Args: { _machine_id: string; _new_line: string; _notes?: string }
         Returns: undefined
@@ -9178,6 +9180,20 @@ export type Database = {
       }
       shift_password_is_set: { Args: { _shift_code: string }; Returns: boolean }
       signup_invite_code: { Args: never; Returns: string }
+      smart_target_line_targets: {
+        Args: { p_date: string; p_shift: string }
+        Returns: {
+          expected_per_hour: number
+          expected_total: number
+          frozen_at: string
+          held_back: boolean
+          jobs: Json
+          line: number
+          notes: Json
+          source: string
+          status: string
+        }[]
+      }
       snapshot_sku_products: { Args: never; Returns: Json }
       supervisor_login_of: { Args: { p_employee: string }; Returns: string }
       supervisor_logins_of: {

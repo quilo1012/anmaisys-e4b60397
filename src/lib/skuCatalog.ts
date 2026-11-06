@@ -21,3 +21,8 @@ export function skuDeleteError(error: { code?: string; message: string }): strin
     ? "This SKU has production targets or production history and cannot be deleted. Deactivate it instead; all records will be kept."
     : error.message;
 }
+
+/** A write blocked by row-level security returns 200 with no rows; treat that as a failure. */
+export function assertSkuRowsChanged(rows: unknown[] | null | undefined, what: string): void {
+  if (!rows || rows.length === 0) throw new Error(`Not ${what}: you don't have permission to change this SKU, or it no longer exists.`);
+}

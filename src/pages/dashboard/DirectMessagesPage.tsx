@@ -161,12 +161,14 @@ export default function DirectMessagesPage() {
     if (active?.kind === "group") {
       return groupThread.messages.map((m) => ({
         id: m.id, sender_id: m.sender_id, sender_name: groupPeople.data?.[m.sender_id]?.name ?? "Someone",
-        body: m.body, created_at: m.created_at, reply_to_id: m.reply_to_id, attachments: m.chat_attachments ?? [],
+        body: m.body, created_at: m.created_at, reply_to_id: m.reply_to_id, deleted_at: (m as any).deleted_at ?? null,
+        attachments: (m as any).deleted_at ? [] : (m.chat_attachments ?? []),
       }));
     }
     return dmThread.messages.map((m) => ({
       id: m.id, sender_id: m.sender_id, sender_name: m.sender_name, body: m.message, created_at: m.created_at,
-      read_at: m.read_at, audio_path: m.audio_url, attachments: m.chat_attachments ?? [],
+      read_at: m.read_at, deleted_at: (m as any).deleted_at ?? null,
+      audio_path: (m as any).deleted_at ? null : m.audio_url, attachments: (m as any).deleted_at ? [] : (m.chat_attachments ?? []),
     }));
   }, [active?.kind, groupThread.messages, dmThread.messages, groupPeople.data]);
 
