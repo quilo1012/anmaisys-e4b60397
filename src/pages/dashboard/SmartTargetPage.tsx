@@ -19,10 +19,12 @@ import {
   accuracyByLine,
   actualTotals,
   lineCautions,
+  targetVersusLogged,
   ON_TIME_MINUTES,
   SHOW_MAX_MEDIAN_ERROR,
   SHOW_MIN_SCORED,
   type LineAccuracy,
+  type StoredForecast,
 } from "@/lib/smartTargetAccuracy";
 import { FORECAST_LINES, WIDE_MARGIN_LINES, historyFromSessions, skuFamily, skuIsSample } from "@/lib/smartTargetHistory";
 import {
@@ -198,7 +200,7 @@ interface RateBasis {
   to: string;
 }
 
-function LineCard({ line, result, notes, basis }: { line: number; result: ShiftForecast; notes: string[]; basis: RateBasis | null }) {
+function LineCard({ line, result, notes, basis, kept, logged }: { line: number; result: ShiftForecast; notes: string[]; basis: RateBasis | null; kept: StoredForecast | null; logged: number }) {
   const status = STATUS[result.status];
   if (!result.jobs.length) {
     return (
@@ -229,6 +231,7 @@ function LineCard({ line, result, notes, basis }: { line: number; result: ShiftF
   ];
   const setup = setupMinutes(result);
   const reasons = explainTarget(result.jobs);
+  const miss = targetVersusLogged(kept?.expected_total, logged);
   return (
     <Card data-testid={`smart-target-line-${line}`}>
       <CardHeader className="flex-row items-start justify-between gap-3 space-y-0 pb-3">
@@ -245,8 +248,19 @@ function LineCard({ line, result, notes, basis }: { line: number; result: ShiftF
           </div>
         </div>
         <div className="text-right">
-          <div className="text-3xl font-semibold tabular-nums leading-none">{fmt(result.expectedTotal)}</div>
-          <div className="mt-1 text-xs text-muted-foreground">expected containers</div>
+          <div className="text-3xl font-semibold tabular-nums leading-none">{fmt(kept ? kept.expected_total : result.expectedTotal)}</div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            {kept ? `target set ${londonTime(kept.frozen_at)}` : "expected containers, not set yet"}
+          </div>
+          {logged > 0 && (
+            <div className="mt-1 text-xs tabular-nums" data-testid={`smart-target-logged-${line}`}>
+              Logged {logged.toLocaleString()}
+              {miss !== null && <span className="text-muted-foreground"> · target {miss > 0 ? "+" : ""}{miss}%</span>}
+            </div>
+          )}
+          {kept && kept.expected_total !== result.expectedTotal && (
+            <div className="mt-1 text-xs tabular-nums text-muted-foreground">Calculated now: {fmt(result.expectedTotal)}</div>
+          )}
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -359,6 +373,7 @@ function AccuracyCard({ accuracy, installed }: { accuracy: LineAccuracy[] | null
                         a.noNumber && `${a.noNumber} without a number`,
                         a.noActual && `${a.noActual} with nothing logged`,
                         a.estimated && `${a.estimated} estimates`,
+                        a.oldMethod && `${a.oldMethod} from an older method`,
                       ].filter(Boolean).join(", ") || "—"}
                     </td>
                   </tr>
@@ -507,7 +522,7 @@ export default function SmartTargetPage() {
       if (!ids.length) return { sessions: [] as SmartTargetSession[], items: [] as SmartTargetItem[] };
       const { data: items, error: iErr } = await supabase
         .from("production_items")
-        .select("id, session_id, display_order, sku_id, sku_code_text, planned_qty, created_at")
+        .select("id, session_id, display_order, sku_id, sku_code_text, planned_qty, created_at, actual_qty")
         .in("session_id", ids);
       if (iErr) throw iErr;
       return { sessions: (sessions ?? []) as SmartTargetSession[], items: (items ?? []) as SmartTargetItem[] };
@@ -604,8 +619,16 @@ export default function SmartTargetPage() {
             </p>
             {queueText(queue.state) && <p className="text-sm text-muted-foreground">{queueText(queue.state)}</p>}
             <div className="space-y-3">
-              {built.lines.map(({ line, result, notes, basis }) => (
-                <LineCard key={line} line={line} result={result} notes={notes} basis={basis} />
+              {built.lines.map(({ line, result, notes, basis, sessionIds }) => (
+                <LineCard
+                  key={line}
+                  line={line}
+                  result={result}
+                  notes={notes}
+                  basis={basis}
+                  kept={forecastRows.data?.rows.find((r) => r.session_date === date && r.shift === shift && r.line === line) ?? null}
+                  logged={(data?.items ?? []).filter((i) => sessionIds.includes(i.session_id)).reduce((sum, i) => sum + Math.max(0, Number(i.actual_qty) || 0), 0)}
+                />
               ))}
             </div>
             {built.otherLines.length > 0 && (
