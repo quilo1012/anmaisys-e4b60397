@@ -248,3 +248,5 @@ Line 4 is the clearest gain (12–15% to 8–10%). Line 5 was not improved (15, 
 - **Rows tie on when they were logged (06/11).** Operators' rows all have `display_order` 0, so the last job of a shift was chance. The pre-shift run now also reads the last product logged, for a queue with nothing running.
 
 - **Every line on the tablet (06/11, replaces Q45a and Q52a).** Lines 1 and 3 read "No target yet" on the tablet, which looked broken. Every line now shows its number. A line over the 15% goal keeps it and shows a caution: on the tablet "A guide: this line usually misses by about N%", in the office "Wide margin" with the reason. Each shift's accuracy is still measured.
+
+- **Not for operators yet (06/11, holds back Q51a).** The block on My Production is drawn only for `smarttarget.view`: the admin and the production office. Each shift's target is still made and measured. To give it to operators later, remove that one condition.

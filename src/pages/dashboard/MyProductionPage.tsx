@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrig
 import { LineChatButton } from "@/components/LineChatButton";
 import { ShiftScrapCard } from "@/components/production/ShiftScrapCard";
 import { PinDialog, type EngineerIdentity } from "@/components/PinDialog";
-import { canUseLineChat } from "@/lib/permissions";
+import { can, canUseLineChat } from "@/lib/permissions";
 import { londonHM } from "@/lib/shifts";
 import { parseWholeQuantity } from "@/lib/wholeQuantity";
 import { parseBlenderLabel } from "@/lib/blenderLabel";
@@ -277,7 +277,11 @@ function MyProductionContent() {
         </CardContent>
       </Card>
 
-      <SmartTargetBlock line={line} loggedCodes={items.map((i: any) => i.code).filter((c: string) => c && c !== "—")} />
+      {/* Not for operators yet (decided 06/11): the admin and the office see it. The server
+          keeps saving each shift's target, so it is ready when the operators get it. */}
+      {can(role, "smarttarget.view") && (
+        <SmartTargetBlock line={line} loggedCodes={items.map((i: any) => i.code).filter((c: string) => c && c !== "—")} />
+      )}
 
       {/* Who is on this line today — opens My Team. */}
       <Card
