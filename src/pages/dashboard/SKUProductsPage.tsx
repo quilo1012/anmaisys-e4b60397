@@ -15,7 +15,7 @@ import { Plus, Trash2, Pencil, Upload, Search, Download, Eraser, Undo2, Boxes, M
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import ExcelJS from "exceljs";
-import { skuDeleteError, skuUpdatePayload } from "@/lib/skuCatalog";
+import { assertSkuRowsChanged, skuDeleteError, skuUpdatePayload } from "@/lib/skuCatalog";
 import { Switch } from "@/components/ui/switch";
 
 interface Sku { id: string; code: string; name: string; category: string | null; target_per_hour: number | null; weight: number | null; active: boolean }
@@ -225,11 +225,13 @@ export default function SKUProductsPage() {
       const payload = skuUpdatePayload(sku);
       if (!payload.code || !payload.name) throw new Error("Code and Name required");
       if (sku.id) {
-        const { error } = await supabase.from("sku_products").update(payload).eq("id", sku.id);
+        const { data, error } = await supabase.from("sku_products").update(payload).eq("id", sku.id).select("id");
         if (error) throw error;
+        assertSkuRowsChanged(data, "saved");
       } else {
-        const { error } = await supabase.from("sku_products").insert(payload);
+        const { data, error } = await supabase.from("sku_products").insert(payload).select("id");
         if (error) throw error;
+        assertSkuRowsChanged(data, "saved");
       }
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sku_products_all"] }); setOpen(false); toast.success("Saved"); },
@@ -246,11 +248,27 @@ export default function SKUProductsPage() {
 
   const del = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("sku_products").delete().eq("id", id);
-      if (error) throw error;
+      const { data, error } = await supabase.from("sku_products").delete().eq("id", id).select("id");
+      if (error) throw Object.assign(error, { skuId: id });
+      assertSkuRowsChanged(data, "deleted");
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["sku_products_all"] }); toast.success("Deleted"); },
-    onError: (e: Error & { code?: string }) => toast.error(skuDeleteError(e)),
+    onError: (e: Error & { code?: string; skuId?: string }) => {
+      const inUse = e.code === "23503" || /foreign key|production records|production targets/i.test(e.message);
+      toast.error(skuDeleteError(e), inUse && e.skuId
+        ? { action: { label: "Deactivate", onClick: () => deactivate.mutate(e.skuId!) } }
+        : undefined);
+    },
+  });
+
+  const deactivate = useMutation({
+    mutationFn: async (id: string) => {
+      const { data, error } = await supabase.from("sku_products").update({ active: false }).eq("id", id).select("id");
+      if (error) throw error;
+      assertSkuRowsChanged(data, "deactivated");
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["sku_products_all"] }); toast.success("Deactivated — history kept"); },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const handleImport = async (file: File) => {

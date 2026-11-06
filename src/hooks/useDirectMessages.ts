@@ -325,13 +325,16 @@ export function useDMUnreadCount() {
     queryKey: ["dm_unread", user?.id],
     queryFn: async () => {
       if (!user) return 0;
-      const { count, error } = await supabase
+      // A HEAD + count=exact on this filter hit the statement timeout in
+      // production (503 on every dashboard page). Fetch ids, bounded, and count.
+      const { data, error } = await supabase
         .from("direct_messages")
-        .select("id", { count: "exact", head: true })
+        .select("id")
         .eq("recipient_id", user.id)
-        .is("read_at", null);
+        .is("read_at", null)
+        .limit(1000);
       if (error) throw error;
-      return count ?? 0;
+      return data?.length ?? 0;
     },
     enabled: !!user,
   });
