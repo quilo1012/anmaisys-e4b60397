@@ -21,7 +21,7 @@ import {
   HEADER_H, REPORT_MARGIN, tableStyles, NAVY, INK, SUBTLE, CARD_BG, CARD_BORDER,
 } from "@/lib/reportTheme";
 import {
-  completedHeading, downtimeValue, laterStatusLabel, lineLabelOf, londonStamp, reportFileName, woRef,
+  completedHeading, downtimeValue, overlapNote, laterStatusLabel, lineLabelOf, londonStamp, reportFileName, woRef,
   type ShiftReport,
 } from "@/lib/maintenanceShiftReport";
 import { formatMinutes } from "@/lib/formatDuration";
@@ -58,9 +58,10 @@ export function reportToXlsx(r: ShiftReport): ArrayBuffer {
     [{ v: "Completed work orders", t: "s", s: bold }, r.completed.length],
     [{ v: "Downtime events", t: "s", s: bold }, r.downtimeEvents],
     [{ v: "Total counted downtime", t: "s", s: bold }, formatMinutes(r.totalCountedMinutes)],
+    ...(r.stopsOverlapped ? [[{ v: "Note", t: "s", s: bold }, overlapNote(r.sumOfOrdersMinutes)]] : []),
     [{ v: "Open work orders", t: "s", s: bold }, r.open.length],
   ]);
-  sum["!cols"] = [{ wch: 28 }, { wch: 40 }];
+  sum["!cols"] = [{ wch: 28 }, { wch: 72 }];
   XLSX.utils.book_append_sheet(wb, sum, "Summary");
 
   const done = XLSX.utils.aoa_to_sheet([
@@ -131,6 +132,11 @@ export async function reportToPdf(r: ShiftReport): Promise<ArrayBuffer> {
   doc.setFontSize(24); doc.setTextColor(255, 255, 255);
   doc.text(formatMinutes(r.totalCountedMinutes), REPORT_MARGIN + 6, y + 19);
   y += 30;
+  if (r.stopsOverlapped) {
+    doc.setFont("helvetica", "normal"); doc.setFontSize(8.5); doc.setTextColor(...SUBTLE);
+    doc.text(overlapNote(r.sumOfOrdersMinutes), REPORT_MARGIN, y - 2);
+    y += 4;
+  }
 
   // ── Completed work orders: one block each, downtime large and bold. ──
   doc.setFont("helvetica", "bold"); doc.setFontSize(12); doc.setTextColor(...INK);

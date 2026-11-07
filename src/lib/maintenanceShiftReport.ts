@@ -18,12 +18,16 @@
  *   shift, clipped to the shift, minus planned stops and team-activity exclusions —
  *   the same rules the rest of the app uses. There is no minimum-minutes floor: a
  *   1-minute stop is real downtime and is counted.
+ * - The total is wall-clock time, parallel stops once, as on the Shift Breakdown. Each
+ *   order keeps its own minutes, so orders that overlapped add up to more than the
+ *   total, and the report says so.
  * - Nothing is invented: a missing name, repair description, engineer or downtime
  *   value is shown as missing, never guessed.
  */
 import { supabase } from "@/integrations/supabase/client";
 import { getCurrentFactoryShift, getCurrentShiftEnd, getCurrentShiftStart, londonHM, londonWallToUtc, type ShiftCode } from "@/lib/shifts";
-import { toExclusionIntervals, exclusionOverlapMs } from "@/lib/downtimeExclusions";
+import { toExclusionIntervals, exclusionOverlapMs, splitRangeByExclusions } from "@/lib/downtimeExclusions";
+import { toInterval, unionMs, unionMinutes, type Interval } from "@/lib/downtimeReconcile";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { isNoPlannedShift } from "@/lib/downtimeBuckets";
 import { fetchRowsByIds } from "@/lib/fetchRowsByIds";
@@ -230,8 +234,15 @@ export interface ShiftReport {
   notesNotTranslated: number;
   /** Validated stops that touched the window and were counted. */
   downtimeEvents: number;
-  /** Sum of the counted stops' minutes inside the window, after exclusions. */
+  /**
+   * The shift's downtime: the counted stops as wall-clock time, parallel stops once.
+   * The same sum as the Shift Breakdown's total, so the file and the screen agree.
+   */
   totalCountedMinutes: number;
+  /** Each order's own minutes added up. Larger than the total when stops overlapped. */
+  sumOfOrdersMinutes: number;
+  /** Stops overlapped by half a minute or more, so the two figures above differ for that reason. */
+  stopsOverlapped: boolean;
   rows: StopRow[];
   /** Distinct stops that touched the window, counted or not. */
   stopsRead: number;
@@ -295,6 +306,10 @@ export function reportFileName(w: Pick<ShiftWindow, "sessionDate" | "shift">, ex
   return `Maintenance_Report_${w.shift === "day" ? "Day" : "Night"}_Shift_${w.sessionDate}.${ext}`;
 }
 
+/** Why the orders below add up to more than the total above them. */
+export const overlapNote = (sumOfOrdersMinutes: number) =>
+  `Sum of work orders: ${formatMinutes(sumOfOrdersMinutes)} (overlapping stops are counted once in the total)`;
+
 export const woRef = (n: number | null) => (n ? `WO-${n}` : "WO number not recorded");
 
 /** "Downtime: 0h 40m (line still stopped)", or "No downtime this shift". */
@@ -348,7 +363,8 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
   let plannedStops = 0;
   let excludedMinutes = 0;
   let downtimeEvents = 0;
-  let totalCountedMinutes = 0;
+  let sumOfOrdersMinutes = 0;
+  const countedIntervals: Interval[] = [];
   const touched = new Set<string>();
   const row = (e: ReportEvent, wo: ReportWorkOrder | undefined, verdict: StopVerdict, minutes: number | null, excluded = 0) =>
     rows.push({
@@ -411,13 +427,18 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
       row(e, wo, "planned", null);
       continue;
     }
-    const excluded = exclusionOverlapMs(from, to, toExclusionIntervals(exclByWo.get(wo.id), nowMs));
+    const exclusionIntervals = toExclusionIntervals(exclByWo.get(wo.id), nowMs);
+    for (const piece of splitRangeByExclusions(e.stopped_at, e.resumed_at, exclusionIntervals, nowMs)) {
+      const iv = toInterval(piece, winStart, Math.min(winEnd, nowMs), nowMs);
+      if (iv) countedIntervals.push(iv);
+    }
+    const excluded = exclusionOverlapMs(from, to, exclusionIntervals);
     const excludedMin = Math.round(excluded / 60_000);
     excludedMinutes += excludedMin;
     const minutes = Math.max(0, Math.round((to - from - excluded) / 60_000));
     row(e, wo, "counted", minutes, excludedMin);
     downtimeEvents++;
-    totalCountedMinutes += minutes;
+    sumOfOrdersMinutes += minutes;
     if (!stopsByWo.has(wo.id)) stopsByWo.set(wo.id, []);
     stopsByWo.get(wo.id)!.push({ minutes, ongoing: !e.resumed_at, carriedOver: s < winStart });
   }
@@ -425,6 +446,10 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
   // Genuinely completed in this shift. The list comes from the completed-orders read,
   // never from the stops: an order finished without a line stoppage is still completed,
   // and an open order with a long stop is still open.
+  const totalCountedMinutes = unionMinutes(countedIntervals);
+  const separateMs = countedIntervals.reduce((n, [from, to]) => n + (to - from), 0);
+  const stopsOverlapped = separateMs - unionMs(countedIntervals) >= 30_000;
+
   const downtimeOf = (id: string) => {
     const stops = stopsByWo.get(id) ?? [];
     return { stops, totalMinutes: stops.reduce((sum, x) => sum + x.minutes, 0), stillStopped: stops.some((x) => x.ongoing) };
@@ -466,12 +491,12 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
 
   // Self-check: what is printed is what was added up, and the audit trail agrees.
   const countedRows = rows.filter((r) => r.verdict === "counted");
-  if (countedRows.length !== downtimeEvents || countedRows.reduce((n, r) => n + (r.minutes ?? 0), 0) !== totalCountedMinutes) {
+  if (countedRows.length !== downtimeEvents || countedRows.reduce((n, r) => n + (r.minutes ?? 0), 0) !== sumOfOrdersMinutes) {
     problems.push("The stops counted do not match the stops listed.");
   }
   const sectionMinutes = [...completed, ...open, ...completedLater].reduce((n, x) => n + x.totalMinutes, 0);
-  if (sectionMinutes !== totalCountedMinutes) {
-    problems.push(`The work orders listed add up to ${formatMinutes(sectionMinutes)}, not the ${formatMinutes(totalCountedMinutes)} counted.`);
+  if (sectionMinutes !== sumOfOrdersMinutes) {
+    problems.push(`The work orders listed add up to ${formatMinutes(sectionMinutes)}, not the ${formatMinutes(sumOfOrdersMinutes)} counted.`);
   }
 
   // ── Text: short lines, no technical detail. A .txt carries no formatting, and
@@ -487,6 +512,7 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
     "",
     boldText("SHIFT SUMMARY"),
     `Total counted downtime: ${boldText(formatMinutes(totalCountedMinutes))}`,
+    ...(stopsOverlapped ? [overlapNote(sumOfOrdersMinutes)] : []),
     `Downtime events: ${downtimeEvents}`,
     `Completed work orders: ${completed.length}`,
     `Open work orders: ${open.length}`,
@@ -537,7 +563,7 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
   return {
     window, generatedAt, generatedBy: by || null,
     text: lines.join("\n"), completed, open, completedLater, notesNotTranslated: input.notesNotTranslated ?? 0,
-    downtimeEvents, totalCountedMinutes,
+    downtimeEvents, totalCountedMinutes, sumOfOrdersMinutes, stopsOverlapped,
     rows, stopsRead, ordersRead: touched.size, plannedStops, excludedMinutes, problems,
   };
 }

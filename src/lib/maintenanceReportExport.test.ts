@@ -92,6 +92,29 @@ describe("reportToFile", () => {
     expect(pdf).toContain("WO-149");
   });
 
+  it("Excel and PDF carry the note when stops overlapped", async () => {
+    const order = (id: string, n: number) => ({ id, wo_number: n, line_at_time: "Line 4", line_name: null, description: "Capper Fault", resolution_notes: "Adjusted", status: "finished", engineer_name: "Eng A", machine: null, completed_at_effective: t("28T23:00") });
+    const overlapped = buildMaintenanceShiftReport({
+      window: shiftWindowFor("2026-10-28", "night"),
+      generatedAt: new Date(t("29T06:10")),
+      workOrders: [order("a", 1), order("b", 2)],
+      events: [
+        { id: "e1", work_order_id: "a", stopped_at: t("28T20:00"), resumed_at: t("28T21:00"), duration_minutes: 60 },
+        { id: "e2", work_order_id: "b", stopped_at: t("28T20:30"), resumed_at: t("28T21:30"), duration_minutes: 60 },
+      ],
+      exclusions: [],
+      plannedProblems: [],
+      completedOrders: [order("a", 1), order("b", 2)],
+    });
+    const note = "Sum of work orders: 2h 0m (overlapping stops are counted once in the total)";
+    const wb = XLSX.read(await bytes(await reportToFile(overlapped, "xlsx")), { type: "buffer" });
+    const sum = XLSX.utils.sheet_to_json<string[]>(wb.Sheets["Summary"], { header: 1 });
+    expect(sum.find((row) => row[0] === "Total counted downtime")?.[1]).toBe("1h 30m");
+    expect(sum.find((row) => row[0] === "Note")?.[1]).toBe(note);
+    const pdf = (await bytes(await reportToFile(overlapped, "pdf"))).toString("latin1");
+    expect(pdf).toContain(`(${note.replace(/[()]/g, "\\$&")})`);
+  });
+
   it("PDF names the shift, shows the total downtime prominently and lists completed and open orders", async () => {
     const f = await reportToFile(report, "pdf");
     expect(f.name).toBe("Maintenance_Report_Night_Shift_2026-10-28.pdf");
