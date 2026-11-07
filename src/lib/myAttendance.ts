@@ -415,13 +415,31 @@ const span = (a: string | null | undefined, b: string | null | undefined) =>
  * hours belong to, also unassigned. A day can hold two rows — a Day shift and a Night
  * overtime — and both are listed.
  */
-export function myShifts(data: MyAttendanceData, from: string, to: string): MyShift[] {
+export function myShifts(
+  data: MyAttendanceData, from: string, to: string,
+  /**
+   * `my_board_marks` (null/omitted = not readable). With them, an overtime row's hours
+   * are the board's (`placementHours`) — "went home at 18:00" on a 06–14 ask reads
+   * 06:00–18:00, as on the board and in the overtime list (07/11/2026).
+   */
+  marks: ReadonlyArray<MyBoardMark> | null = null,
+): MyShift[] {
+  const markOf = new Map((marks ?? []).map((m) => [`${m.on_date}|${m.shift}`, m]));
   const days = new Set(data.pattern?.days ?? []);
   const rotaHours = span(data.pattern?.starts_at, data.pattern?.ends_at);
   // The board's own rule (`boardShiftFor`): the Night crew is on the Night board,
   // every other crew on the Day board — weekends and warehouse included.
   const rotaShift = data.me.shift_group === "Night" ? "Night" : "Day";
   const out: MyShift[] = [];
+  const askHours = (b: MyBoardRow, ask: MyOvertimeShift): string | null => {
+    const m = markOf.get(`${b.on_date}|${b.shift}`);
+    if (!m) return span(ask.starts_at, ask.ends_at);
+    const id = m.overtime_request_id ?? "ask";
+    return placementHours(
+      { status: b.status, half_day: b.half_day, left_early_at: m.left_early_at, arrived_late_at: m.arrived_late_at, overtime_request_id: m.overtime_request_id },
+      b.on_date, b.shift, [{ request_id: id, employee_id: "", on_date: ask.on_date, starts_at: ask.starts_at, ends_at: ask.ends_at }],
+    ).label;
+  };
   for (const date of eachDate(from, to)) {
     const rows = data.board.filter((b) => b.on_date === date);
     const asks = (data.overtime ?? []).filter((o) => o.on_date === date);
@@ -437,7 +455,7 @@ export function myShifts(data: MyAttendanceData, from: string, to: string): MySh
       const away = kind === "holiday" || kind === "sick" || kind === "unpaid" || kind === "other";
       out.push({
         date, shift: b.shift,
-        hours: away ? null : ask ? span(ask.starts_at, ask.ends_at) : b.shift === rotaShift ? rotaHours : null,
+        hours: away ? null : ask ? askHours(b, ask) : b.shift === rotaShift ? rotaHours : null,
         kind,
         area: away ? null : "area" in b ? b.area ?? null : undefined,
         leader: !!b.is_leader,
