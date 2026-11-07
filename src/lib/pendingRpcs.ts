@@ -39,6 +39,13 @@ interface PendingRpc {
   block: string;
   /** What the screen shows instead. Point 1 of the doctrine, written down. */
   fallback: string;
+  /**
+   * Arguments that make a harmless, read-only call, so a screen can ask whether the
+   * block has landed (the Finance Close's readiness list). PostgREST matches an
+   * overload by argument NAME, so a call without them answers PGRST202 even when the
+   * function is there. Only entries that are safe to call carry one.
+   */
+  probe?: Record<string, unknown>;
 }
 
 const PENDING: readonly PendingRpc[] = [
