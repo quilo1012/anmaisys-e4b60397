@@ -6,6 +6,7 @@
  * have a number and says when one that ran has none, so a part never passes for the whole.
  */
 import { FORECAST_LINES } from "@/lib/smartTargetHistory";
+import { shiftWindow } from "@/lib/smartTargetEngine";
 
 export type RagShift = "DAY" | "NIGHT";
 
@@ -28,16 +29,18 @@ export const hasSmartTarget = (line: string) => SMART_LINES.has(line.trim().toLo
 export interface SmartTally {
   /** Sum of the Smart Targets that exist. */
   smart: number;
-  /** What was made on the shifts that have one, so the comparison is like for like. */
+  /** The Smart Targets of the shifts that have started: a shift still to come has nothing to compare. */
+  comparedSmart: number;
+  /** What was made on those shifts, so the comparison is like for like. */
   actual: number;
   withNumber: number;
   /** Shifts that ran, with a plan or a count, and had no Smart Target. */
   missing: number;
 }
 
-export const NO_SMART: SmartTally = { smart: 0, actual: 0, withNumber: 0, missing: 0 };
+export const NO_SMART: SmartTally = { smart: 0, comparedSmart: 0, actual: 0, withNumber: 0, missing: 0 };
 
-/** One line, one shift. */
+/** One line, one shift. A shift that has not started shows its Smart Target and is not compared. */
 export function smartTally(
   map: RagSmartMap | undefined,
   date: string,
@@ -45,24 +48,35 @@ export function smartTally(
   shift: RagShift,
   plan: number,
   actual: number,
+  nowMs: number = Date.now(),
 ): SmartTally {
   if (!map || !hasSmartTarget(line)) return NO_SMART;
   const f = map.get(ragSmartKey(date, line, shift));
-  if (f) return { smart: f.expected, actual, withNumber: 1, missing: 0 };
+  if (f) {
+    const window = shiftWindow(date, shift);
+    const started = actual > 0 || (window !== null && nowMs >= window.startMs);
+    return started ? { smart: f.expected, comparedSmart: f.expected, actual, withNumber: 1, missing: 0 } : { ...NO_SMART, smart: f.expected, withNumber: 1 };
+  }
   return plan > 0 || actual > 0 ? { ...NO_SMART, missing: 1 } : NO_SMART;
 }
 
 export function addTallies(tallies: SmartTally[]): SmartTally {
   return tallies.reduce(
-    (sum, t) => ({ smart: sum.smart + t.smart, actual: sum.actual + t.actual, withNumber: sum.withNumber + t.withNumber, missing: sum.missing + t.missing }),
+    (sum, t) => ({
+      smart: sum.smart + t.smart,
+      comparedSmart: sum.comparedSmart + t.comparedSmart,
+      actual: sum.actual + t.actual,
+      withNumber: sum.withNumber + t.withNumber,
+      missing: sum.missing + t.missing,
+    }),
     NO_SMART,
   );
 }
 
 /** Made against Smart Target, in whole percent. Null with nothing to compare. */
 export function smartVariancePct(t: SmartTally): number | null {
-  if (!t.withNumber || t.smart <= 0) return null;
-  return Math.round(((t.actual - t.smart) / t.smart) * 100);
+  if (t.comparedSmart <= 0) return null;
+  return Math.round(((t.actual - t.comparedSmart) / t.comparedSmart) * 100);
 }
 
 /** "3 of 4 shifts", for a total that is missing some, or null when it is whole. */
@@ -85,9 +99,10 @@ export function smartOrigin(f: RagSmartForecast): string {
 export function smartExportRows(
   map: RagSmartMap,
   cells: { date: string; line: string; shift: RagShift; plan: number; actual: number }[],
+  nowMs: number = Date.now(),
 ) {
   return cells
-    .map((c) => ({ c, t: smartTally(map, c.date, c.line, c.shift, c.plan, c.actual), f: map.get(ragSmartKey(c.date, c.line, c.shift)) }))
+    .map((c) => ({ c, t: smartTally(map, c.date, c.line, c.shift, c.plan, c.actual, nowMs), f: map.get(ragSmartKey(c.date, c.line, c.shift)) }))
     .filter(({ t }) => t.withNumber || t.missing)
     .map(({ c, t, f }) => ({
       Date: c.date,
