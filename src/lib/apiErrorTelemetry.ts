@@ -72,7 +72,7 @@ export function installApiErrorTelemetry(): void {
       ).toUpperCase();
 
       // Read a copy so the caller still gets the untouched body.
-      let body: { message?: string; code?: string; hint?: string; details?: string } | null = null;
+      let body: { message?: string; error?: unknown; code?: string; hint?: string; details?: string } | null = null;
       try {
         body = JSON.parse(await res.clone().text());
       } catch {
@@ -84,7 +84,10 @@ export function installApiErrorTelemetry(): void {
       // 401/403 (and Postgres 42501) are almost always RLS; everything else API.
       const isRls = res.status === 401 || res.status === 403 || body?.code === "42501";
       const message =
-        body?.message || `${method} ${resource} → ${res.status} ${res.statusText}`.trim();
+        body?.message ||
+        // Our edge functions answer `{ error }`: that sentence is the reason, keep it.
+        (typeof body?.error === "string" ? body.error : "") ||
+        `${method} ${resource} → ${res.status} ${res.statusText}`.trim();
 
       // A refusal the person who hit it can fix by typing something else, on a screen
       // that already says so, is recorded but not filed as a fault — see

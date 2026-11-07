@@ -139,6 +139,18 @@ describe("a read that probes for a column the code can live without", () => {
     expect(logged.mock.calls[0][1]).toContain("signup_invite_code");
   });
 
+  /**
+   * As edge functions respondem `{ error }`, não `{ message }`. A 06–07/11 o registo
+   * guardou onze "POST fn:translate-message → 502" e deitou fora a frase que dizia se
+   * era a chave recusada ou a conta da Anthropic sem crédito.
+   */
+  it("guarda o erro que a edge function devolve", async () => {
+    serving({ error: "AI key rejected — check ANTHROPIC_API_KEY and billing" }, 502);
+    await window.fetch("https://x.supabase.co/functions/v1/translate-message", { method: "POST" });
+    expect(logged.mock.calls[0][0]).toBe("API_ERROR");
+    expect(logged.mock.calls[0][1]).toBe("AI key rejected — check ANTHROPIC_API_KEY and billing");
+  });
+
   it("uma função que ninguém declarou continua a ser falta", async () => {
     // A direcção que apanha coisas: silenciar por PGRST202 matava esta também.
     serving({
