@@ -100,3 +100,18 @@ describe("the reason for a late start or an early finish", () => {
     expect(screen.queryByLabelText("Reason for leaving early")).not.toBeInTheDocument();
   });
 });
+
+describe("a time after the booked end is a stay-late, and is asked about as one", () => {
+  // 20/10: booked 06:00–14:00, the office wrote "went home at 18:00" — four hours over.
+  it("asks for the reason for staying late, not for leaving early", () => {
+    open({ leftEarlyAt: "18:00", bookedEnd: "14:00", status: "overtime" });
+    expect(screen.getByTestId("went-home-meaning")).toHaveTextContent(/after the booked 14:00/);
+    expect(screen.getByLabelText("Reason for staying late")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Reason for leaving early")).not.toBeInTheDocument();
+  });
+
+  it("still asks about leaving early for a time before the booked end", () => {
+    open({ leftEarlyAt: "11:00", bookedEnd: "18:00" });
+    expect(screen.getByLabelText("Reason for leaving early")).toBeInTheDocument();
+  });
+});
