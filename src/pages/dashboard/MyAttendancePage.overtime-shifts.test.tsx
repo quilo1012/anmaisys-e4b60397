@@ -5,7 +5,7 @@
  * no hours for, and says which part came from where.
  */
 import React from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -17,9 +17,12 @@ vi.mock("@/components/DashboardLayout", () => ({
 const env = vi.hoisted(() => ({
   attendance: vi.fn(),
   shifts: vi.fn(),
+  marks: null as unknown,
 }));
 vi.mock("@/hooks/useMyAttendance", () => ({ useMyAttendance: env.attendance }));
 vi.mock("@/hooks/useMyOvertimeShifts", () => ({ useMyOvertimeShifts: env.shifts }));
+// my_board_marks not pasted: the asks keep their own hours.
+vi.mock("@/hooks/useMyBoardMarks", () => ({ useMyBoardMarks: () => ({ data: env.marks }) }));
 vi.mock("@/lib/sharedTabletSession", () => ({ isSharedTabletSession: () => false }));
 vi.mock("@/lib/operationalShift", () => ({ currentShift: () => ({ operationalDate: "2026-10-30" }) }));
 
@@ -53,9 +56,33 @@ function renderPage() {
 }
 
 describe("overtime shifts beside the clock's figure", () => {
+  afterEach(() => { vi.useRealTimers(); });
   beforeEach(() => {
+    // The screen was taken on 30/10; the board's 31/10 overtime is still ahead then.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-30T17:11:00"));
     env.attendance.mockReset().mockReturnValue({ data: { state: "ready", data: DATA }, isPending: false, isError: false });
     env.shifts.mockReset();
+    env.marks = null;
+  });
+
+  it("07/11: 20/10 and 21/10 booked 06:00–14:00 on rows the office placed read as the board's 12 h each", () => {
+    vi.setSystemTime(new Date("2026-11-07T09:49:00"));
+    const placed = {
+      ...DATA, clocks: [], clocked_to: null,
+      board: ["2026-10-20", "2026-10-21"].map((on_date) => ({ on_date, shift: "Day", status: "overtime", half_day: false, area: "Line 2", area_kind: "production", is_leader: false })),
+    };
+    env.attendance.mockReturnValue({ data: { state: "ready", data: placed }, isPending: false, isError: false });
+    env.shifts.mockReturnValue({ data: [
+      { request_id: "q20", on_date: "2026-10-20", starts_at: "06:00:00", ends_at: "14:00:00", outcome: null },
+      { request_id: "q21", on_date: "2026-10-21", starts_at: "06:00:00", ends_at: "14:00:00", outcome: null },
+    ] });
+    env.marks = ["2026-10-20", "2026-10-21"].map((on_date) => ({ on_date, shift: "Day", left_early_at: null, arrived_late_at: null, overtime_request_id: null }));
+    renderPage();
+    const box = screen.getByTestId("overtime-shifts");
+    expect(box).toHaveTextContent(/Overtime shifts worked\s*24 h/);
+    expect(box).not.toHaveTextContent(/06:00–14:00/);
+    expect(box.textContent?.match(/06:00–18:00/g)).toHaveLength(2);
   });
 
   it("counts the two attended shifts in October's overtime: 20 h, not 0 h", () => {

@@ -19,7 +19,7 @@ import { buildClose, countDaysAway, round2 } from "@/lib/financeClose";
 import { eachDate, leaveBalance, type LeaveBalance } from "@/lib/leaveDays";
 import { expectedShifts } from "@/lib/shiftBalance";
 import { overtimeBoardFor } from "@/lib/overtimeRequests";
-import { boardSlotOf } from "@/lib/boardOvertime";
+import { boardSlotOf, placementHours, type ConfirmedAsk } from "@/lib/boardOvertime";
 import { windowMinutes } from "@/lib/overtimeShifts";
 
 /* ---------------------------------------------------------------- the payload ---- */
@@ -499,6 +499,8 @@ export function overtimeOnTheBoardOnly(data: MyAttendanceData, from: string, to:
 
 /** One booked overtime shift and what the supervisor recorded about it, if anything. */
 export interface MyOvertimeShiftRecord {
+  /** The ask's id, to find the row the overtime bridge made for it. */
+  request_id?: string;
   on_date: string;
   starts_at: string;
   ends_at: string;
@@ -506,7 +508,46 @@ export interface MyOvertimeShiftRecord {
   outcome: string | null;
 }
 
-export interface MyOvertimeShiftLine { date: string; hours: string; minutes: number }
+export interface MyOvertimeShiftLine {
+  date: string;
+  hours: string;
+  minutes: number;
+  /** "on the Headcount" for overtime only the board holds, with no ask behind it. */
+  where?: string | null;
+}
+
+/** What `my_board_marks` returns: the fields of a board row that decide its hours. */
+export interface MyBoardMark {
+  on_date: string;
+  shift: string;
+  left_early_at: string | null;
+  arrived_late_at: string | null;
+  /** Set on a row the overtime bridge made for that ask; null on a row the office placed. */
+  overtime_request_id: string | null;
+}
+
+/** A board row with its marks. `marks` is null when `my_board_marks` is not there yet. */
+export interface MyBoardPlacement {
+  on_date: string;
+  shift: string;
+  status: string;
+  half_day: boolean | null;
+  marks: Omit<MyBoardMark, "on_date" | "shift"> | null;
+}
+
+/** Joins `my_attendance`'s board rows to `my_board_marks` (null = not pasted yet). */
+export function boardPlacements(board: ReadonlyArray<MyBoardRow>, marks: ReadonlyArray<MyBoardMark> | null): MyBoardPlacement[] {
+  const byKey = new Map((marks ?? []).map((m) => [`${m.on_date}|${m.shift}`, m]));
+  return board.map((b) => {
+    const m = marks ? byKey.get(`${b.on_date}|${b.shift}`) : undefined;
+    return {
+      on_date: b.on_date, shift: b.shift, status: b.status, half_day: b.half_day,
+      marks: marks
+        ? { left_early_at: m?.left_early_at ?? null, arrived_late_at: m?.arrived_late_at ?? null, overtime_request_id: m?.overtime_request_id ?? null }
+        : null,
+    };
+  });
+}
 
 export interface MyOvertimeShiftSummary {
   /**
@@ -557,6 +598,13 @@ export function summariseOvertimeShifts(
   records: MyOvertimeShiftRecord[],
   clocks: ReadonlyArray<Pick<MyClockRow, "on_date" | "worked_minutes">>,
   now: Date = new Date(),
+  /**
+   * The person's overtime rows on the Headcount Board (`boardPlacements`). An ask that
+   * lands on one is counted at the hours the board draws for it (`placementHours`), and a
+   * row with no ask behind it counts on its own (07/11/2026). Rows without marks keep the
+   * ask's hours: before `my_board_marks` exists the board's reading cannot be known.
+   */
+  board: ReadonlyArray<MyBoardPlacement> = [],
 ): MyOvertimeShiftSummary {
   const clockedDays = new Set(clocks.filter((c) => (c.worked_minutes ?? 0) > 0).map((c) => c.on_date));
   const line = (r: MyOvertimeShiftRecord): MyOvertimeShiftLine => ({
@@ -568,8 +616,55 @@ export function summariseOvertimeShifts(
     .filter((r) => !(r.outcome && NOT_WORKED.has(r.outcome)))
     .sort((a, b) => a.on_date.localeCompare(b.on_date) || a.starts_at.localeCompare(b.starts_at));
   const ended = (r: MyOvertimeShiftRecord) => r.outcome === "attended" || overtimeShiftEnd(r, r.ends_at) <= now;
-  const worked = sorted.filter(ended).map(line);
-  const booked = sorted.filter((r) => !ended(r)).map(line);
+
+  // The board's reading, row by row. `taken` are the asks a board row now speaks for.
+  const taken = new Set<MyOvertimeShiftRecord>();
+  const fromBoard: { line: MyOvertimeShiftLine; done: boolean }[] = [];
+  for (const b of board) {
+    if (b.status !== "overtime") continue;
+    const onSlot = records.filter((r) => {
+      const slot = boardSlotOf(r.on_date, r.starts_at);
+      return slot.date === b.on_date && slot.shift === b.shift;
+    });
+    const m = b.marks;
+    const row = {
+      status: b.status, half_day: b.half_day,
+      left_early_at: m?.left_early_at ?? null, arrived_late_at: m?.arrived_late_at ?? null,
+      overtime_request_id: m?.overtime_request_id ?? null,
+    };
+    const endOf = (endMin: number) => new Date(new Date(`${b.on_date}T00:00:00`).getTime() + endMin * 60_000);
+    if (onSlot.length === 0) {
+      // Placed by hand with nobody asked: the board's own hours (13–15/10).
+      const ph = placementHours({ ...row, overtime_request_id: null }, b.on_date, b.shift, []);
+      fromBoard.push({
+        line: { date: b.on_date, hours: ph.label, minutes: Math.round(ph.total * 60), where: "on the Headcount" },
+        done: endOf(ph.endMin) <= now,
+      });
+      continue;
+    }
+    if (!m) continue; // marks not readable yet: the ask's hours stand
+    const mine = sorted
+      .filter((r) => onSlot.includes(r))
+      .filter((r) => !m.overtime_request_id || r.request_id === m.overtime_request_id);
+    if (mine.length === 0) continue;
+    const asks: ConfirmedAsk[] = mine.map((r, i) => ({
+      request_id: r.request_id ?? `ask-${i}`, employee_id: "", on_date: r.on_date, starts_at: r.starts_at, ends_at: r.ends_at,
+    }));
+    const ph = placementHours(
+      m.overtime_request_id ? { ...row, overtime_request_id: asks[0].request_id } : row,
+      b.on_date, b.shift, asks,
+    );
+    mine.forEach((r) => taken.add(r));
+    fromBoard.push({
+      line: { date: b.on_date, hours: ph.label, minutes: Math.round(ph.total * 60) },
+      done: mine.some((r) => r.outcome === "attended") || endOf(ph.endMin) <= now,
+    });
+  }
+
+  const rest = sorted.filter((r) => !taken.has(r));
+  const byDate = (a: MyOvertimeShiftLine, b: MyOvertimeShiftLine) => a.date.localeCompare(b.date) || a.hours.localeCompare(b.hours);
+  const worked = [...rest.filter(ended).map(line), ...fromBoard.filter((x) => x.done).map((x) => x.line)].sort(byDate);
+  const booked = [...rest.filter((r) => !ended(r)).map(line), ...fromBoard.filter((x) => !x.done && x.line.where == null).map((x) => x.line)].sort(byDate);
   const notOnClock = worked.filter((w) => !clockedDays.has(w.date));
   const sum = (xs: MyOvertimeShiftLine[]) => xs.reduce((n, x) => n + x.minutes, 0);
   return {

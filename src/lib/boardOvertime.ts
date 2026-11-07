@@ -55,6 +55,8 @@ export interface PlacementHours {
   workedSpan: string;
   /** What `left_early_at` / `arrived_late_at` mean against the booked hours. */
   marks: WorkedMarks;
+  /** When the last worked window ends, in minutes from the board date's 00:00 (past 1440 = next day). */
+  endMin: number;
 }
 
 /**
@@ -233,7 +235,7 @@ export function placementHours(
   if (!base && mine.length === 0) {
     const whole: [number, number] = shift === "Night" ? [1080, 1800] : [360, 1080];
     const w = workedWindow(whole, a);
-    return { base: 0, overtime: (w.window[1] - w.window[0]) / 60, total: (w.window[1] - w.window[0]) / 60, label: show(w.window), short: showShort(w.window), shiftLabel: null, overtimeLabels: [], bookedLabel: show(whole), workedSpan: show(w.window), marks: w.marks };
+    return { base: 0, overtime: (w.window[1] - w.window[0]) / 60, total: (w.window[1] - w.window[0]) / 60, label: show(w.window), short: showShort(w.window), shiftLabel: null, overtimeLabels: [], bookedLabel: show(whole), workedSpan: show(w.window), marks: w.marks, endMin: w.window[1] };
   }
 
   const booked = merge([...(fullBase ? [fullBase] : []), ...mine]);
@@ -266,6 +268,7 @@ export function placementHours(
     bookedLabel: booked.map(show).join(" + "),
     workedSpan: show([all[0][0], all[all.length - 1][1]]),
     marks: w.marks,
+    endMin: all[all.length - 1][1],
   };
 }
 

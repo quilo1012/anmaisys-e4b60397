@@ -15,11 +15,12 @@ import { ShiftTag } from "@/components/ShiftTag";
 import { shiftKind } from "@/lib/shiftLook";
 import { useMyAttendance } from "@/hooks/useMyAttendance";
 import { useMyOvertimeShifts } from "@/hooks/useMyOvertimeShifts";
+import { useMyBoardMarks } from "@/hooks/useMyBoardMarks";
 import { currentShift } from "@/lib/operationalShift";
 import { isSharedTabletSession } from "@/lib/sharedTabletSession";
 import {
   buildMyDays, summarise, rangeChoices, defaultRange, myShifts, periodAround,
-  overtimeOnTheBoardOnly, summariseOvertimeShifts,
+  overtimeOnTheBoardOnly, summariseOvertimeShifts, boardPlacements,
   type DayStatus, type MyAttendanceData, type MyDay, type MyShift,
 } from "@/lib/myAttendance";
 
@@ -125,9 +126,15 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
   // period's overtime, so the figure is not 0 h for overtime that was worked and simply
   // not imported (30/10/2026).
   const { data: otRecords } = useMyOvertimeShifts(data.me.id, range.from, range.to);
+  // The hours are the Headcount Board's: an ask laid over the person's row, and overtime
+  // the office placed with no ask behind it (07/11/2026). Without `my_board_marks` the
+  // asks keep their own hours.
+  const { data: boardMarks } = useMyBoardMarks(range.from, range.to);
   const ot = useMemo(
-    () => (otRecords ? summariseOvertimeShifts(otRecords, data.clocks, new Date()) : null),
-    [otRecords, data.clocks],
+    () => (otRecords
+      ? summariseOvertimeShifts(otRecords, data.clocks, new Date(), boardPlacements(data.board, boardMarks ?? null))
+      : null),
+    [otRecords, data.clocks, data.board, boardMarks],
   );
   const s = useMemo(
     () => summarise(data, days, range.from, range.to, today, ot?.notOnClockMinutes ?? 0),
@@ -139,8 +146,10 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
   const todayDay = days.find((d) => d.date === today) ?? null;
   // Overtime the office placed on the Headcount by hand, from today to the end of the range.
   const boardAhead = useMemo(
-    () => (range.to < today ? [] : overtimeOnTheBoardOnly(data, range.from > today ? range.from : today, range.to)),
-    [data, range.from, range.to, today],
+    () => (range.to < today ? [] : overtimeOnTheBoardOnly(data, range.from > today ? range.from : today, range.to)
+      // A board-only shift that has already ended is in the worked list, not ahead.
+      .filter((b) => !ot?.worked.some((w) => w.where && w.date === b.date))),
+    [data, range.from, range.to, today, ot],
   );
   const gapShifts = ot ? ot.notOnClock.length : 0;
   const gapWords = gapShifts === 1 ? "1 overtime shift" : `${gapShifts} overtime shifts`;
@@ -320,7 +329,7 @@ function Row({ label, value, note }: { label: string; value: string; note: strin
  */
 function OvertimeShifts({ ot, boardAhead }: { ot: ReturnType<typeof summariseOvertimeShifts>; boardAhead: MyShift[] }) {
   const booked = [
-    ...ot.booked.map((b) => ({ date: b.date, hours: b.hours, where: null as string | null })),
+    ...ot.booked.map((b) => ({ date: b.date, hours: b.hours, where: b.where ?? null })),
     ...boardAhead.map((b) => ({ date: b.date, hours: b.hours ?? "", where: "on the Headcount" })),
   ].sort((a, b) => a.date.localeCompare(b.date));
   if (ot.worked.length === 0 && booked.length === 0) return null;
@@ -342,7 +351,7 @@ function OvertimeShifts({ ot, boardAhead }: { ot: ReturnType<typeof summariseOve
         <span className="font-figure tabular-nums">{fmtHours(ot.workedMinutes / 60)}</span>
       </div>
       <p className="text-xs text-muted-foreground">
-        Your booked overtime that has taken place, at each shift's own hours. On a day the clock has no hours for yet, it counts in the overtime above.
+        Your overtime that has taken place, at the hours the Headcount Board shows. On a day the clock has no hours for yet, it counts in the overtime above.
       </p>
       {ot.worked.length > 0 && list(ot.worked)}
       {booked.length > 0 && (
