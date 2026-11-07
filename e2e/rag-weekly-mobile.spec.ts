@@ -180,7 +180,11 @@ test.describe("Weekly RAG on a phone", () => {
     // board used to remount every line block on any answer, and the typing with it.
     const writes = await stub(page, { slowComments: true });
     await open(page, 375);
-    const input = page.locator("#rag-line-Line-2 tbody tr").first().locator("input").first();
+    // The Plan row, wherever it sits: the Smart Target rows come first for an admin.
+    const input = page
+      .locator("#rag-line-Line-2 tbody tr", { has: page.locator("td:first-child", { hasText: /^Plan$/ }) })
+      .locator("input")
+      .first();
     await input.click();
     await input.pressSequentially("1234");
     await page.waitForTimeout(2000);
@@ -204,12 +208,12 @@ test.describe("Weekly RAG on tablet and desktop", () => {
 });
 
 test.describe("Smart Target on the RAG board", () => {
-  test("sits under Plan, read-only, with the comparison and a * on a total missing a shift", async ({ page }) => {
+  test("sits at the top, read-only, with the comparison and a * on a total missing a shift", async ({ page }) => {
     await stub(page);
     await open(page, 1280);
     const line1 = page.locator("#rag-line-Line-1");
     const labels = await line1.locator("tbody tr td:first-child").allTextContents();
-    expect(labels.slice(0, 4).map((l) => l.trim().toLowerCase())).toEqual(["plan", "smart target", "smart variance %", "actual"]);
+    expect(labels.slice(0, 4).map((l) => l.trim().toLowerCase())).toEqual(["smart target", "smart variance %", "plan", "actual"]);
     const smart = line1.getByRole("row", { name: /^Smart Target/ });
     // 19/10 is still British Summer Time, so 05:30 UTC reads 06:30.
     // Monday: day 1,200 against 950 made; the night ran without one, so the day total is 1,200*.

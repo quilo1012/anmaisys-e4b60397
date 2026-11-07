@@ -2037,8 +2037,7 @@ function DayNightTotalSummary({
       // Tuesday that is a wall of punctuation with the real numbers hidden in it.
       // The dash stays — nothing recorded is not the same as zero — it just stops
       // shouting.
-      { key: "plan", label: "Plan", render: (c) => c.plan ? c.plan.toLocaleString() : <span className="text-muted-foreground/40">—</span> },
-      // The number kept before the shift, never typed here (Q71). A total adds the shifts
+      // At the top of each line (07/11). The number kept before the shift, never typed here (Q71). A total adds the shifts
       // that have one and carries a * when a shift that ran had none (Q73).
       ...(smartMap && lineFilter.some(hasSmartTarget)
         ? [
@@ -2063,12 +2062,13 @@ function DayNightTotalSummary({
                 return v === null ? (
                   <span className="text-muted-foreground/40">—</span>
                 ) : (
-                  <span className={pctClass(c.smart.actual, c.smart.smart)}>{v}%</span>
+                  <span className={pctClass(c.smart.actual, c.smart.comparedSmart)}>{v}%</span>
                 );
               },
             },
           ]
         : []),
+      { key: "plan", label: "Plan", render: (c) => c.plan ? c.plan.toLocaleString() : <span className="text-muted-foreground/40">—</span> },
       { key: "actual", label: "Actual", render: (c) => c.actual ? c.actual.toLocaleString() : <span className="text-muted-foreground/40">—</span>, bold: true },
       {
         key: "var",
