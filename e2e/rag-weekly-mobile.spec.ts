@@ -42,7 +42,7 @@ const MONDAY = mondayOf(NOW);
 
 type Write = { method: string; url: string; body: string | null };
 
-async function stub(page: Page, opts: { slowComments?: boolean } = {}) {
+async function stub(page: Page, opts: { slowComments?: boolean; role?: string } = {}) {
   await page.clock.setFixedTime(NOW);
   await page.addInitScript(
     ([ref, session]) => {
@@ -74,8 +74,8 @@ async function stub(page: Page, opts: { slowComments?: boolean } = {}) {
     }
     if (url.includes("/auth/v1/user")) return json(FAKE_SESSION.user);
     if (url.includes("/auth/v1/token")) return json(FAKE_SESSION);
-    if (url.includes("/rpc/get_user_role")) return json("admin");
-    if (url.includes("/rpc/has_role") || url.includes("/rpc/is_owner")) return json(true);
+    if (url.includes("/rpc/get_user_role")) return json(opts.role ?? "admin");
+    if (url.includes("/rpc/has_role") || url.includes("/rpc/is_owner")) return json(!opts.role || opts.role === "admin");
     if (url.includes("/rpc/") && /single|maybe/.test(url)) return json(null);
     if (url.includes("/profiles")) {
       return json([{ id: FAKE_SESSION.user.id, name: "Fixture Admin", email: FAKE_SESSION.user.email, active: true }]);
@@ -85,6 +85,12 @@ async function stub(page: Page, opts: { slowComments?: boolean } = {}) {
     }
     if (url.includes("/rest/v1/rag_weekly_entries")) {
       return json(url.includes(`entry_date=gte.${mon}`) ? entries : []);
+    }
+    if (url.includes("/rest/v1/smart_target_forecasts")) {
+      return json(url.includes(`session_date=gte.${mon}`) ? [
+        { session_date: mon, shift: "DAY", line: 1, expected_total: 1200, frozen_at: `${mon}T05:30:00Z`, source: "ahead" },
+        { session_date: tue, shift: "DAY", line: 2, expected_total: 600, frozen_at: `${tue}T07:39:00Z`, source: "page" },
+      ] : []);
     }
     return json([]);
   });
@@ -196,3 +202,31 @@ test.describe("Weekly RAG on tablet and desktop", () => {
     });
   }
 });
+
+test.describe("Smart Target on the RAG board", () => {
+  test("sits under Plan, read-only, with the comparison and a * on a total missing a shift", async ({ page }) => {
+    await stub(page);
+    await open(page, 1280);
+    const line1 = page.locator("#rag-line-Line-1");
+    const labels = await line1.locator("tbody tr td:first-child").allTextContents();
+    expect(labels.slice(0, 4).map((l) => l.trim().toLowerCase())).toEqual(["plan", "smart target", "smart variance %", "actual"]);
+    const smart = line1.getByRole("row", { name: /^Smart Target/ });
+    // 19/10 is still British Summer Time, so 05:30 UTC reads 06:30.
+    // Monday: day 1,200 against 950 made; the night ran without one, so the day total is 1,200*.
+    await expect(smart).toContainText("1,200*");
+    await expect(smart.locator("input")).toHaveCount(0);
+    await expect(line1.getByRole("row", { name: /^Smart variance/ })).toContainText("-21%");
+    await expect(smart.locator('[title="Set 06:30, made before the shift from the iTouch queue."]')).toHaveCount(1);
+    await expect(smart.locator('[title="1 of 2 shifts that ran had a Smart Target"]').first()).toBeVisible();
+    // All lines: 1,200 + 600 against 950 + 300.
+    await expect(page.locator("#rag-line-all").getByRole("row", { name: /^Smart Target/ })).toContainText("1,800*");
+  });
+
+  test("is not there for a role that cannot see the Smart Target", async ({ page }) => {
+    await stub(page, { role: "manager" });
+    await open(page, 1280);
+    await expect(page.locator("#rag-line-Line-1").getByRole("row", { name: /^Plan/ })).toBeVisible();
+    await expect(page.getByRole("row", { name: /^Smart Target/ })).toHaveCount(0);
+  });
+});
+

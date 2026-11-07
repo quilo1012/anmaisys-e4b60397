@@ -4,6 +4,16 @@ import autoTable from "jspdf-autotable";
 import XLSX from "xlsx-js-style";
 import { format, addDays, getISOWeek } from "date-fns";
 import logoUrl from "@/assets/appliedlogo.jpeg";
+import {
+  addTallies,
+  hasSmartTarget,
+  ragSmartKey,
+  smartExportRows,
+  smartTally,
+  smartVariancePct,
+  type RagShift,
+  type RagSmartMap,
+} from "@/lib/ragSmartTarget";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -62,6 +72,22 @@ export interface RagExportInput {
   generatedBy: string;
   /** Optional map of line -> comment for the week */
   comments?: Map<string, string>;
+  /** The week's Smart Targets, only for those who may see them (Q76). */
+  smart?: RagSmartMap;
+}
+
+/** Every line and shift of the week with a RAG entry or a Smart Target, for the Smart Target columns. */
+function smartCells(entries: RagExportEntry[], smart: RagSmartMap, lines: string[]) {
+  const cells = new Map<string, { date: string; line: string; shift: RagShift; plan: number; actual: number }>();
+  for (const e of entries) {
+    if (!lines.includes(e.line)) continue;
+    cells.set(ragSmartKey(e.entry_date, e.line, e.shift), { date: e.entry_date, line: e.line, shift: e.shift, plan: Number(e.plan_qty) || 0, actual: Number(e.actual_qty) || 0 });
+  }
+  for (const key of smart.keys()) {
+    const [date, line, shift] = key.split("|") as [string, string, RagShift];
+    if (lines.includes(line) && !cells.has(key)) cells.set(key, { date, line, shift, plan: 0, actual: 0 });
+  }
+  return [...cells.values()].sort((a, b) => a.date.localeCompare(b.date) || lines.indexOf(a.line) - lines.indexOf(b.line) || a.shift.localeCompare(b.shift));
 }
 
 interface DayTotals {
@@ -433,9 +459,17 @@ export async function exportRagPdf(input: RagExportInput) {
     const dtTotal = dtCategories.reduce((sum, b) => sum + sumBucket(autoDtBucketMap, b, line, dates), 0);
     const pct = p ? (a / p) * 100 : null;
     const avg = (sum: number, n: number) => (n ? (sum / n).toFixed(1) : "—");
+    const smartCols = (() => {
+      if (!input.smart) return [];
+      if (!hasSmartTarget(line)) return ["—", "—"];
+      const t = addTallies(smartCells(entries, input.smart, [line]).map((c) => smartTally(input.smart, c.date, c.line, c.shift, c.plan, c.actual)));
+      const v = smartVariancePct(t);
+      return [t.withNumber ? `${t.smart.toLocaleString()}${t.missing ? "*" : ""}` : "—", v === null ? "—" : `${v}%`];
+    })();
     return [
       line,
       p || "—",
+      ...smartCols,
       a || "—",
       { content: pct === null ? "—" : `${pct.toFixed(0)}%`, styles: { fillColor: pctColorRgb(pct), halign: "center" as const } },
       avg(agg.tSum, agg.tN),
@@ -449,12 +483,12 @@ export async function exportRagPdf(input: RagExportInput) {
   if (!sumFits) doc.addPage();
   autoTable(doc, {
     startY: sumFits ? sumStartY : 24,
-    head: [["Line", "Plan", "Actual", "%", "UPM target", "UPM actual", "Downtime", "Comments"]],
+    head: [["Line", "Plan", ...(input.smart ? ["Smart Target", "Smart var %"] : []), "Actual", "%", "UPM target", "UPM actual", "Downtime", "Comments"]],
     body: sumBody,
     theme: "grid",
     styles: { fontSize: 7, cellPadding: 1.5, overflow: "linebreak" },
     headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: "bold" },
-    columnStyles: { 0: { fontStyle: "bold" }, 7: { cellWidth: 70 } },
+    columnStyles: { 0: { fontStyle: "bold" }, [input.smart ? 9 : 7]: { cellWidth: input.smart ? 60 : 70 } },
     margin: { left: margin, right: margin, bottom: BOTTOM_MARGIN },
     rowPageBreak: "avoid",
   });
@@ -722,6 +756,14 @@ export function exportRagExcel(input: RagExportInput) {
     }
   }
   XLSX.utils.book_append_sheet(wb, ws3, "Trend Data");
+
+  // One row per line and shift: plan, Smart Target, actual and how far from it (Q76).
+  if (input.smart) {
+    const rows = smartExportRows(input.smart, smartCells(entries, input.smart, lines.filter(hasSmartTarget)));
+    const ws4 = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Date: "No Smart Target this week" }]);
+    ws4["!cols"] = [{ wch: 11 }, { wch: 9 }, { wch: 7 }, { wch: 9 }, { wch: 13 }, { wch: 9 }, { wch: 16 }, { wch: 8 }];
+    XLSX.utils.book_append_sheet(wb, ws4, "Smart Target");
+  }
 
   XLSX.writeFile(wb, `RAG-Weekly-W${weekNo}-${format(weekStart, "yyyy-MM-dd")}.xlsx`);
 }

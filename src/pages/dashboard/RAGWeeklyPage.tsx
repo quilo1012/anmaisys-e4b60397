@@ -29,6 +29,19 @@ import { EmptyState } from "@/components/EmptyState";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { FileText, FileSpreadsheet } from "lucide-react";
 import { exportRagPdf, exportRagExcel } from "@/lib/ragExports";
+import { useRagSmartTargets } from "@/hooks/useRagSmartTargets";
+import {
+  addTallies,
+  hasSmartTarget,
+  NO_SMART,
+  ragSmartKey,
+  smartCoverage,
+  smartOrigin,
+  smartTally,
+  smartVariancePct,
+  type RagSmartMap,
+  type SmartTally,
+} from "@/lib/ragSmartTarget";
 import { useAuth } from "@/contexts/AuthContext";
 
 
@@ -384,6 +397,8 @@ export default function RAGWeeklyPage() {
   );
   const weekStartStr = format(weekStart, "yyyy-MM-dd");
   const weekEndStr = format(addDays(weekStart, 6), "yyyy-MM-dd");
+  // Read-only, and only for those who see the Smart Target (Q71, Q74).
+  const smartMap = useRagSmartTargets(weekStartStr, weekEndStr, can("smarttarget.view"));
 
   // Target ±1% adjuster: pick a date + shift, then bump/drop all its targets at once.
   const [bumpDate, setBumpDate] = useState<string>(weekStartStr);
@@ -1021,6 +1036,7 @@ export default function RAGWeeklyPage() {
                             autoDtBucketMap,
                             comments: cMap,
                             generatedBy: profile?.name || user?.email || "System",
+                            smart: smartMap,
                           });
                         } catch (e) { toast.error((e as Error).message); }
                       }}
@@ -1074,6 +1090,7 @@ export default function RAGWeeklyPage() {
                             autoDtBucketMap,
                             comments: cMap,
                             generatedBy: profile?.name || user?.email || "System",
+                            smart: smartMap,
                           });
                         } catch (e) { toast.error((e as Error).message); }
                       }}
@@ -1256,6 +1273,7 @@ export default function RAGWeeklyPage() {
           cellScrapMap={cellScrapMap}
           cellItemTargetMap={cellItemTargetMap}
           cellSessionKeys={cellSessionKeys}
+          smartMap={smartMap}
           isAdmin={isAdmin}
           canEditEntries={canEditRagEntries}
           canComment={canComment}
@@ -1623,6 +1641,7 @@ function DayNightTotalSummary({
   cellScrapMap,
   cellItemTargetMap,
   cellSessionKeys,
+  smartMap,
   isAdmin = false,
   canEditEntries = false,
   canComment = false,
@@ -1643,6 +1662,7 @@ function DayNightTotalSummary({
   cellScrapMap?: Map<string, number>;
   cellItemTargetMap?: Map<string, number>;
   cellSessionKeys?: Set<string>;
+  smartMap?: RagSmartMap;
   isAdmin?: boolean;
   canEditEntries?: boolean;
   canComment?: boolean;
@@ -1841,8 +1861,9 @@ function DayNightTotalSummary({
     dt: number;
     dtBuckets: Record<string, number>;
     upm: number;
+    smart: SmartTally;
   };
-  const empty: Cell = { plan: 0, actual: 0, dt: 0, dtBuckets: {}, upm: 0 };
+  const empty: Cell = { plan: 0, actual: 0, dt: 0, dtBuckets: {}, upm: 0, smart: NO_SMART };
 
 
   const getCell = (dateStr: string, line: string, shift: Shift): Cell => {
@@ -1872,13 +1893,14 @@ function DayNightTotalSummary({
       dtBuckets["MAINT"] = manual;
       auto = manual;
     }
-    if (!e) return { ...empty, dt: auto, dtBuckets };
+    if (!e) return { ...empty, dt: auto, dtBuckets, smart: smartTally(smartMap, dateStr, line, shift, 0, 0) };
     return {
       plan: Number(e.plan_qty) || 0,
       actual: Number(e.actual_qty) || 0,
       dt: auto,
       dtBuckets,
       upm: Number(e.upm_actual) || 0,
+      smart: smartTally(smartMap, dateStr, line, shift, Number(e.plan_qty) || 0, Number(e.actual_qty) || 0),
     };
   };
 
@@ -1896,6 +1918,7 @@ function DayNightTotalSummary({
       dt: cells.reduce((s, c) => s + c.dt, 0),
       dtBuckets,
       upm: upms.length ? upms.reduce((s, v) => s + v, 0) / upms.length : 0,
+      smart: addTallies(cells.map((c) => c.smart)),
     };
   };
 
@@ -2015,6 +2038,37 @@ function DayNightTotalSummary({
       // The dash stays — nothing recorded is not the same as zero — it just stops
       // shouting.
       { key: "plan", label: "Plan", render: (c) => c.plan ? c.plan.toLocaleString() : <span className="text-muted-foreground/40">—</span> },
+      // The number kept before the shift, never typed here (Q71). A total adds the shifts
+      // that have one and carries a * when a shift that ran had none (Q73).
+      ...(smartMap && lineFilter.some(hasSmartTarget)
+        ? [
+            {
+              key: "smart",
+              label: "Smart Target",
+              render: (c: Cell) =>
+                c.smart.withNumber ? (
+                  <span title={smartCoverage(c.smart) ?? undefined}>
+                    {c.smart.smart.toLocaleString()}
+                    {c.smart.missing ? "*" : ""}
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground/40">—</span>
+                ),
+            },
+            {
+              key: "smartvar",
+              label: "Smart variance %",
+              render: (c: Cell) => {
+                const v = smartVariancePct(c.smart);
+                return v === null ? (
+                  <span className="text-muted-foreground/40">—</span>
+                ) : (
+                  <span className={pctClass(c.smart.actual, c.smart.smart)}>{v}%</span>
+                );
+              },
+            },
+          ]
+        : []),
       { key: "actual", label: "Actual", render: (c) => c.actual ? c.actual.toLocaleString() : <span className="text-muted-foreground/40">—</span>, bold: true },
       {
         key: "var",
@@ -2373,8 +2427,13 @@ function DayNightTotalSummary({
                       />
                     );
                   };
+                  // One shift's Smart Target says when and how it was made.
+                  const wrapSmart = (ds: string, shift: Shift, cellEl: React.ReactNode) => {
+                    const f = lineFilter.length === 1 ? smartMap?.get(ragSmartKey(ds, lineFilter[0], shift)) : undefined;
+                    return f ? <span title={smartOrigin(f)}>{cellEl}</span> : cellEl;
+                  };
                   const wrapCell = (ds: string, shift: Shift, cellEl: React.ReactNode) =>
-                    isDt ? wrapDt(ds, shift, cellEl) : isPlan ? wrapPlan(ds, shift, cellEl) : cellEl;
+                    isDt ? wrapDt(ds, shift, cellEl) : isPlan ? wrapPlan(ds, shift, cellEl) : row.key === "smart" ? wrapSmart(ds, shift, cellEl) : cellEl;
                   return (
                     <tr key={row.key} className="border-b hover:bg-muted/20">
                       <td className={cn("sticky left-0 z-10 bg-background px-1.5 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground", isPhone ? "break-normal py-1.5 leading-tight" : "whitespace-nowrap py-1")}>{row.label}</td>
