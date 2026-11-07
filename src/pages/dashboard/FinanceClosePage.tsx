@@ -12,7 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronDown, Download, Printer, AlertTriangle, FileText, FileSpreadsheet, FileDown, Search, X, Rows3, Settings2, Columns3 } from "lucide-react";
+import { ChevronDown, Download, Printer, AlertTriangle, FileText, FileSpreadsheet, FileDown, Search, X, Rows3, Settings2, Columns3, ReceiptText } from "lucide-react";
+import { assemblePayslipDrafts, fetchPayslipRaw } from "@/components/workforce/payslipDraftData";
+import { printPayslipDrafts } from "@/components/workforce/PayslipDraftSheet";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -508,6 +510,26 @@ export default function FinanceClosePage() {
     + `${scope ? ` · ${scope} only` : ""}`;
   const printFooter = `Applied Nutrition · Finance Close · ${period?.name ?? "No period"} · ${shown.length} people`
     + `${scope ? ` · ${scope}` : ""} · printed ${fmtDate(today)}`;
+  /**
+   * Payslip drafts: one A4 per person, hours only, never money (07/11/2026). For the
+   * people the filters show, or for one person from their row. Read when printed and
+   * kept nowhere, so the sheet is always what the close says now.
+   */
+  const [payslipBusy, setPayslipBusy] = useState(false);
+  const printPayslips = async (people: typeof shown) => {
+    if (!period || !to || people.length === 0 || payslipBusy) return;
+    setPayslipBusy(true);
+    try {
+      const raw = await fetchPayslipRaw(from, to);
+      const drafts = assemblePayslipDrafts(people, raw, { period, to, today, now: new Date() });
+      await printPayslipDrafts(drafts, `Payslip drafts · ${period.name}${people.length === 1 ? ` · ${people[0].name}` : ""}`);
+    } catch (e) {
+      toast.error("The payslip drafts could not be built.", { description: String((e as Error)?.message ?? e) });
+    } finally {
+      setPayslipBusy(false);
+    }
+  };
+
   /** Closed first, then printed: an open dialog over the page would print over it. */
   const printNow = () => {
     setPrintOpen(false);
@@ -642,6 +664,14 @@ export default function FinanceClosePage() {
               the paper, not discovered on it. */}
           <Button size="sm" variant="secondary" className="print:hidden" onClick={() => setPrintOpen(true)}>
             <Printer className="mr-1.5 h-4 w-4" /> Print
+          </Button>
+          <Button
+            size="sm" variant="secondary" className="print:hidden"
+            disabled={shown.length === 0 || payslipBusy}
+            onClick={() => { void printPayslips(shown); }}
+            title="One A4 per person shown: hours, overtime, schedule and time off. No pay amounts."
+          >
+            <ReceiptText className="mr-1.5 h-4 w-4" /> {payslipBusy ? "Building…" : `Payslip drafts (${shown.length})`}
           </Button>
           {/* Three formats for three jobs, behind one button. The PDF is the sheet you
               hand somebody, the workbook is the one payroll sums, and the CSV is what
@@ -906,7 +936,18 @@ export default function FinanceClosePage() {
                   <TableBody>
                     {shown.map((r) => (
                       <TableRow key={r.employeeId}>
-                        {show("name") && (<TableCell className="font-medium">{r.name}</TableCell>)}
+                        {show("name") && (<TableCell className="font-medium">
+                          <span className="inline-flex items-center gap-1">
+                            {r.name}
+                            <Button
+                              type="button" size="icon" variant="ghost" className="h-6 w-6 print:hidden"
+                              aria-label={`Payslip draft for ${r.name}`} title="Payslip draft (hours only)"
+                              disabled={payslipBusy} onClick={() => { void printPayslips([r]); }}
+                            >
+                              <ReceiptText className="h-3.5 w-3.5" />
+                            </Button>
+                          </span>
+                        </TableCell>)}
                         {show("employeeRef") && (<TableCell className="font-figure text-xs tabular-nums text-muted-foreground">{r.employeeRef ?? "—"}</TableCell>)}
                         {show("shift") && (<TableCell className="text-xs text-muted-foreground">{r.shift ?? "—"}</TableCell>)}
                         {show("department") && (<TableCell className="text-xs text-muted-foreground">{r.department ?? "—"}</TableCell>)}
