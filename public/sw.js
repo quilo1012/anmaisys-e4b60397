@@ -47,6 +47,14 @@ self.addEventListener("push", (event) => {
     renotify: !!data.tag,
     requireInteraction: !!data.requireInteraction,
   };
+  // A new maintenance order (bell kind `wo_new`, BLOCO 152) stays on screen until it is
+  // touched and buzzes in long bursts — the nearest a web app gets to the in-app siren
+  // when the screen is locked. Android honours both; iOS ignores vibrate.
+  if (String(data.tag || "").startsWith("wo_new:")) {
+    options.requireInteraction = true;
+    options.vibrate = [600, 200, 600, 200, 600, 200, 1200];
+    options.silent = false;
+  }
   // Buttons only where they mean something: "Open WO" on a chat message was wrong, and iOS
   // draws no action buttons at all.
   if ((data.data && data.data.wo_id) || data.woId) {

@@ -10,6 +10,7 @@ import { reportQueryError, type QueryErrorMeta } from "@/lib/queryErrors";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { CriticalAlertProvider } from "@/contexts/CriticalAlertContext";
+import { WOAlertsListener } from "@/components/WOAlertsListener";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -320,6 +321,7 @@ const App = () => (
             <ErrorBoundary>
             <AppBanners />
             <PresenceHeartbeat />
+            <WOAlertsListener />
             <ForgetPreviousUser />
             <PermissionOverridesSync />
             <SeverityPointsSync />
