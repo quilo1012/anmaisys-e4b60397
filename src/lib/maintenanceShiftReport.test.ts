@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { reconcileMinutes } from "@/lib/downtimeReconcile";
 import { boldText, lineLabelOf,
   buildMaintenanceShiftReport,
   shiftWindowAt,
@@ -391,5 +392,57 @@ describe("buildMaintenanceShiftReport — every minute is under an order", () =>
     }));
     expect(r.completedLater).toEqual([]);
     expect(r.text).not.toContain("COMPLETED LATER");
+  });
+});
+
+describe("buildMaintenanceShiftReport — the total agrees with the Shift Breakdown", () => {
+  // The 06/11 shape: several orders open for one stopped line.
+  const overlapping = () => buildMaintenanceShiftReport(data({
+    workOrders: [wo("w1"), wo("w2")],
+    events: [
+      { id: "e1", work_order_id: "w1", stopped_at: at("08:00"), resumed_at: at("09:00"), duration_minutes: 60 },
+      { id: "e2", work_order_id: "w2", stopped_at: at("08:30"), resumed_at: at("09:30"), duration_minutes: 60 },
+    ],
+    completedOrders: [wo("w1", { completed_at_effective: at("10:00") }), wo("w2", { completed_at_effective: at("10:00") })],
+  }));
+
+  it("counts the overlapping time once in the total, keeps each order's own minutes, and explains the gap", () => {
+    const r = overlapping();
+    expect(r.totalCountedMinutes).toBe(90);
+    expect(r.sumOfOrdersMinutes).toBe(120);
+    expect(r.completed.map((c) => c.totalMinutes)).toEqual([60, 60]);
+    expect(r.stopsOverlapped).toBe(true);
+    expect(r.text).toContain(`Total counted downtime: ${boldText("1h 30m")}`);
+    expect(r.text).toContain("Sum of work orders: 2h 0m (overlapping stops are counted once in the total)");
+    expect(r.problems).toEqual([]);
+  });
+
+  it("gives the same figure as the reconciler the Shift Breakdown uses", () => {
+    const stops = [{ start: at("08:00"), end: at("09:00") }, { start: at("08:30"), end: at("09:30") }];
+    expect(overlapping().totalCountedMinutes).toBe(reconcileMinutes(stops, DAY.start.getTime(), DAY.end.getTime(), new Date(at("14:30")).getTime()));
+  });
+
+  it("takes team activity out of the total as well", () => {
+    const r = buildMaintenanceShiftReport(data({
+      workOrders: [wo("w1")],
+      events: [{ id: "e1", work_order_id: "w1", stopped_at: at("08:00"), resumed_at: at("09:00"), duration_minutes: 60 }],
+      exclusions: [{ work_order_id: "w1", started_at: at("08:10"), ended_at: at("08:30") }],
+    }));
+    expect(r.totalCountedMinutes).toBe(40);
+    expect(r.sumOfOrdersMinutes).toBe(40);
+  });
+
+  it("prints no note when nothing overlapped, even if rounding moves the sum by a minute", () => {
+    const r = buildMaintenanceShiftReport(data({
+      workOrders: [wo("w1"), wo("w2")],
+      events: [
+        { id: "e1", work_order_id: "w1", stopped_at: "2026-10-29T08:00:00.000Z", resumed_at: "2026-10-29T08:01:36.000Z", duration_minutes: 2 },
+        { id: "e2", work_order_id: "w2", stopped_at: "2026-10-29T09:00:00.000Z", resumed_at: "2026-10-29T09:01:36.000Z", duration_minutes: 2 },
+      ],
+    }));
+    expect(r.sumOfOrdersMinutes).toBe(4);
+    expect(r.totalCountedMinutes).toBe(3);
+    expect(r.stopsOverlapped).toBe(false);
+    expect(r.text).not.toContain("Sum of work orders");
   });
 });
