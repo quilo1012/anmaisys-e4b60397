@@ -66,4 +66,13 @@ describe("payslip drafts for the people shown", () => {
     expect(sheet).toHaveTextContent(/Approved by payroll\s*Not recorded yet/);
     expect(sheet).toHaveTextContent(/No clock record has been imported for this period yet\./);
   });
+
+  it("prints the holiday left this leave year when it was read", () => {
+    const withLeave = assemblePayslipDrafts(people, { ...raw, holidays: [{ employee_id: "a", on_date: "2026-09-10" }],
+      patterns: [{ employee_id: "a", pattern: { ...PATTERN, annual_leave_days: 22.5 } }, { employee_id: "b", pattern: PATTERN }] }, CTX);
+    const [a, b] = pick(withLeave);
+    render(<PayslipDraftSheet draft={a} generatedAt={new Date()} />);
+    expect(screen.getByTestId("payslip-draft")).toHaveTextContent(/Holiday left this leave year\s*21\.5 of 22\.5 days · 1 taken, 0 booked/);
+    expect(b.leave).toMatchObject({ total: null, remaining: null });
+  });
 });

@@ -89,6 +89,14 @@ export function PayslipDraftSheet({ draft, generatedAt }: { draft: PayslipDraft;
               ? ` (${a.absentDates.map((x) => `${weekday(x)} ${ukDate(x).slice(0, 5)}`).join(", ")})` : ""}`}
           />
           <Row label="Part days, unpaid" value={fmtH(a.partDayHours)} />
+          {draft.leave && (
+            <Row
+              label="Holiday left this leave year"
+              value={draft.leave.remaining == null
+                ? `— (no entitlement on file) · ${draft.leave.taken} taken`
+                : `${draft.leave.remaining} of ${draft.leave.total} days · ${draft.leave.taken} taken, ${draft.leave.booked} booked`}
+            />
+          )}
         </Block>
       </section>
 
