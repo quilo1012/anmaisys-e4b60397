@@ -11,6 +11,7 @@ import {
   smartExportRows,
   smartTally,
   smartVariancePct,
+  type OutcomeOf,
   type RagShift,
   type RagSmartMap,
 } from "@/lib/ragSmartTarget";
@@ -72,8 +73,9 @@ export interface RagExportInput {
   generatedBy: string;
   /** Optional map of line -> comment for the week */
   comments?: Map<string, string>;
-  /** The week's Smart Targets, only for those who may see them (Q76). */
+  /** The week's Smart Targets, only for those who may see them (Q76), and what became of each shift (Q77–Q78). */
   smart?: RagSmartMap;
+  smartOutcome?: OutcomeOf;
 }
 
 /** Every line and shift of the week with a RAG entry or a Smart Target, for the Smart Target columns. */
@@ -460,9 +462,10 @@ export async function exportRagPdf(input: RagExportInput) {
     const pct = p ? (a / p) * 100 : null;
     const avg = (sum: number, n: number) => (n ? (sum / n).toFixed(1) : "—");
     const smartCols = (() => {
-      if (!input.smart) return [];
+      if (!input.smart || !input.smartOutcome) return [];
+      const outcomeOf = input.smartOutcome;
       if (!hasSmartTarget(line)) return ["—", "—"];
-      const t = addTallies(smartCells(entries, input.smart, [line]).map((c) => smartTally(input.smart, c.date, c.line, c.shift, c.plan, c.actual)));
+      const t = addTallies(smartCells(entries, input.smart, [line]).map((c) => smartTally(input.smart, c.date, c.line, c.shift, c.plan, c.actual, outcomeOf(c.date, c.line, c.shift, c.plan, c.actual))));
       const v = smartVariancePct(t);
       return [t.withNumber ? `${t.smart.toLocaleString()}${t.missing ? "*" : ""}` : "—", v === null ? "—" : `${v}%`];
     })();
@@ -483,12 +486,12 @@ export async function exportRagPdf(input: RagExportInput) {
   if (!sumFits) doc.addPage();
   autoTable(doc, {
     startY: sumFits ? sumStartY : 24,
-    head: [["Line", "Plan", ...(input.smart ? ["Smart Target", "Smart var %"] : []), "Actual", "%", "UPM target", "UPM actual", "Downtime", "Comments"]],
+    head: [["Line", "Plan", ...(input.smart && input.smartOutcome ? ["Smart Target", "Smart var %"] : []), "Actual", "%", "UPM target", "UPM actual", "Downtime", "Comments"]],
     body: sumBody,
     theme: "grid",
     styles: { fontSize: 7, cellPadding: 1.5, overflow: "linebreak" },
     headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: "bold" },
-    columnStyles: { 0: { fontStyle: "bold" }, [input.smart ? 9 : 7]: { cellWidth: input.smart ? 60 : 70 } },
+    columnStyles: { 0: { fontStyle: "bold" }, [input.smart && input.smartOutcome ? 9 : 7]: { cellWidth: input.smart && input.smartOutcome ? 60 : 70 } },
     margin: { left: margin, right: margin, bottom: BOTTOM_MARGIN },
     rowPageBreak: "avoid",
   });
@@ -758,10 +761,10 @@ export function exportRagExcel(input: RagExportInput) {
   XLSX.utils.book_append_sheet(wb, ws3, "Trend Data");
 
   // One row per line and shift: plan, Smart Target, actual and how far from it (Q76).
-  if (input.smart) {
-    const rows = smartExportRows(input.smart, smartCells(entries, input.smart, lines.filter(hasSmartTarget)));
+  if (input.smart && input.smartOutcome) {
+    const rows = smartExportRows(input.smart, smartCells(entries, input.smart, lines.filter(hasSmartTarget)), input.smartOutcome);
     const ws4 = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Date: "No Smart Target this week" }]);
-    ws4["!cols"] = [{ wch: 11 }, { wch: 9 }, { wch: 7 }, { wch: 9 }, { wch: 13 }, { wch: 9 }, { wch: 16 }, { wch: 8 }];
+    ws4["!cols"] = [{ wch: 11 }, { wch: 9 }, { wch: 7 }, { wch: 9 }, { wch: 13 }, { wch: 15 }, { wch: 20 }, { wch: 9 }, { wch: 16 }, { wch: 8 }];
     XLSX.utils.book_append_sheet(wb, ws4, "Smart Target");
   }
 

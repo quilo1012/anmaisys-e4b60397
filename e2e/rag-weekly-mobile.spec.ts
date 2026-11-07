@@ -90,7 +90,13 @@ async function stub(page: Page, opts: { slowComments?: boolean; role?: string } 
       return json(url.includes(`session_date=gte.${mon}`) ? [
         { session_date: mon, shift: "DAY", line: 1, expected_total: 1200, frozen_at: `${mon}T05:30:00Z`, source: "ahead" },
         { session_date: tue, shift: "DAY", line: 2, expected_total: 600, frozen_at: `${tue}T07:39:00Z`, source: "page" },
+        // Monday night on Line 2: a Smart Target, no shift opened, nothing logged.
+        { session_date: mon, shift: "NIGHT", line: 2, expected_total: 900, frozen_at: `${mon}T17:30:00Z`, source: "ahead" },
       ] : []);
+    }
+    // Tuesday day on Line 2 last ran at 12:40 London (11:40 UTC in summer time).
+    if (url.includes("/rpc/smart_target_shift_runs")) {
+      return json([{ session_date: tue, shift: "DAY", line: "Line 2", last_run_at: `${tue}T11:40:00Z`, heard_until: `${tue}T16:55:00Z` }]);
     }
     return json([]);
   });
@@ -231,6 +237,19 @@ test.describe("Smart Target on the RAG board", () => {
     await open(page, 1280);
     await expect(page.locator("#rag-line-Line-1").getByRole("row", { name: /^Plan/ })).toBeVisible();
     await expect(page.getByRole("row", { name: /^Smart Target/ })).toHaveCount(0);
+  });
+
+  test("a shift that did not run is struck out and left out, and one that closed early is compared with its hours open", async ({ page }) => {
+    await stub(page);
+    await open(page, 1280);
+    const line2 = page.locator("#rag-line-Line-2");
+    const smart = line2.getByRole("row", { name: /^Smart Target/ });
+    await expect(smart).toContainText("Not run");
+    // Tuesday: 600 for 12 hours, open 06:00–12:40 = 400 minutes, so 333 to compare with.
+    await expect(smart).toContainText("Finished 12:40 · 333");
+    await expect(line2.getByRole("row", { name: /^Smart variance/ })).toContainText("-10%");
+    // The week total is Tuesday's 600 alone: Monday night's 900 did not run.
+    await expect(smart.locator("td").last()).toHaveText("600");
   });
 });
 

@@ -57,7 +57,7 @@ describe("Fix in iTouch (Q44a): only what the lines actually filled", () => {
 
 describe("cautions beside a line's number", () => {
   const acc = (line: 1 | 2, scored: number, median: number | null): LineAccuracy => ({
-    line, scored, frozenLate: 0, noNumber: 0, noActual: 0, oldMethod: 0, estimated: 0, medianAbsPctError: median, within10: 0, within20: 0, recent: [],
+    line, scored, frozenLate: 0, noNumber: 0, noActual: 0, oldMethod: 0, estimated: 0, endedEarly: 0, medianAbsPctError: median, within10: 0, within20: 0, recent: [],
   });
 
   it("uses the tested margin until a line has 10 measured shifts", () => {
