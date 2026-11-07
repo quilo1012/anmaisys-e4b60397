@@ -42,7 +42,9 @@ export function PayslipDraftSheet({ draft, generatedAt }: { draft: PayslipDraft;
         DRAFT — HOURS ONLY · NOT A PAYSLIP · NO PAY AMOUNTS
       </div>
 
-      <header className="mb-2 flex items-start justify-between gap-4">
+      {/* A div, not a <header>: the app's print sheet hides every <header> that is not
+          `.print-keep`, and the name and period went missing from the paper (07/11). */}
+      <div className="payslip-head mb-2 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-[14pt] font-bold leading-tight">{h.name}</h1>
           <p className="text-[8.5pt]">
@@ -56,7 +58,7 @@ export function PayslipDraftSheet({ draft, generatedAt }: { draft: PayslipDraft;
           {h.countedTo && <p className="font-semibold">Period still running: counted to {ukDate(h.countedTo)}</p>}
           <p>Generated {generatedAt.toLocaleString("en-GB", { dateStyle: "short", timeStyle: "short" })}</p>
         </div>
-      </header>
+      </div>
 
       <section className="mb-2 grid grid-cols-2 gap-x-6 gap-y-2">
         <Block title="Schedule">
@@ -70,7 +72,8 @@ export function PayslipDraftSheet({ draft, generatedAt }: { draft: PayslipDraft;
           <Row label="Period balance" value={fmtH(hours.balance, true)} strong />
         </Block>
         <Block title="Overtime">
-          <Row label="Overtime (clock)" value={fmtH(ot.clockHours)} strong />
+          <Row label="Overtime for the period" value={fmtH(ot.periodHours)} strong />
+          <Row label="Overtime (clock)" value={fmtH(ot.clockHours)} />
           <Row label="Approved by payroll" value={ot.payrollHours == null ? "Not recorded yet" : fmtH(ot.payrollHours)} />
           <Row label="Hours owed" value={fmtH(ot.owedHours)} />
           <Row label="Overtime shifts worked" value={`${ot.shifts.length} · ${fmtH(ot.shiftsHours)}`} />
@@ -80,11 +83,18 @@ export function PayslipDraftSheet({ draft, generatedAt }: { draft: PayslipDraft;
           <Row label="Sick" value={days(a.sick)} />
           <Row label="Unpaid leave" value={days(a.unpaid)} />
           <Row label="Other" value={days(a.other)} />
+          <Row
+            label="Absent (no leave booked)"
+            value={`${days(a.absent)}${a.absentDates.length > 0 && a.absentDates.length <= 3
+              ? ` (${a.absentDates.map((x) => `${weekday(x)} ${ukDate(x).slice(0, 5)}`).join(", ")})` : ""}`}
+          />
           <Row label="Part days, unpaid" value={fmtH(a.partDayHours)} />
         </Block>
       </section>
 
       {hours.note && <p className="mb-1 text-[8pt] font-semibold">{hours.note}</p>}
+      {ot.periodNote && <p className="mb-1 text-[8pt]">Overtime for the period: {ot.periodNote}.</p>}
+      {ot.coveredNote && <p className="mb-1 text-[8pt]">{ot.coveredNote}</p>}
       {ot.shifts.length > 0 && (
         <p className="mb-2 text-[8pt]">
           <span className="font-semibold">Overtime shifts: </span>

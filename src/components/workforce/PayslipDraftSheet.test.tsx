@@ -52,6 +52,10 @@ describe("payslip drafts for the people shown", () => {
     expect(sheet).toHaveTextContent(/Sick\s*1 day/);
     expect(sheet).toHaveTextContent(/Tue 13\/10\/2026\s*06:00–18:00\s*06:00\s*18:00\s*13 h\s*Present/);
     expect(sheet.textContent).not.toMatch(/£|\$|€/);
+    // The print sheet hides every <header> without .print-keep: the name went missing on paper (07/11).
+    expect(sheet.querySelector("header:not(.print-keep)")).toBeNull();
+    expect(sheet).toHaveTextContent(/Person A/);
+    expect(sheet).toHaveTextContent(/Overtime for the period\s*2 h/);
   });
 
   it("shows a dash and says why when there is no clock, never 0 h", () => {

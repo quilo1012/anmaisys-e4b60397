@@ -47,7 +47,7 @@ describe("payslip draft", () => {
     const d = draft({ person: p });
     expect(d.schedule).toEqual({ due: p.shiftsDue, worked: 17, balance: p.shiftBalance });
     expect(d.overtime).toMatchObject({ clockHours: 6, owedHours: 0, payrollHours: 4 });
-    expect(d.absences).toEqual({ holiday: 2, sick: 1, unpaid: 1, other: 1, partDayHours: 1.5 });
+    expect(d.absences).toEqual({ holiday: 2, sick: 1, unpaid: 1, other: 1, partDayHours: 1.5, absent: 0, absentDates: [] });
     expect(d.hours.balance).toBe(6);
   });
 
@@ -100,5 +100,73 @@ describe("payslip draft", () => {
     const d = draft({ to: "2026-10-31", today: "2026-11-01" });
     expect(d.header.countedTo).toBe("2026-10-31");
     expect(d.days.at(-1)?.date).toBe("2026-10-31");
+  });
+});
+
+/**
+ * 07/11/2026, an employee's October draft: absent Fri 23/10 (12 h short), overtime on
+ * Tue 27/10 (11.98 h on the clock) repaid it, and two more overtime shifts on 03/11 and
+ * 04/11 came after the clock's last day (02/11). The sheet said 0 h of overtime and
+ * 0 days away; her phone counts the two shifts. Decided Q14–Q16.
+ */
+describe("an October with overtime the clock has not reached, and a shortfall it repaid", () => {
+  const ROTA = [1, 5, 6, 7]; // Fri–Mon days
+  const pattern = { name: "Fri–Mon days", days: ROTA, starts_at: "06:00:00", ends_at: "18:00:00", break_minutes: 0 };
+  const rotaDays = ["2026-10-12", "2026-10-16", "2026-10-17", "2026-10-18", "2026-10-19", "2026-10-24", "2026-10-25",
+    "2026-10-26", "2026-10-30", "2026-10-31", "2026-11-01", "2026-11-02"];
+  const clocks: MyClockRow[] = [
+    ...rotaDays.map((d) => clock(d, 720, { scheduled_minutes: 720, balance_minutes: 0 })),
+    clock("2026-10-23", 0, { start_time: null, end_time: null, scheduled_minutes: 720, balance_minutes: -720 }),
+    clock("2026-10-27", 719, { start_time: "6:01", scheduled_minutes: 0, balance_minutes: 719 }),
+  ];
+  const balanceMin = clocks.reduce((n, c) => n + (c.balance_minutes ?? 0), 0); // −1 min
+  const ot = (id: string, on_date: string, ends_at: string) =>
+    ({ request_id: id, on_date, starts_at: "06:00:00", ends_at, outcome: null });
+  const bridge = (on_date: string, id: string): PayslipBoardRow =>
+    ({ on_date, shift: "Day", status: "overtime", half_day: false, left_early_at: null, arrived_late_at: null, overtime_request_id: id });
+
+  const d = buildPayslipDraft({
+    person: person({ patternName: "Fri–Mon days", patternDays: ROTA, clockedBalanceMin: balanceMin, shiftsWorked: 16 }),
+    period: PERIOD, to: "2026-11-07", today: "2026-11-07", now: new Date("2026-11-07T20:24:00"), pattern,
+    clocks, marks: [], board: [bridge("2026-10-27", "q1"), bridge("2026-11-03", "q2"), bridge("2026-11-04", "q3")],
+    overtime: [ot("q1", "2026-10-27", "18:00:00"), ot("q2", "2026-11-03", "18:00:00"), ot("q3", "2026-11-04", "14:00:00")],
+  });
+
+  it("counts the period's overtime as her phone does: the clock plus the shifts it has not reached", () => {
+    expect(d.overtime.clockHours).toBe(0);
+    expect(d.overtime.notOnClockHours).toBe(20);
+    expect(d.overtime.periodHours).toBe(19.98);
+    // Off the same balance: no "0.02 h owed" beside 19.98 h of overtime.
+    expect(d.overtime.owedHours).toBe(0);
+    expect(d.overtime.periodNote).toBe("−0.02 h on the clock + 20 h from 2 overtime shifts the clock has no hours for yet");
+  });
+
+  it("lists the day she was away with no leave booked", () => {
+    expect(d.absences.absent).toBe(1);
+    expect(d.absences.absentDates).toEqual(["2026-10-23"]);
+  });
+
+  // 11.98 h from 27/10 and the last 0.02 h from 03/11: the whole 12 h was repaid.
+  it("says the overtime went to cover the day short", () => {
+    expect(d.overtime.coveredNote).toBe(
+      "12 h of overtime went to cover 12 h short this period (absent Fri 23/10). Overtime settles a shortfall first.",
+    );
+  });
+
+  it("says nothing about covering when nothing was short", () => {
+    const plain = buildPayslipDraft({
+      person: person({ clockedBalanceMin: 719 }), period: PERIOD, to: PERIOD.end_date, today: "2026-11-09",
+      now: new Date("2026-11-09T10:00:00"), pattern: PATTERN,
+      clocks: [clock("2026-10-13", 720, { scheduled_minutes: 720, balance_minutes: 0 }), clock("2026-10-17", 719, { scheduled_minutes: 0, balance_minutes: 719 })],
+      marks: [], board: [bridge("2026-10-17", "q9")], overtime: [ot("q9", "2026-10-17", "18:00:00")],
+    });
+    expect(plain.overtime.coveredNote).toBeNull();
+    expect(plain.overtime.periodHours).toBe(11.98);
+    expect(plain.overtime.periodNote).toBeNull();
+  });
+
+  it("leaves the period's overtime unknown when there is neither clock nor overtime", () => {
+    const empty = draft();
+    expect(empty.overtime.periodHours).toBeNull();
   });
 });
