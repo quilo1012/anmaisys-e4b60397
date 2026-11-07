@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -30,6 +30,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { FileText, FileSpreadsheet } from "lucide-react";
 import { exportRagPdf, exportRagExcel } from "@/lib/ragExports";
 import { useRagSmartTargets } from "@/hooks/useRagSmartTargets";
+import { useShiftRuns } from "@/hooks/useShiftRuns";
+import { shiftOutcome } from "@/lib/shiftOutcome";
 import {
   addTallies,
   hasSmartTarget,
@@ -37,8 +39,10 @@ import {
   ragSmartKey,
   smartCoverage,
   smartOrigin,
+  smartStatus,
   smartTally,
   smartVariancePct,
+  type OutcomeOf,
   type RagSmartMap,
   type SmartTally,
 } from "@/lib/ragSmartTarget";
@@ -399,6 +403,8 @@ export default function RAGWeeklyPage() {
   const weekEndStr = format(addDays(weekStart, 6), "yyyy-MM-dd");
   // Read-only, and only for those who see the Smart Target (Q71, Q74).
   const smartMap = useRagSmartTargets(weekStartStr, weekEndStr, can("smarttarget.view"));
+  // When each line last ran (BLOCO 154): a shift that closed early is compared with its hours open.
+  const shiftRuns = useShiftRuns(weekStartStr, weekEndStr, can("smarttarget.view"));
 
   // Target ±1% adjuster: pick a date + shift, then bump/drop all its targets at once.
   const [bumpDate, setBumpDate] = useState<string>(weekStartStr);
@@ -567,6 +573,20 @@ export default function RAGWeeklyPage() {
     }
     return { cellScrapMap: scrap, cellItemTargetMap: tgt, cellSessionKeys: worked };
   }, [weekItems]);
+
+  // What became of each shift, for the Smart Target rows (Q77–Q78).
+  const smartOutcome: OutcomeOf = useCallback(
+    (date, line, shift, _plan, actual) =>
+      shiftOutcome({
+        date,
+        shift,
+        hasSession: cellSessionKeys.has(`${date}|${line}|${shift}`),
+        logged: actual,
+        run: shiftRuns.get(`${date}|${line}|${shift}`),
+        nowMs: Date.now(),
+      }),
+    [cellSessionKeys, shiftRuns],
+  );
 
 
 
@@ -1037,6 +1057,7 @@ export default function RAGWeeklyPage() {
                             comments: cMap,
                             generatedBy: profile?.name || user?.email || "System",
                             smart: smartMap,
+                            smartOutcome,
                           });
                         } catch (e) { toast.error((e as Error).message); }
                       }}
@@ -1091,6 +1112,7 @@ export default function RAGWeeklyPage() {
                             comments: cMap,
                             generatedBy: profile?.name || user?.email || "System",
                             smart: smartMap,
+                            smartOutcome,
                           });
                         } catch (e) { toast.error((e as Error).message); }
                       }}
@@ -1274,6 +1296,7 @@ export default function RAGWeeklyPage() {
           cellItemTargetMap={cellItemTargetMap}
           cellSessionKeys={cellSessionKeys}
           smartMap={smartMap}
+          smartOutcome={smartOutcome}
           isAdmin={isAdmin}
           canEditEntries={canEditRagEntries}
           canComment={canComment}
@@ -1642,6 +1665,7 @@ function DayNightTotalSummary({
   cellItemTargetMap,
   cellSessionKeys,
   smartMap,
+  smartOutcome,
   isAdmin = false,
   canEditEntries = false,
   canComment = false,
@@ -1663,6 +1687,7 @@ function DayNightTotalSummary({
   cellItemTargetMap?: Map<string, number>;
   cellSessionKeys?: Set<string>;
   smartMap?: RagSmartMap;
+  smartOutcome?: OutcomeOf;
   isAdmin?: boolean;
   canEditEntries?: boolean;
   canComment?: boolean;
@@ -1893,14 +1918,16 @@ function DayNightTotalSummary({
       dtBuckets["MAINT"] = manual;
       auto = manual;
     }
-    if (!e) return { ...empty, dt: auto, dtBuckets, smart: smartTally(smartMap, dateStr, line, shift, 0, 0) };
+    if (!e) return { ...empty, dt: auto, dtBuckets, smart: smartOutcome ? smartTally(smartMap, dateStr, line, shift, 0, 0, smartOutcome(dateStr, line, shift, 0, 0)) : NO_SMART };
     return {
       plan: Number(e.plan_qty) || 0,
       actual: Number(e.actual_qty) || 0,
       dt: auto,
       dtBuckets,
       upm: Number(e.upm_actual) || 0,
-      smart: smartTally(smartMap, dateStr, line, shift, Number(e.plan_qty) || 0, Number(e.actual_qty) || 0),
+      smart: smartOutcome
+        ? smartTally(smartMap, dateStr, line, shift, Number(e.plan_qty) || 0, Number(e.actual_qty) || 0, smartOutcome(dateStr, line, shift, Number(e.plan_qty) || 0, Number(e.actual_qty) || 0))
+        : NO_SMART,
     };
   };
 
@@ -2049,6 +2076,18 @@ function DayNightTotalSummary({
                   <span title={smartCoverage(c.smart) ?? undefined}>
                     {c.smart.smart.toLocaleString()}
                     {c.smart.missing ? "*" : ""}
+                    {/* A line that closed early: its target for the hours it was open (Q78). */}
+                    {c.smart.cut && (
+                      <span className="block text-2xs font-normal text-muted-foreground">
+                        {smartStatus(c.smart)} · {c.smart.cut.target.toLocaleString()}
+                      </span>
+                    )}
+                  </span>
+                ) : c.smart.notRun ? (
+                  // Did not run (Q77): kept in sight, out of every total.
+                  <span className="text-muted-foreground/60" title="No shift was opened and nothing was logged, so it is out of the totals.">
+                    <span className="line-through">{c.smart.notRunSmart.toLocaleString()}</span>
+                    <span className="block text-2xs">Not run</span>
                   </span>
                 ) : (
                   <span className="text-muted-foreground/40">—</span>

@@ -56,6 +56,14 @@ describe("accuracyByLine", () => {
     expect(l2).toMatchObject({ scored: 1, estimated: 1, medianAbsPctError: 0 });
   });
 
+  it("keeps a shift whose line closed before half way out of the score, and counts it (Q79)", () => {
+    const [, l2] = accuracyByLine([
+      f({}),
+      f({ session_date: "2026-11-02", frozen_at: "2026-11-02T06:10:00Z" }),
+    ], new Map([["2026-11-03|DAY|2", 5000], ["2026-11-02|DAY|2", 900]]), 5, new Set(["2026-11-02|DAY|2"]));
+    expect(l2).toMatchObject({ scored: 1, endedEarly: 1, medianAbsPctError: 0 });
+  });
+
   it("scores only the method in use, so 06/11's old numbers do not stand against the new rule", () => {
     const [, l2] = accuracyByLine([
       f({ engine_version: ENGINE_VERSION }),

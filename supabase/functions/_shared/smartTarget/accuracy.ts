@@ -45,6 +45,8 @@ export interface LineAccuracy {
   oldMethod: number;
   /** Forecasts resting on an estimate: kept, listed, not scored (Q62a). */
   estimated: number;
+  /** Shifts whose line closed before half way: the engine cannot know that, so not scored (Q79). */
+  endedEarly: number;
   medianAbsPctError: number | null;
   within10: number;
   within20: number;
@@ -80,18 +82,25 @@ const median = (v: number[]) => {
  * Per line, over the forecasts given. A forecast is scored only once its shift is in
  * `actuals`, so a shift still running is simply not there yet.
  */
-export function accuracyByLine(forecasts: StoredForecast[], actuals: Map<string, number>, recentCount = 5): LineAccuracy[] {
+export function accuracyByLine(
+  forecasts: StoredForecast[],
+  actuals: Map<string, number>,
+  recentCount = 5,
+  /** `${date}|${shift}|${line}` of shifts that closed before half way. */
+  endedEarly: ReadonlySet<string> = new Set(),
+): LineAccuracy[] {
   return ([1, 2, 3, 4, 5, 6] as LineNo[]).map((line) => {
     const own = forecasts
       .filter((f) => f.line === line)
       .sort((a, b) => (a.session_date === b.session_date ? (a.shift < b.shift ? 1 : -1) : a.session_date < b.session_date ? 1 : -1));
-    const acc: LineAccuracy = { line, scored: 0, frozenLate: 0, noNumber: 0, noActual: 0, oldMethod: 0, estimated: 0, medianAbsPctError: null, within10: 0, within20: 0, recent: [] };
+    const acc: LineAccuracy = { line, scored: 0, frozenLate: 0, noNumber: 0, noActual: 0, oldMethod: 0, estimated: 0, endedEarly: 0, medianAbsPctError: null, within10: 0, within20: 0, recent: [] };
     const errors: number[] = [];
     for (const f of own) {
       if (f.engine_version && f.engine_version !== ENGINE_VERSION) { acc.oldMethod++; continue; }
       if (!frozenOnTime(f)) { acc.frozenLate++; continue; }
       if (f.expected_total === null) { acc.noNumber++; continue; }
       if (f.jobs?.some((j) => j.estimated)) { acc.estimated++; continue; }
+      if (endedEarly.has(`${f.session_date}|${f.shift}|${line}`)) { acc.endedEarly++; continue; }
       const actual = actuals.get(`${f.session_date}|${f.shift}|${line}`);
       if (!actual) { acc.noActual++; continue; }
       const errorPct = ((f.expected_total - actual) / actual) * 100;

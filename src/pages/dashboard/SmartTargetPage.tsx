@@ -48,6 +48,8 @@ import {
 import { ItouchCyclesCard } from "@/components/smartTarget/ItouchCyclesCard";
 import { ShiftStrip, stripHours, stripSegments } from "@/components/smartTarget/ShiftStrip";
 import { ShiftReport } from "@/components/smartTarget/ShiftReport";
+import { useShiftRuns } from "@/hooks/useShiftRuns";
+import { endedBeforeHalfway, shiftOutcome } from "@/lib/shiftOutcome";
 import { useShiftReportData } from "@/hooks/useShiftReportData";
 import { lineReport, londonTime, machineClock, stopsByReason, type LineReport } from "@/lib/shiftReport";
 import { printElementAsDocument } from "@/lib/printDocument";
@@ -434,6 +436,7 @@ function AccuracyCard({ accuracy, installed }: { accuracy: LineAccuracy[] | null
                         a.noNumber && `${a.noNumber} without a number`,
                         a.noActual && `${a.noActual} with nothing logged`,
                         a.estimated && `${a.estimated} estimates`,
+                        a.endedEarly && `${a.endedEarly} closed before half way`,
                         a.oldMethod && `${a.oldMethod} from an older method`,
                       ].filter(Boolean).join(", ") || "—"}
                     </td>
@@ -562,11 +565,30 @@ export default function SmartTargetPage() {
   // Which lines are shown comes from their own measured record (Q45a), so the kept
   // forecasts are read before the forecast is built.
   const forecastRows = useSmartTargetForecastRows(date);
+  // When each line last ran over the same four weeks (BLOCO 154), so a shift that closed
+  // before half way is not scored (Q79).
+  const runsFrom = forecastRows.data?.rows[0]?.session_date ?? date;
+  const shiftRuns = useShiftRuns(runsFrom, date, !!forecastRows.data?.installed);
   const accuracy = useMemo(() => {
     if (!forecastRows.data?.installed || !historyQuery.data) return null;
     const history = historyFromSessions(historyQuery.data.sessions, historyQuery.data.items, catalogue);
-    return accuracyByLine(forecastRows.data.rows, actualTotals(history));
-  }, [forecastRows.data, historyQuery.data, catalogue]);
+    const actuals = actualTotals(history);
+    const sessions = new Set(historyQuery.data.sessions.map((s) => `${s.session_date}|${s.shift}|${s.line}`));
+    const endedEarly = new Set<string>();
+    for (const f of forecastRows.data.rows) {
+      const key = `${f.session_date}|${f.shift}|${f.line}`;
+      const o = shiftOutcome({
+        date: f.session_date,
+        shift: f.shift,
+        hasSession: sessions.has(`${f.session_date}|${f.shift}|Line ${f.line}`),
+        logged: actuals.get(key) ?? 0,
+        run: shiftRuns.get(`${f.session_date}|Line ${f.line}|${f.shift}`),
+        nowMs: Date.now(),
+      });
+      if (endedBeforeHalfway(o)) endedEarly.add(key);
+    }
+    return accuracyByLine(forecastRows.data.rows, actuals, 5, endedEarly);
+  }, [forecastRows.data, historyQuery.data, catalogue, shiftRuns]);
   const cautions = useMemo(() => lineCautions(accuracy, WIDE_MARGIN_LINES), [accuracy]);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
