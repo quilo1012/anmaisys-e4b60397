@@ -17,7 +17,6 @@
  * so, never 0 h.
  */
 import type { ClosePerson } from "@/lib/financeClose";
-import { leaveBalance, type LeaveBalance } from "@/lib/leaveDays";
 import {
   boardPlacements, buildMyDays, summariseOvertimeShifts,
   type DayStatus, type MyAttendanceData, type MyBoardMark, type MyBoardRow, type MyClockRow,
@@ -30,8 +29,6 @@ export interface PayslipPattern {
   starts_at: string | null;
   ends_at: string | null;
   break_minutes: number;
-  /** Days of holiday a leave year, from the rota. Null/absent when none is on file. */
-  annual_leave_days?: number | null;
 }
 
 /** A board row as the office reads it: the marks are on the row itself. */
@@ -49,11 +46,6 @@ export interface PayslipDraftInput {
   marks: MyMark[];
   board: PayslipBoardRow[];
   overtime: MyOvertimeShiftRecord[];
-  /**
-   * Every holiday mark of the person's current leave year (and after), as My Attendance
-   * reads them (`holiday_marks`). Omitted = the balance is not shown.
-   */
-  holidayMarks?: string[];
   /**
    * False when the board's marks could not be read (an employee before
    * `my_board_marks`): the overtime keeps each ask's hours rather than guess that a row
@@ -122,8 +114,6 @@ export interface PayslipDraft {
     absent: number;
     absentDates: string[];
   };
-  /** The leave year's holiday, counted as on the employee's phone. Null when not read. */
-  leave: LeaveBalance | null;
   days: PayslipDay[];
 }
 
@@ -159,7 +149,7 @@ export function buildPayslipDraft(input: PayslipDraftInput): PayslipDraft {
       id: person.employeeId, full_name: person.name, employee_ref: person.employeeRef ?? null,
       department: person.department, position: null, shift_group: person.shift, started_on: null,
     },
-    pattern: pattern ? { ...pattern, annual_leave_days: pattern.annual_leave_days ?? null } : null,
+    pattern: pattern ? { ...pattern, annual_leave_days: null } : null,
     clocks, clocked_to: null, clocks_imported_at: null,
     marks: inRange(input.marks), holiday_marks: [], board,
     overtime: input.overtime, requests: [], payroll: [], periods: [],
@@ -255,9 +245,6 @@ export function buildPayslipDraft(input: PayslipDraftInput): PayslipDraft {
       other: person.otherAbsence, partDayHours: person.partDayHours,
       absent: absentDays.length, absentDates: absentDays,
     },
-    leave: input.holidayMarks
-      ? leaveBalance(input.holidayMarks.map((date) => ({ date })), pattern?.annual_leave_days ?? null, today)
-      : null,
     days,
   };
 }
