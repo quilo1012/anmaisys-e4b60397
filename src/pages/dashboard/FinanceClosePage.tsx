@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, Table
 import { ChevronDown, Download, Printer, AlertTriangle, FileText, FileSpreadsheet, FileDown, Search, X, Rows3, Settings2, Columns3, ReceiptText } from "lucide-react";
 import { assemblePayslipDrafts, fetchPayslipRaw } from "@/components/workforce/payslipDraftData";
 import { printPayslipDrafts } from "@/components/workforce/PayslipDraftSheet";
+import { CloseReadinessPanel } from "@/components/workforce/CloseReadinessPanel";
 import { Input } from "@/components/ui/input";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -717,6 +718,10 @@ export default function FinanceClosePage() {
 
         {/* Said before the table, not in a footnote: somebody is about to pay from
             this, and the two columns are not two halves of a total. */}
+        {/* What still stands between this period and a close nobody has to redo. For the
+            people the filters show; a name puts them in the search. */}
+        <CloseReadinessPanel rows={filtered} period={period ?? null} to={to} today={today} onPick={(name) => setSearch(name)} />
+
         <p className="flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/5 p-2.5 text-2xs print:hidden">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning-strong" />
           <span>
