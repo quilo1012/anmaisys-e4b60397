@@ -354,7 +354,9 @@ export function PersonDayDialog({
                   {leftEarlyAt !== null && onSetLeftEarlyReason && (
                     <ReasonField
                       id="left-early-reason"
-                      label="Reason for leaving early"
+                      // A time after the booked end is a stay-late (20/10: booked 06–14,
+                      // "went home at 18:00"), and the question has to say so.
+                      label={wentHome && wentHome.after > 0 ? "Reason for staying late" : "Reason for leaving early"}
                       value={leftEarlyReason}
                       disabled={!canManage}
                       onSave={onSetLeftEarlyReason}
