@@ -58,14 +58,6 @@ const PENDING: readonly PendingRpc[] = [
       "would read as a month with no record, which is a statement about the person.",
   },
   {
-    name: "my_board_marks",
-    block: "BLOCO 153 — 20261107100000_my_attendance_reads_the_boards_hours.sql",
-    fallback:
-      "useMyBoardMarks turns PGRST202 into null, and summariseOvertimeShifts then keeps each " +
-      "ask's own hours on My Attendance — what the screen showed before 07/11 — instead of " +
-      "guessing at the board's.",
-  },
-  {
     name: "signup_invite_code",
     block: "BLOCO 86 — 20261011230000_the_invite_code_rides_the_link.sql",
     fallback:
