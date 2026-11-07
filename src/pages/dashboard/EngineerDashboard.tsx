@@ -19,7 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Lock } from "lucide-react";
 import { useWorkOrders, useReceiveWorkOrder, useArriveWorkOrder, useStartWorkOrder, useFinishWorkOrder, usePauseWorkOrder, useResumeWorkOrder, useMachineBackToWork, LineStillStoppedError } from "@/hooks/useWorkOrders";
 import { useResumeLine } from "@/hooks/useDowntimeEvents";
-import { useWOAlerts } from "@/hooks/useWOAlerts";
+import { useScreenWakeLock } from "@/hooks/useScreenWakeLock";
 import { stopAlertSound } from "@/lib/shifts";
 import { useTotalPartsUsedByEngineer, usePartsCountByWOs } from "@/hooks/useStock";
 import { useUploadWOPhoto, useWOPhotos } from "@/hooks/useWOPhotos";
@@ -343,7 +343,9 @@ function EngineerDashboardContent() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { data: totalParts } = useTotalPartsUsedByEngineer(user?.id);
-  useWOAlerts();
+  // The siren itself listens on every page (WOAlertsListener, in App). Here the screen
+  // stays on, so the tablet waiting on this page never sleeps through an order.
+  useScreenWakeLock(true);
   const { promptEnableAudio, audioEnabled, acknowledge } = useCriticalAlert();
   useEffect(() => { if (!audioEnabled) promptEnableAudio(); }, [audioEnabled, promptEnableAudio]);
   const { alerts: predictiveAlerts } = usePredictiveAlerts();

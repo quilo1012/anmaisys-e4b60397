@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useWOAlerts } from "@/hooks/useWOAlerts";
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -75,7 +74,6 @@ function ManagerDashboardContent() {
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [savingPin, setSavingPin] = useState(false);
-  useWOAlerts();
 
   const today = new Date().toDateString();
   // "Open" = anything that is not in a terminal state (closed/finished/completed/force_closed)
