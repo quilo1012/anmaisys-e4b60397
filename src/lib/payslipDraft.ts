@@ -83,6 +83,18 @@ export interface PayslipDraft {
     note: string | null;
   };
   overtime: {
+    /**
+     * The period's overtime as the employee's phone counts it (My Attendance): the
+     * clock's balance plus overtime shifts worked on days the clock has no hours for
+     * yet, settled deficit first. Null when there is neither clock nor overtime.
+     */
+    periodHours: number | null;
+    /** "−0.02 h on the clock + 20 h from 2 overtime shifts …", when shifts are added. */
+    periodNote: string | null;
+    notOnClockHours: number;
+    /** Said when overtime went to repay hours short in the period. */
+    coveredNote: string | null;
+    /** The clock alone — the Finance Close's figure. */
     clockHours: number | null;
     owedHours: number | null;
     /** What payroll keyed. Null = not recorded yet. */
@@ -90,7 +102,12 @@ export interface PayslipDraft {
     shifts: MyOvertimeShiftLine[];
     shiftsHours: number;
   };
-  absences: { holiday: number; sick: number; unpaid: number; other: number; partDayHours: number };
+  absences: {
+    holiday: number; sick: number; unpaid: number; other: number; partDayHours: number;
+    /** Rota days with nothing worked and no leave booked. */
+    absent: number;
+    absentDates: string[];
+  };
   days: PayslipDay[];
 }
 
@@ -109,6 +126,10 @@ const hhmm = (t: string | null | undefined): string | null => {
 export const ukDate = (d: string) => d.split("-").reverse().join("/");
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
+/** "−0.02", "+3", "0" — the minus as a real minus sign, as the sheet prints it. */
+const fmtSigned = (n: number) => (n > 0 ? `+${n}` : String(n).replace("-", "−"));
+const weekdayShort = (d: string) =>
+  new Date(`${d}T00:00:00Z`).toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" });
 
 export function buildPayslipDraft(input: PayslipDraftInput): PayslipDraft {
   const { person, period, to, today, now, pattern } = input;
@@ -129,7 +150,8 @@ export function buildPayslipDraft(input: PayslipDraftInput): PayslipDraft {
   };
 
   const rotaHours = pattern?.starts_at && pattern?.ends_at ? `${hhmm(pattern.starts_at)}–${hhmm(pattern.ends_at)}` : "Due";
-  const days: PayslipDay[] = buildMyDays(data, from, to, today).map((d) => {
+  const myDays = buildMyDays(data, from, to, today);
+  const days: PayslipDay[] = myDays.map((d) => {
     // Holiday, sick and unpaid in one vocabulary; "Training" or "Jury service" by name.
     const words = d.label && (d.status === "other" || d.status === "absent") ? d.label : STATUS_WORDS[d.status];
     return {
@@ -158,6 +180,27 @@ export function buildPayslipDraft(input: PayslipDraftInput): PayslipDraft {
     }))),
   );
 
+  // Q14: the period's overtime as My Attendance counts it, the clock plus the shifts
+  // it has not reached. Q16: when overtime went to repay hours short, say so.
+  const clockBalH = person.clockedOtHours;
+  const notOnClockH = r2(ot.notOnClockMinutes / 60);
+  const periodBal = clockBalH == null && notOnClockH === 0 ? null : r2((clockBalH ?? 0) + notOnClockH);
+  const periodNote = notOnClockH > 0
+    ? `${fmtSigned(clockBalH ?? 0)} h on the clock + ${notOnClockH} h from ${ot.notOnClock.length} overtime ${ot.notOnClock.length === 1 ? "shift" : "shifts"} the clock has no hours for yet`
+    : null;
+  const otDatesOnClock = new Set(ot.worked.filter((w) => !ot.notOnClock.includes(w)).map((w) => w.date));
+  const otOnClockH = r2(clocks.filter((c) => otDatesOnClock.has(c.on_date)).reduce((n, c) => n + (c.worked_minutes ?? 0), 0) / 60);
+  const totalOtH = r2(otOnClockH + notOnClockH);
+  const shortH = Math.max(0, r2(-((clockBalH ?? 0) - otOnClockH)));
+  const coveredH = r2(Math.min(totalOtH, shortH));
+  const absentDays = myDays.filter((x) => x.status === "absent").map((x) => x.date);
+  const coveredNote = coveredH > 0
+    ? `${coveredH} h of overtime went to cover ${shortH} h short this period${
+      absentDays.length > 0 && absentDays.length <= 3
+        ? ` (absent ${absentDays.map((x) => `${weekdayShort(x)} ${ukDate(x).slice(0, 5)}`).join(", ")})` : ""
+    }. Overtime settles a shortfall first.`
+    : null;
+
   return {
     header: {
       employeeId: person.employeeId,
@@ -180,8 +223,13 @@ export function buildPayslipDraft(input: PayslipDraftInput): PayslipDraft {
       note,
     },
     overtime: {
+      periodHours: periodBal == null ? null : Math.max(0, periodBal),
+      periodNote,
+      notOnClockHours: notOnClockH,
+      coveredNote,
       clockHours: person.overtimeHours,
-      owedHours: person.owedHours,
+      // Off the same balance as the period's overtime, so the two never both show.
+      owedHours: periodBal == null ? person.owedHours : Math.max(0, r2(-periodBal)),
       payrollHours: person.payrollOtHours,
       shifts: ot.worked,
       shiftsHours: r2(ot.workedMinutes / 60),
@@ -189,6 +237,7 @@ export function buildPayslipDraft(input: PayslipDraftInput): PayslipDraft {
     absences: {
       holiday: person.holiday, sick: person.sick, unpaid: person.unpaid,
       other: person.otherAbsence, partDayHours: person.partDayHours,
+      absent: absentDays.length, absentDates: absentDays,
     },
     days,
   };
