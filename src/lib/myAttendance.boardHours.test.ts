@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  summariseOvertimeShifts, boardPlacements,
+  summariseOvertimeShifts, boardPlacements, myShifts,
   type MyOvertimeShiftRecord, type MyBoardRow, type MyBoardMark,
 } from "@/lib/myAttendance";
 import { placementHours } from "@/lib/boardOvertime";
@@ -126,5 +126,22 @@ describe("overtime that is only on the board counts as worked (13–15/10)", () 
     expect(s.worked).toEqual([]);
     const after = summariseOvertimeShifts([], [], new Date("2026-11-07T06:00:00"), board);
     expect(after.worked.map((w) => [w.hours, w.minutes])).toEqual([["18:00–06:00", 720]]);
+  });
+});
+
+describe("the day's detail reads the board's hours too", () => {
+  const data = () => ({
+    me: { id: "e", full_name: "X", employee_ref: null, department: null, position: null, shift_group: "Day", started_on: null },
+    pattern: { name: "Tue–Fri", days: [5], starts_at: "06:00:00", ends_at: "18:00:00", break_minutes: 0, annual_leave_days: null },
+    clocks: [], clocked_to: null, clocks_imported_at: null, marks: [], holiday_marks: [], requests: [], payroll: [], periods: [],
+    board: [{ on_date: "2026-10-20", shift: "Day", status: "overtime", half_day: false, area: "Line 2" }],
+    overtime: [{ on_date: "2026-10-20", starts_at: "06:00:00", ends_at: "14:00:00" }],
+  });
+  it("20/10: an ask of 06–14 with \"went home at 18:00\" reads 06:00–18:00", () => {
+    const m = [mark("2026-10-20", { overtime_request_id: "q20", left_early_at: "18:00:00" })];
+    expect(myShifts(data(), "2026-10-20", "2026-10-20", m)[0].hours).toBe("06:00–18:00");
+  });
+  it("keeps the ask's hours while the marks are not readable", () => {
+    expect(myShifts(data(), "2026-10-20", "2026-10-20")[0].hours).toBe("06:00–14:00");
   });
 });

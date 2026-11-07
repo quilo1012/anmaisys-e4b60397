@@ -252,7 +252,7 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
         <CardContent className="space-y-3">
           <Calendar days={days} today={today} onPick={setSelected} selected={selected?.date ?? null} />
           <Legend days={days} />
-          {selected && <DayDetail day={selected} shifts={myShifts(data, selected.date, selected.date)} />}
+          {selected && <DayDetail day={selected} shifts={myShifts(data, selected.date, selected.date, boardMarks ?? null)} />}
         </CardContent>
       </Card>
     </>
