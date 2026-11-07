@@ -26,7 +26,7 @@ export function useMyOvertimeShifts(employeeId: string | null | undefined, from:
     queryFn: async (): Promise<MyOvertimeShiftRecord[]> => {
       const { data, error } = await db
         .from("overtime_responses")
-        .select("id, overtime_requests!inner(on_date, starts_at, ends_at, status)")
+        .select("id, request_id, overtime_requests!inner(on_date, starts_at, ends_at, status)")
         .eq("employee_id", employeeId)
         .eq("decision", "accepted")
         .gte("overtime_requests.on_date", from)
@@ -35,6 +35,7 @@ export function useMyOvertimeShifts(employeeId: string | null | undefined, from:
       if (error) throw error;
       const rows = (data ?? []) as {
         id: string;
+        request_id: string;
         overtime_requests: { on_date: string; starts_at: string; ends_at: string } | null;
       }[];
       const ids = rows.map((r) => r.id);
@@ -50,6 +51,7 @@ export function useMyOvertimeShifts(employeeId: string | null | undefined, from:
       return rows
         .filter((r) => r.overtime_requests)
         .map((r) => ({
+          request_id: r.request_id,
           on_date: r.overtime_requests!.on_date,
           starts_at: r.overtime_requests!.starts_at,
           ends_at: r.overtime_requests!.ends_at,
