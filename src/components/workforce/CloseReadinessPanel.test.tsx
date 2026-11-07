@@ -5,11 +5,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { buildClose, type ClosePersonInput } from "@/lib/financeClose";
 import type { PayslipRaw } from "@/components/workforce/payslipDraftData";
 
-const env = vi.hoisted(() => ({ reach: "2026-11-02" as string | null, raw: null as unknown }));
+const env = vi.hoisted(() => ({ reach: "2026-11-02" as string | null, raw: null as unknown, filters: [] as string[] }));
 
 vi.mock("@/integrations/supabase/client", () => {
   const chain = {
     select: () => chain,
+    // Only days somebody worked count as the clock's reach (07/11: future rows with 0 worked).
+    gt: (col: string, v: number) => { env.filters.push(`${col}>${v}`); return chain; },
     order: () => chain,
     limit: async () => ({ data: env.reach ? [{ on_date: env.reach }] : [], error: null }),
   };
@@ -60,5 +62,6 @@ describe("Before you close", () => {
     expect(screen.getByTestId("readiness-absentNoLeave")).toHaveTextContent(/Person A\s*23\/10/);
     fireEvent.click(screen.getAllByRole("button", { name: /Person A/ })[0]);
     expect(onPick).toHaveBeenCalledWith("Person A");
+    expect(env.filters).toContain("worked_minutes>0");
   });
 });

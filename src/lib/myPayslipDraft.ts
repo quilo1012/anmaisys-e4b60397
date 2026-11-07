@@ -67,9 +67,8 @@ export function myPayslipDraft(args: {
 
   return buildPayslipDraft({
     person, period, to, today, now,
-    pattern: p ? { name: p.name, days: p.days, starts_at: p.starts_at, ends_at: p.ends_at, break_minutes: p.break_minutes, annual_leave_days: p.annual_leave_days } : null,
+    pattern: p ? { name: p.name, days: p.days, starts_at: p.starts_at, ends_at: p.ends_at, break_minutes: p.break_minutes } : null,
     clocks, marks: data.marks, board, overtime,
-    holidayMarks: data.holiday_marks,
     boardMarksKnown: marks != null,
   });
 }

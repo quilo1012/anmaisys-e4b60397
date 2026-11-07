@@ -14,7 +14,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ChevronDown, Download, Printer, AlertTriangle, FileText, FileSpreadsheet, FileDown, Search, X, Rows3, Settings2, Columns3, ReceiptText } from "lucide-react";
 import { assemblePayslipDrafts, fetchPayslipRaw } from "@/components/workforce/payslipDraftData";
-import { leaveYearOf } from "@/lib/leaveDays";
 import { printPayslipDrafts } from "@/components/workforce/PayslipDraftSheet";
 import { CloseReadinessPanel } from "@/components/workforce/CloseReadinessPanel";
 import { Input } from "@/components/ui/input";
@@ -522,7 +521,7 @@ export default function FinanceClosePage() {
     if (!period || !to || people.length === 0 || payslipBusy) return;
     setPayslipBusy(true);
     try {
-      const raw = await fetchPayslipRaw(from, to, leaveYearOf(today).from);
+      const raw = await fetchPayslipRaw(from, to);
       const drafts = assemblePayslipDrafts(people, raw, { period, to, today, now: new Date() });
       await printPayslipDrafts(drafts, `Payslip drafts · ${period.name}${people.length === 1 ? ` · ${people[0].name}` : ""}`);
     } catch (e) {

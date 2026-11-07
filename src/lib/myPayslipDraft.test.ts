@@ -50,11 +50,10 @@ describe("my own payslip draft", () => {
     expect(d.overtime.shifts.map((s) => [s.date, s.hours])).toEqual([["2026-10-17", "06:00–18:00"], ["2026-10-20", "06:00–18:00"]]);
   });
 
-  it("carries the payroll figure, the days away and the holiday balance", () => {
+  it("carries the payroll figure and the days away", () => {
     expect(d.overtime.payrollHours).toBe(6);
     expect(d.absences.sick).toBe(1);
     expect(d.schedule.worked).toBe(4);
-    expect(d.leave).toEqual({ taken: 1, booked: 0, total: 22.5, remaining: 21.5 });
   });
 
   it("stops at today while the period is still running, as the office's close does", () => {

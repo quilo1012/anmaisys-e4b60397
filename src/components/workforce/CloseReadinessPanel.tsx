@@ -33,7 +33,11 @@ function useReadinessFacts(period: Props["period"], from: string, to: string) {
   const clock = useQuery({
     queryKey: ["close-readiness", "clock-reach"],
     queryFn: async (): Promise<string | null> => {
+      // The last day somebody WORKED, not the last row: the TimeMoto export carries the
+      // rota's future days with 0 worked, so on 07/11 the last row was 08/11 while the
+      // hours stopped at 02/11 — the panel would have said the whole period was covered.
       const { data, error } = await db.from("attendance_days").select("on_date")
+        .gt("worked_minutes", 0)
         .order("on_date", { ascending: false }).limit(1);
       if (error) throw error;
       return (data?.[0]?.on_date as string | undefined) ?? null;
