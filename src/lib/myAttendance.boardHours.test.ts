@@ -44,11 +44,19 @@ describe("My Attendance reads the board's overtime hours", () => {
     expect(s.worked[0].hours).toBe(onBoard.label);
   });
 
+  // What production showed for the employee of 07/11 (read 07/11): the bridge's row, "went home at 18:00".
   it("the bridge's own row with a stay-late to 18:00 is 12 hours too", () => {
     const board = boardPlacements([row("2026-10-20")],
       [mark("2026-10-20", { overtime_request_id: "q20", left_early_at: "18:00:00" })]);
     const s = summariseOvertimeShifts([ASKS[0]], [], NOW, board);
     expect(s.worked.map((w) => [w.hours, w.minutes])).toEqual([["06:00–18:00", 720]]);
+  });
+
+  it("production, 21/10: an ask of 06–14 with \"went home at 16:00\" is 10 hours, as on the board", () => {
+    const board = boardPlacements([row("2026-10-21")],
+      [mark("2026-10-21", { overtime_request_id: "q21", left_early_at: "16:00:00" })]);
+    const s = summariseOvertimeShifts([ASKS[1]], [], NOW, board);
+    expect(s.worked.map((w) => [w.hours, w.minutes])).toEqual([["06:00–16:00", 600]]);
   });
 
   it("the bridge's own row with no marks keeps the ask's 8 hours — the board says 8 as well", () => {
