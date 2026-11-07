@@ -170,3 +170,24 @@ describe("an October with overtime the clock has not reached, and a shortfall it
     expect(empty.overtime.periodHours).toBeNull();
   });
 });
+
+describe("holiday left this leave year", () => {
+  it("counts the leave year's holiday marks against the rota's entitlement, as the phone does", () => {
+    const d = draft({
+      pattern: { ...PATTERN, annual_leave_days: 22.5 },
+      today: "2026-11-09",
+      holidayMarks: ["2026-07-30", "2026-08-03", "2026-09-10", "2026-12-24"],
+    });
+    // 30/07 is last leave year (it starts 01/08); 03/08 and 10/09 are taken; 24/12 is booked.
+    expect(d.leave).toEqual({ taken: 2, booked: 1, total: 22.5, remaining: 19.5 });
+  });
+
+  it("is not shown when the marks were not read", () => {
+    expect(draft().leave).toBeNull();
+  });
+
+  it("says when no entitlement is on file, instead of a number", () => {
+    const d = draft({ holidayMarks: ["2026-09-10"], today: "2026-11-09" });
+    expect(d.leave).toMatchObject({ taken: 1, total: null, remaining: null });
+  });
+});

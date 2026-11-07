@@ -21,6 +21,8 @@ export interface PayslipRaw {
   marks: (MyMark & { employee_id: string })[];
   board: (PayslipBoardRow & { employee_id: string })[];
   overtime: (MyOvertimeShiftRecord & { employee_id: string })[];
+  /** Holiday marks from the start of today's leave year on, as `my_attendance` reads them. */
+  holidays?: { employee_id: string; on_date: string }[];
 }
 
 const groupBy = <T extends { employee_id: string }>(xs: T[]) => {
@@ -43,6 +45,7 @@ export function assemblePayslipDrafts(
   const marks = groupBy(raw.marks);
   const board = groupBy(raw.board);
   const overtime = groupBy(raw.overtime);
+  const holidays = raw.holidays ? groupBy(raw.holidays) : null;
   return people.map((person) => buildPayslipDraft({
     person, ...ctx,
     pattern: pattern.get(person.employeeId) ?? null,
@@ -50,6 +53,7 @@ export function assemblePayslipDrafts(
     marks: marks.get(person.employeeId) ?? [],
     board: board.get(person.employeeId) ?? [],
     overtime: overtime.get(person.employeeId) ?? [],
+    holidayMarks: holidays ? (holidays.get(person.employeeId) ?? []).map((h) => h.on_date) : undefined,
   }));
 }
 
@@ -60,11 +64,14 @@ const db = supabase as any;
 const paged = <T>(build: (a: number, b: number) => unknown) =>
   fetchAllRows<T>({ range: build as never });
 
-/** Everything the drafts need for `from`..`to`, for everybody. Reads only. */
-export async function fetchPayslipRaw(from: string, to: string): Promise<PayslipRaw> {
-  const [emp, clocks, marks, board, answers] = await Promise.all([
+/**
+ * Everything the drafts need for `from`..`to`, for everybody. Reads only.
+ * `leaveYearFrom` (the start of today's leave year) adds the holiday balance.
+ */
+export async function fetchPayslipRaw(from: string, to: string, leaveYearFrom?: string): Promise<PayslipRaw> {
+  const [emp, clocks, marks, board, answers, holidays] = await Promise.all([
     db.from("employees")
-      .select("id, shift_patterns(name, days, starts_at, ends_at, break_minutes)")
+      .select("id, shift_patterns(name, days, starts_at, ends_at, break_minutes, annual_leave_days)")
       .eq("active", true),
     paged<MyClockRow & { employee_id: string }>((a, b) => db.from("attendance_days")
       .select("employee_id, on_date, start_time, end_time, worked_minutes, balance_minutes, scheduled_minutes, overtime_adj_minutes, absence_name")
@@ -96,13 +103,24 @@ export async function fetchPayslipRaw(from: string, to: string): Promise<Payslip
       .neq("overtime_requests.status", "cancelled")
       .order("request_id", { ascending: true }).order("employee_id", { ascending: true })
       .range(a, b)),
+    // The same rows `my_attendance` counts the balance from: holiday marks, from the
+    // start of the leave year, for three years (bookings run ahead).
+    leaveYearFrom
+      ? paged<{ employee_id: string; on_date: string }>((a, b) => db.from("employee_attendance")
+        .select("employee_id, on_date")
+        .eq("status", "holiday")
+        .gte("on_date", leaveYearFrom)
+        .lte("on_date", `${Number(leaveYearFrom.slice(0, 4)) + 3}${leaveYearFrom.slice(4)}`)
+        .order("on_date", { ascending: true }).order("employee_id", { ascending: true })
+        .range(a, b))
+      : Promise.resolve(undefined),
   ]);
   if (emp.error) throw emp.error;
 
   return {
     patterns: ((emp.data ?? []) as { id: string; shift_patterns: PayslipPattern | null }[])
       .map((e) => ({ employee_id: e.id, pattern: e.shift_patterns ?? null })),
-    clocks, marks, board,
+    clocks, marks, board, holidays,
     overtime: answers
       .filter((r) => r.overtime_requests)
       .map((r) => {

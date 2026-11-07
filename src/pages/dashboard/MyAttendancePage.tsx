@@ -7,7 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight, Info } from "lucide-react";
+import { ChevronLeft, ChevronRight, Info, ReceiptText } from "lucide-react";
+import { toast } from "sonner";
+import { myPayslipDraft } from "@/lib/myPayslipDraft";
+import { printPayslipDrafts } from "@/components/workforce/PayslipDraftSheet";
 import { Button } from "@/components/ui/button";
 import { areaText, fmtDay } from "@/lib/myShiftText";
 import { cn } from "@/lib/utils";
@@ -142,6 +145,7 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
   );
   const choices = useMemo(() => rangeChoices(data.periods, today), [data.periods, today]);
   const [selected, setSelected] = useState<MyDay | null>(null);
+  const [printing, setPrinting] = useState(false);
   const currentKey = choices.find((c) => c.from === range.from && c.to === range.to)?.key ?? "custom";
   const todayDay = days.find((d) => d.date === today) ?? null;
   // Overtime the office placed on the Headcount by hand, from today to the end of the range.
@@ -220,7 +224,32 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
       </div>
 
       <Card data-testid="hours-balance">
-        <CardHeader className="pb-2"><CardTitle className="text-base">Hours and overtime</CardTitle></CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
+          <CardTitle className="text-base">Hours and overtime</CardTitle>
+          {/* The office's payslip draft, for this person: hours only, no money (07/11/2026). */}
+          {s.settled && (
+            <Button
+              type="button" size="sm" variant="outline" className="h-8"
+              disabled={!otRecords || printing}
+              onClick={async () => {
+                setPrinting(true);
+                try {
+                  const draft = myPayslipDraft({
+                    data, period: s.settled!.period, today, now: new Date(),
+                    overtime: otRecords ?? [], marks: boardMarks ?? null,
+                  });
+                  await printPayslipDrafts([draft], `Payslip draft · ${s.settled!.period.name}`);
+                } catch (e) {
+                  toast.error("The payslip draft could not be built.", { description: String((e as Error)?.message ?? e) });
+                } finally {
+                  setPrinting(false);
+                }
+              }}
+            >
+              <ReceiptText className="mr-1.5 h-4 w-4" /> Payslip draft
+            </Button>
+          )}
+        </CardHeader>
         <CardContent className="space-y-2 text-sm">
           {s.settled ? (
             <>
