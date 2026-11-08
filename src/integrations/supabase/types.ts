@@ -5385,6 +5385,7 @@ export type Database = {
           line: string
           notes: string | null
           plan_qty: number
+          plan_source: string | null
           shift: string
           updated_at: string
           upm_actual: number
@@ -5402,6 +5403,7 @@ export type Database = {
           line: string
           notes?: string | null
           plan_qty?: number
+          plan_source?: string | null
           shift: string
           updated_at?: string
           upm_actual?: number
@@ -5419,6 +5421,7 @@ export type Database = {
           line?: string
           notes?: string | null
           plan_qty?: number
+          plan_source?: string | null
           shift?: string
           updated_at?: string
           upm_actual?: number

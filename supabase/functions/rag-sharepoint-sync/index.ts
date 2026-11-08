@@ -145,19 +145,30 @@ Deno.serve(async (req) => {
     const records: unknown[] = [];
     const errors: { date: string; error: string }[] = [];
 
-    const settled = await Promise.allSettled(
-      days.map((day) => callOnce(`/performance?date=${day}`, 25_000)),
-    );
-    settled.forEach((result, i) => {
-      if (result.status === "fulfilled") {
-        for (const r of (result.value?.records ?? [])) records.push(r);
-      } else {
-        errors.push({
-          date: days[i],
-          error: (result.reason as Error)?.message ?? String(result.reason),
-        });
+    // The whole week in one request. Seven requests at once used to swamp the reader on
+    // Render's free tier: each one opens the same workbooks, a cold instance answered none
+    // of them inside 25 s, and the board said the reader was offline (08/11/2026).
+    let ranged = false;
+    try {
+      const payload = await callOnce(`/performance?date_from=${days[0]}&date_to=${days[6]}`, 120_000);
+      for (const r of (payload?.records ?? [])) records.push(r);
+      ranged = true;
+    } catch (e) {
+      errors.push({ date: `${days[0]}..${days[6]}`, error: (e as Error).message });
+    }
+
+    // Only if the week could not be read in one go: day by day, one at a time.
+    if (!ranged) {
+      errors.length = 0;
+      for (const day of days) {
+        try {
+          const payload = await callOnce(`/performance?date=${day}`, 25_000);
+          for (const r of (payload?.records ?? [])) records.push(r);
+        } catch (e) {
+          errors.push({ date: day, error: (e as Error).message });
+        }
       }
-    });
+    }
 
     if (!records.length && errors.length === days.length) {
       return unreachable(errors.slice(0, 3));
