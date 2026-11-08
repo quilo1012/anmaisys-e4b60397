@@ -147,6 +147,8 @@ interface Entry {
   upm_actual: number;
   downtime_min: number;
   notes: string | null;
+  /** Where plan_qty came from: sharepoint, workbook, smart_target or manual (BLOCO 155). */
+  plan_source?: string | null;
 }
 
 interface StopDetail {
@@ -773,6 +775,13 @@ export default function RAGWeeklyPage() {
           upm_actual: keep(r.upm_actual, prev?.upm_actual),
           downtime_min: keep(r.downtime_min, prev?.downtime_min),
           notes: prev?.notes ?? null,
+          // Where the plan came from. A SharePoint row with no plan sends none, so the
+          // database can give a running line its Smart Target (BLOCO 155); a plan from
+          // SharePoint later replaces it.
+          plan_source:
+            r.plan_qty !== undefined && r.plan_qty > 0
+              ? (isSharePoint ? "sharepoint" : "workbook")
+              : (isSharePoint ? null : (prev?.plan_source ?? null)),
           // SharePoint is the master source: mark the row so the workbook's
           // Actual is kept as-is instead of being overwritten by floor logging.
           actual_source: isSharePoint ? "sharepoint" : "manual",
@@ -2454,11 +2463,23 @@ function DayNightTotalSummary({
                           <span className="text-warning-strong text-2xs leading-none cursor-help" aria-label="rounding mismatch">⚠</span>
                         </span>
                       );
+                    // A plan the Smart Target filled because SharePoint had none says so,
+                    // and is replaced as soon as SharePoint has a plan (BLOCO 155).
+                    const fromSmart = e?.plan_source === "smart_target" && plan > 0;
+                    const withSource = !fromSmart ? withWarn : (
+                      <span
+                        className="inline-flex items-center gap-1"
+                        title="Target from the Smart Target: SharePoint had no plan for this running line. It is replaced when SharePoint has one."
+                      >
+                        {withWarn}
+                        <span className="rounded-sm bg-primary/10 px-1 text-2xs font-semibold leading-none text-primary" aria-label="Target from the Smart Target">ST</span>
+                      </span>
+                    );
                     const hist = historyFor(ds, shift);
-                    if (!hist) return withWarn;
+                    if (!hist) return withSource;
                     return (
                       <PlanHistoryPopover
-                        value={withWarn}
+                        value={withSource}
                         history={hist}
                         line={displayLineLabel(lineFilter[0])}
                         shift={shift === "DAY" ? "Day" : "Night"}
