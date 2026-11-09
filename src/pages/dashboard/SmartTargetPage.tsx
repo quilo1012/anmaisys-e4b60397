@@ -683,9 +683,12 @@ export default function SmartTargetPage() {
       }
       const logged = own.reduce((sum, i) => sum + Math.max(0, Number(i.actual_qty) || 0), 0);
       // Only the products that make up the target, not everything iTouch had queued for the line.
-      // A forecast saved before each job kept its number falls back to today's calculation.
-      const keptWithNumbers = kept?.jobs?.some((j) => typeof j.expected === "number") ? kept.jobs! : null;
-      const planned = plannedProducts(keptWithNumbers ?? jobsInTarget(result.jobs).map((j) => ({ sku: j.sku, expected: j.expectedContainers })));
+      // The plan is what was kept for the shift. A kept forecast from before jobs carried their
+      // number (before 06/11) lists its products as kept: today's recalculation is not the plan
+      // the shift was set against, and checking against it hid real plan changes.
+      const planned = kept?.jobs?.length
+        ? plannedProducts(kept.jobs)
+        : plannedProducts(jobsInTarget(result.jobs).map((j) => ({ sku: j.sku, expected: j.expectedContainers })));
       // Made but not in the target's products: off plan, even if iTouch had it queued further down.
       const offPlan = planned.length ? productsOffPlan({ jobs: planned }, [...made.keys()], skuFamily(catalogue)) : [];
       const target = kept ? kept.expected_total : result.expectedTotal;
