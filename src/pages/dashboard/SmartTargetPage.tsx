@@ -47,7 +47,7 @@ import {
 } from "@/lib/smartTargetRates";
 import { ItouchCyclesCard } from "@/components/smartTarget/ItouchCyclesCard";
 import { ShiftStrip, stripHours, stripSegments } from "@/components/smartTarget/ShiftStrip";
-import { ShiftReport } from "@/components/smartTarget/ShiftReport";
+import { PrintShiftReport, ShiftReport, TargetBar, TONE_TEXT, resultTone } from "@/components/smartTarget/ShiftReport";
 import { useShiftRuns } from "@/hooks/useShiftRuns";
 import { endedBeforeHalfway, shiftOutcome } from "@/lib/shiftOutcome";
 import { useShiftReportData } from "@/hooks/useShiftReportData";
@@ -81,7 +81,7 @@ const STATUS: Record<ShiftForecast["status"], { label: string; className: string
   ok: { label: "Forecast", className: "bg-success/15 text-success-strong border-success/30" },
   partial: { label: "Partial", className: "bg-warning/15 text-warning-strong border-warning/30" },
   insufficient_data: { label: "Not enough data", className: "bg-muted text-muted-foreground border-border" },
-  invalid_input: { label: "Invalid input", className: "bg-destructive/10 text-destructive border-destructive/30" },
+  invalid_input: { label: "Invalid input", className: "bg-warning/15 text-warning-strong border-warning/30" },
 };
 
 /** The rates item once factors are computed: what is live, and what is held back. */
@@ -126,8 +126,8 @@ function ShiftSwitch({ value, onChange }: { value: ShiftType; onChange: (v: Shif
             className={cn(
               "h-8 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               active
-                ? o.value === "DAY" ? "bg-warning text-warning-foreground shadow-sm" : "bg-primary text-primary-foreground shadow-sm"
-                : "text-muted-foreground hover:bg-background",
+                ? "bg-card text-foreground shadow-sm ring-1 ring-border"
+                : "text-muted-foreground hover:bg-background/60",
             )}
           >
             {o.label}
@@ -157,7 +157,7 @@ function Transition({ job }: { job: JobForecast }) {
   ].filter(Boolean);
   return (
     <div
-      className="flex shrink-0 flex-col items-center justify-center rounded-md border border-dashed border-warning/50 bg-warning/10 px-2 py-1 text-center text-2xs leading-tight text-warning-strong"
+      className="flex shrink-0 flex-col items-center justify-center rounded-md border border-dashed border-border bg-muted/50 px-2 py-1 text-center text-2xs leading-tight text-muted-foreground"
       title={job.transition === "first_unknown" ? "What ran before the shift is unknown, so no changeover is charged." : undefined}
     >
       <span className="font-medium">{job.transition === "sku_change" ? "SKU change" : "Start"}</span>
@@ -168,10 +168,10 @@ function Transition({ job }: { job: JobForecast }) {
 
 function JobBlock({ job }: { job: JobForecast }) {
   return (
-    <div className="min-w-[7.5rem] flex-1 rounded-md border bg-card px-3 py-2">
+    <div className="min-w-[7.5rem] flex-1 rounded-md border border-l-[3px] border-l-success bg-card px-3 py-2">
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-2xs tabular-nums text-muted-foreground">{job.sequence}</span>
-        <span className="text-sm font-semibold tabular-nums">{fmt(job.expectedContainers)}</span>
+        <span className="text-sm font-semibold tabular-nums text-success-strong">{fmt(job.expectedContainers)}</span>
       </div>
       <div className="truncate font-mono text-xs font-medium" title={job.sku ?? "No SKU"}>{job.sku ?? "No SKU"}</div>
       <div className="text-2xs text-muted-foreground">Order {fmt(job.orderQty)}</div>
@@ -206,8 +206,6 @@ interface RateBasis {
   from: string;
   to: string;
 }
-
-const MISS_WARNING = 15;
 
 function LineRow({ line, result, notes, basis, kept, logged, offPlan, nowPct, report }: { line: number; result: ShiftForecast; notes: string[]; basis: RateBasis | null; kept: StoredForecast | null; logged: number; offPlan: string[]; nowPct: number | null; report: LineReport }) {
   const status = STATUS[result.status];
@@ -251,6 +249,7 @@ function LineRow({ line, result, notes, basis, kept, logged, offPlan, nowPct, re
   // Only the jobs that make up the target; what iTouch has queued after them is left out.
   const shown = jobsInTarget(result.jobs);
   const target = kept ? kept.expected_total : result.expectedTotal;
+  const tone = resultTone(miss, nowPct !== null);
   return (
     <details data-testid={`smart-target-line-${line}`} className="group">
       <summary className={cn(grid, "cursor-pointer list-none px-4 py-3 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden")}>
@@ -281,13 +280,16 @@ function LineRow({ line, result, notes, basis, kept, logged, offPlan, nowPct, re
           </div>
           <div className="md:text-right">
             <dt className="text-xs text-muted-foreground md:sr-only">Logged</dt>
-            <dd className="tabular-nums" data-testid={`smart-target-logged-${line}`}>{logged > 0 ? logged.toLocaleString() : "—"}</dd>
+            <dd>
+              <span className="tabular-nums" data-testid={`smart-target-logged-${line}`}>{logged > 0 ? logged.toLocaleString() : "—"}</span>
+              <TargetBar target={target} logged={logged} className="mt-1.5" />
+            </dd>
           </div>
           <div className="md:text-right">
             <dt className="text-xs text-muted-foreground md:sr-only">Miss</dt>
             <dd
               data-testid={`smart-target-miss-${line}`}
-              className={cn("tabular-nums", miss !== null && Math.abs(miss) > MISS_WARNING ? "font-semibold text-destructive-strong" : "text-muted-foreground")}
+              className={cn("tabular-nums", tone !== "neutral" && "font-semibold", TONE_TEXT[tone])}
             >
               {miss === null ? "—" : `${miss > 0 ? "+" : ""}${miss}%`}
             </dd>
@@ -382,6 +384,41 @@ function StripHeader({ shift, gross, nowPct }: { shift: ShiftType; gross: number
       <span className="text-right">Logged</span>
       <span className="text-right">Miss</span>
     </div>
+  );
+}
+
+/**
+ * The whole shift in one row: target across the lines that have one, what has been logged
+ * against it, and how many lines are on target once the shift has closed.
+ */
+function ShiftTotals({ rows, nowPct }: { rows: LineReport[]; nowPct: number | null }) {
+  const withTarget = rows.filter((r) => r.target !== null);
+  if (!withTarget.length) return null;
+  const target = withTarget.reduce((s, r) => s + (r.target ?? 0), 0);
+  const logged = withTarget.reduce((s, r) => s + r.logged, 0);
+  const running = nowPct !== null;
+  const onTarget = withTarget.filter((r) => resultTone(r.miss, running) === "good").length;
+  const share = target > 0 ? Math.round((logged / target) * 100) : null;
+  return (
+    <section data-testid="smart-target-totals" aria-label="Shift totals" className="rounded-lg border border-success/30 bg-success/5 px-4 py-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+        <p className="text-sm">
+          <span className="text-2xl font-semibold tabular-nums text-success-strong">{logged > 0 ? logged.toLocaleString() : "—"}</span>
+          <span className="text-muted-foreground"> logged of </span>
+          <span className="font-semibold tabular-nums">{target.toLocaleString()}</span>
+          <span className="text-muted-foreground"> target on {withTarget.length} {withTarget.length === 1 ? "line" : "lines"}</span>
+        </p>
+        <p className="text-sm text-muted-foreground">
+          {running
+            ? `Shift running${share !== null ? `: ${share}% of target so far` : ""}`
+            : `${onTarget} of ${withTarget.length} on target`}
+        </p>
+      </div>
+      <div className="relative mt-2">
+        <TargetBar target={target} logged={logged} className="h-2.5" />
+        {nowPct !== null && <div className="absolute -top-0.5 h-3.5 w-0.5 rounded bg-foreground/70" style={{ left: `${nowPct}%` }} title="Now" />}
+      </div>
+    </section>
   );
 }
 
@@ -783,14 +820,9 @@ export default function SmartTargetPage() {
               </Button>
             </div>
             <div ref={printRef} className="shift-report-print hidden">
-              <h2 className="mb-3 text-lg font-semibold">Smart Target, {date}, {shift === "DAY" ? "day" : "night"} shift</h2>
-              {rows.map(({ report }) => (
-                <div key={report.line} className="mb-4 break-inside-avoid border-t pt-3">
-                  <h3 className="mb-2 font-semibold">Line {report.line}</h3>
-                  <ShiftReport report={report} />
-                </div>
-              ))}
+              <PrintShiftReport reports={rows.map((r) => r.report)} date={date} shift={shift} running={nowPct !== null} />
             </div>
+            <ShiftTotals rows={rows.map((r) => r.report)} nowPct={nowPct} />
             <div className="divide-y overflow-hidden rounded-lg border bg-card">
               <StripHeader shift={shift} gross={shiftWindow(date, shift)?.grossMinutes ?? 720} nowPct={nowPct} />
               {built.lines.map(({ line, result, notes, basis }) => {
@@ -834,7 +866,7 @@ export default function SmartTargetPage() {
                 <li key={m.key} className="rounded-md border p-3">
                   <div className="flex items-start justify-between gap-2">
                     <span className="font-medium">{m.label}</span>
-                    <Badge variant="outline" className="shrink-0 text-2xs">Missing</Badge>
+                    <Badge variant="outline" className="shrink-0 text-2xs text-muted-foreground">Missing</Badge>
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">{m.why}</p>
                   <p className="mt-1 text-xs"><span className="text-muted-foreground">From:</span> {m.owner}</p>
