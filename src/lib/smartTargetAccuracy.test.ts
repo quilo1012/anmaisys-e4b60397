@@ -56,6 +56,14 @@ describe("accuracyByLine", () => {
     expect(l2).toMatchObject({ scored: 1, estimated: 1, medianAbsPctError: 0 });
   });
 
+  it("ignores an estimated job that adds nothing to the number, as Line 2 on 09/11", () => {
+    const [, l2] = accuracyByLine([
+      f({ jobs: [{ sku: "COL165SR", estimated: false, expected: 5000 }, { sku: "JOINTM", estimated: true, expected: 0 }] }),
+      f({ session_date: "2026-11-02", frozen_at: "2026-11-02T06:10:00Z", jobs: [{ sku: "TESTOLL", estimated: true, expected: 4000 }] }),
+    ], new Map([["2026-11-03|DAY|2", 5000], ["2026-11-02|DAY|2", 4000]]));
+    expect(l2).toMatchObject({ scored: 1, estimated: 1, medianAbsPctError: 0 });
+  });
+
   it("keeps a shift whose line closed before half way out of the score, and counts it (Q79)", () => {
     const [, l2] = accuracyByLine([
       f({}),
