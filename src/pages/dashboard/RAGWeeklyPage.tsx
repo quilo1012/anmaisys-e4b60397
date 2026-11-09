@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Download, RefreshCw, Target, BarChart3, Printer, CalendarIcon, Eye, EyeOff, ChevronDown, ChevronUp, Upload, FileBarChart, AlertTriangle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, RefreshCw, Target, BarChart3, Printer, CalendarIcon, Eye, EyeOff, ChevronDown, Upload, FileBarChart, AlertTriangle } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -1891,13 +1891,17 @@ function DayNightTotalSummary({
 
   type Cell = {
     plan: number;
+    /** The plan of the shifts that have started. A shift still to come has a plan and,
+     *  rightly, nothing made yet; measured against it, Tuesday read -100% on Monday
+     *  night and the week's badge sank under a plan nobody could have met yet. */
+    planDue: number;
     actual: number;
     dt: number;
     dtBuckets: Record<string, number>;
     upm: number;
     smart: SmartTally;
   };
-  const empty: Cell = { plan: 0, actual: 0, dt: 0, dtBuckets: {}, upm: 0, smart: NO_SMART };
+  const empty: Cell = { plan: 0, planDue: 0, actual: 0, dt: 0, dtBuckets: {}, upm: 0, smart: NO_SMART };
 
 
   const getCell = (dateStr: string, line: string, shift: Shift): Cell => {
@@ -1928,15 +1932,17 @@ function DayNightTotalSummary({
       auto = manual;
     }
     if (!e) return { ...empty, dt: auto, dtBuckets, smart: smartOutcome ? smartTally(smartMap, dateStr, line, shift, 0, 0, smartOutcome(dateStr, line, shift, 0, 0)) : NO_SMART };
+    const plan = Number(e.plan_qty) || 0;
+    const actual = Number(e.actual_qty) || 0;
+    const outcome = smartOutcome?.(dateStr, line, shift, plan, actual);
     return {
-      plan: Number(e.plan_qty) || 0,
-      actual: Number(e.actual_qty) || 0,
+      plan,
+      planDue: outcome?.kind === "upcoming" ? 0 : plan,
+      actual,
       dt: auto,
       dtBuckets,
       upm: Number(e.upm_actual) || 0,
-      smart: smartOutcome
-        ? smartTally(smartMap, dateStr, line, shift, Number(e.plan_qty) || 0, Number(e.actual_qty) || 0, smartOutcome(dateStr, line, shift, Number(e.plan_qty) || 0, Number(e.actual_qty) || 0))
-        : NO_SMART,
+      smart: outcome ? smartTally(smartMap, dateStr, line, shift, plan, actual, outcome) : NO_SMART,
     };
   };
 
@@ -1950,6 +1956,7 @@ function DayNightTotalSummary({
     }
     return {
       plan: cells.reduce((s, c) => s + c.plan, 0),
+      planDue: cells.reduce((s, c) => s + c.planDue, 0),
       actual: cells.reduce((s, c) => s + c.actual, 0),
       dt: cells.reduce((s, c) => s + c.dt, 0),
       dtBuckets,
@@ -2083,19 +2090,19 @@ function DayNightTotalSummary({
               render: (c: Cell) =>
                 c.smart.withNumber ? (
                   <span title={smartCoverage(c.smart) ?? undefined}>
-                    {c.smart.smart.toLocaleString()}
+                    {c.smart.smart.toLocaleString("en-GB")}
                     {c.smart.missing ? "*" : ""}
                     {/* A line that closed early: its target for the hours it was open (Q78). */}
                     {c.smart.cut && (
-                      <span className="block text-2xs font-normal text-muted-foreground">
-                        {smartStatus(c.smart)} · {c.smart.cut.target.toLocaleString()}
+                      <span className="block whitespace-normal text-2xs font-normal leading-tight text-muted-foreground">
+                        {smartStatus(c.smart)} · {c.smart.cut.target.toLocaleString("en-GB")}
                       </span>
                     )}
                   </span>
                 ) : c.smart.notRun ? (
                   // Did not run (Q77): kept in sight, out of every total.
                   <span className="text-muted-foreground/60" title="No shift was opened and nothing was logged, so it is out of the totals.">
-                    <span className="line-through">{c.smart.notRunSmart.toLocaleString()}</span>
+                    <span className="line-through">{c.smart.notRunSmart.toLocaleString("en-GB")}</span>
                     <span className="block text-2xs">Not run</span>
                   </span>
                 ) : (
@@ -2116,12 +2123,12 @@ function DayNightTotalSummary({
             },
           ]
         : []),
-      { key: "plan", label: "Plan", render: (c) => c.plan ? c.plan.toLocaleString() : <span className="text-muted-foreground/40">—</span> },
-      { key: "actual", label: "Actual", render: (c) => c.actual ? c.actual.toLocaleString() : <span className="text-muted-foreground/40">—</span>, bold: true },
+      { key: "plan", label: "Plan", render: (c) => c.plan ? c.plan.toLocaleString("en-GB") : <span className="text-muted-foreground/40">—</span> },
+      { key: "actual", label: "Actual", render: (c) => c.actual ? c.actual.toLocaleString("en-GB") : <span className="text-muted-foreground/40">—</span>, bold: true },
       {
         key: "var",
         label: "Variance %",
-        render: (c) => <span className={pctClass(c.actual, c.plan)}>{pct(c.actual, c.plan)}</span>,
+        render: (c) => <span className={pctClass(c.actual, c.planDue)}>{pct(c.actual, c.planDue)}</span>,
       },
       { key: "upm", label: "UPM", render: (c) => (c.upm ? c.upm.toFixed(2) : <span className="text-muted-foreground/40">—</span>) },
       // Downtime, always. The rows below it are the breakdown by bucket and each one
@@ -2149,7 +2156,7 @@ function DayNightTotalSummary({
 
         render: (c: Cell) => {
           const v = c.dtBuckets[b] ?? 0;
-          return <span className={v > 0 ? bucketClass(b) : ""}>{fmtHm(v)}</span>;
+          return <span className={v > 0 ? bucketClass(b) : "text-muted-foreground/40"}>{fmtHm(v)}</span>;
         },
       })),
     ];
@@ -2164,7 +2171,7 @@ function DayNightTotalSummary({
        cumprir, âmbar a menos de dez por cento de distância, vermelho abaixo disso —
        os mesmos degraus das células, para que a cor queira dizer sempre o mesmo. */
     const weekAll = weekTotal("TOTAL");
-    const attainment = weekAll.plan > 0 ? Math.round((weekAll.actual / weekAll.plan) * 100) : null;
+    const attainment = weekAll.planDue > 0 ? Math.round((weekAll.actual / weekAll.planDue) * 100) : null;
     const attainmentTone =
       attainment === null
         ? ""
@@ -2193,9 +2200,8 @@ function DayNightTotalSummary({
             aria-expanded={!isCollapsed}
             aria-label={isCollapsed ? `Expand ${label}` : `Collapse ${label}`}
           >
-            {isCollapsed ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            <ChevronDown className={cn("h-4 w-4 transition-transform", isCollapsed && "-rotate-90")} />
             <span className="whitespace-nowrap">{label === "All Lines" ? label : displayLineLabel(label)}</span>
-            {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
           </button>
           {attainment !== null && (
             <span
@@ -2203,12 +2209,12 @@ function DayNightTotalSummary({
                 "flex items-baseline gap-1.5 whitespace-nowrap rounded-md border px-2 py-0.5",
                 attainmentTone,
               )}
-              title={`${weekAll.actual.toLocaleString()} made against a plan of ${weekAll.plan.toLocaleString()} for the week`}
+              title={`${weekAll.actual.toLocaleString("en-GB")} made against a plan of ${weekAll.planDue.toLocaleString("en-GB")} for the shifts so far${weekAll.plan > weekAll.planDue ? ` (${weekAll.plan.toLocaleString("en-GB")} for the whole week)` : ""}`}
             >
               <span className="font-figure text-sm font-bold leading-none">{attainment}%</span>
               {/* No telemóvel a grelha é de um dia; a chapa continua a ser da semana e
                   tem de o dizer, ou lia-se como o resultado do dia escolhido. */}
-              <span className="font-display text-2xs font-bold uppercase tracking-[0.1em] opacity-80">{isPhone ? "of week plan" : "of plan"}</span>
+              <span className="font-display text-2xs font-bold uppercase tracking-[0.1em] opacity-80">{weekAll.plan > weekAll.planDue ? "of plan to date" : isPhone ? "of week plan" : "of plan"}</span>
             </span>
           )}
           <span className="flex-1" />
@@ -2233,7 +2239,7 @@ function DayNightTotalSummary({
           <div
             ref={scrollRef}
             data-rag-scroll
-            className={cn("overflow-x-auto overflow-y-hidden scroll-smooth border rounded-md shadow-sm", !isPhone && "-mx-2 px-2")}
+            className="overflow-x-auto overflow-y-hidden scroll-smooth rounded-md border"
             onScroll={updateScroll}
             onWheel={(e) => {
               // Do not trap vertical wheel — forward it to the page so users can
@@ -2259,7 +2265,7 @@ function DayNightTotalSummary({
             <table className={cn("w-full border-collapse font-figure", isPhone ? "text-xs" : "min-w-[880px] text-2xs")}>
               <thead className="sticky top-0 z-30 bg-background shadow-[0_2px_0_0_hsl(var(--border))]">
                 <tr className="border-b bg-background">
-                  <th className={cn("text-left p-1.5 sticky left-0 bg-background z-30", isPhone ? "w-[38%]" : "min-w-[100px]")} />
+                  <th className={cn("text-left p-1.5 sticky left-0 bg-background z-30", isPhone ? "w-[38%]" : "w-[144px] min-w-[144px]")} />
                   {shownDays.map(({ d, i }) => {
                     const ds = format(d, "yyyy-MM-dd");
                     const excluded = isDateExcluded(label, ds);
@@ -2343,21 +2349,21 @@ function DayNightTotalSummary({
                             dizer "Day" e "Night" — e o âmbar, três linhas abaixo, é o
                             que marca uma variância perdida. A coluna distingue-se pela
                             posição e pelo filete, que é o que uma grelha usa. */}
-                        <th className={`${isPhone ? "min-w-[52px]" : "min-w-[60px]"} border-l p-0 text-muted-foreground ${dayOff ? "bg-muted/60" : "bg-muted/40"}`}>
+                        <th className={`min-w-[52px] border-l p-0 text-muted-foreground ${dayOff ? "bg-muted/60" : "bg-muted/40"}`}>
                           <Btn off={dayOff} shift="day" onClick={() => toggleShift(label, ds, "DAY")}>Day</Btn>
                         </th>
-                        <th className={`${isPhone ? "min-w-[52px]" : "min-w-[60px]"} p-0 text-muted-foreground ${nightOff ? "bg-muted/60" : "bg-muted/40"}`}>
+                        <th className={`min-w-[52px] p-0 text-muted-foreground ${nightOff ? "bg-muted/60" : "bg-muted/40"}`}>
                           <Btn off={nightOff} shift="night" onClick={() => toggleShift(label, ds, "NIGHT")}>Night</Btn>
                         </th>
-                        <th className={`${isPhone ? "min-w-[52px]" : "min-w-[60px]"} bg-muted/60 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-foreground`}>Total</th>
+                        <th className={`min-w-[52px] bg-muted/60 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-foreground`}>Total</th>
                       </Fragment>
                     );
                   })}
                   {showWeekCols && (
                     <>
-                      <th className={cn("bg-muted/50 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-muted-foreground", isPhone ? "min-w-[52px]" : "min-w-[64px] border-l-2 border-l-foreground/25")}>Day</th>
-                      <th className={cn("bg-muted/50 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-muted-foreground", isPhone ? "min-w-[52px]" : "min-w-[64px]")}>Night</th>
-                      <th className={cn("bg-muted/70 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-foreground", isPhone ? "min-w-[52px]" : "min-w-[64px]")}>Total</th>
+                      <th className={cn("bg-muted/50 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-muted-foreground", isPhone ? "min-w-[52px]" : "min-w-[58px] border-l-2 border-l-foreground/25")}>Day</th>
+                      <th className={cn("bg-muted/50 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-muted-foreground", isPhone ? "min-w-[52px]" : "min-w-[58px]")}>Night</th>
+                      <th className={cn("bg-muted/70 p-1 text-right font-display font-bold uppercase tracking-[0.08em] text-foreground", isPhone ? "min-w-[52px]" : "min-w-[58px]")}>Total</th>
                     </>
                   )}
                 </tr>
@@ -2368,7 +2374,7 @@ function DayNightTotalSummary({
                   const wtDay = weekTotal("DAY");
                   const wtNight = weekTotal("NIGHT");
                   const wtTot = weekTotal("TOTAL");
-                  const cls = `px-1.5 ${isPhone ? "py-1.5" : "py-1"} text-right whitespace-nowrap tabular-nums ${row.bold ? "font-semibold" : ""}`;
+                  const cls = `${isPhone ? "px-1.5 py-1.5" : "px-1 py-1"} text-right whitespace-nowrap tabular-nums ${row.bold ? "font-semibold" : ""}`;
                   // Plan is typed here; actual is not. Actual is the sum of what
                   // operators logged for the line and shift, derived on write, so an
                   // inline editor would silently discard whatever was entered.
@@ -2496,7 +2502,7 @@ function DayNightTotalSummary({
                     isDt ? wrapDt(ds, shift, cellEl) : isPlan ? wrapPlan(ds, shift, cellEl) : row.key === "smart" ? wrapSmart(ds, shift, cellEl) : cellEl;
                   return (
                     <tr key={row.key} className="border-b hover:bg-muted/20">
-                      <td className={cn("sticky left-0 z-10 bg-background px-1.5 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground", isPhone ? "break-normal py-1.5 leading-tight" : "whitespace-nowrap py-1")}>{row.label}</td>
+                      <td className={cn("sticky left-0 z-10 bg-background px-1.5 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground", isPhone ? "py-1.5" : "py-1", "break-normal leading-tight")}>{row.label}</td>
                       {shownDays.map(({ d, i }) => {
                         const ds = format(d, "yyyy-MM-dd");
                         const dayDim = isShiftExcluded(label, ds, "DAY") ? "bg-muted/60 text-muted-foreground" : "";
@@ -2887,7 +2893,7 @@ function SummaryInlineInput({
     <input
       type="text"
       inputMode="numeric"
-      value={focused ? v : value ? value.toLocaleString() : ""}
+      value={focused ? v : value ? value.toLocaleString("en-GB") : ""}
       placeholder="—"
       onFocus={() => { focusedRef.current = true; setFocused(true); }}
       onChange={(e) => setV(e.target.value)}
@@ -2941,7 +2947,7 @@ function DowntimeBreakdownPopover({
           <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{line} · {shift} · {dateStr}</div>
           <div className="flex items-center justify-between gap-2">
             <div className="text-sm font-semibold">{stops.length} stop{stops.length === 1 ? "" : "s"} · {totalMin}m total</div>
-            {totalScrap > 0 && <div className="text-xs text-warning-strong font-medium">Scrap: {totalScrap.toLocaleString()}</div>}
+            {totalScrap > 0 && <div className="text-xs text-warning-strong font-medium">Scrap: {totalScrap.toLocaleString("en-GB")}</div>}
           </div>
           <Link
             to={`/dashboard/engineer?line=${encodeURIComponent(line)}&date=${encodeURIComponent(dateStr)}`}
