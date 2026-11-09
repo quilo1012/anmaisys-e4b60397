@@ -17,7 +17,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, Timer, PanelLeft, PanelLeftClose, PanelLeftOpen, Target, Warehouse, HandCoins, Hand, CalendarCheck, Link2, Search, X, MapPin, KeyRound } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, PanelLeft, PanelLeftClose, PanelLeftOpen, Target, Warehouse, HandCoins, Hand, CalendarCheck, Link2, Search, X, MapPin, KeyRound } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -202,15 +202,6 @@ export const navItems: NavItem[] = [
   // the only way to a leader's card, and the two people who approve the week had
   // one row in the whole sidebar — Quality.
   { title: "Performance", url: "/dashboard/production-performance", icon: TrendingUp, roles: ["admin", "manager", "quality_supervisor", "maintenance_manager", "production_office_admin"], group: "Production", action: "production.performance.view" },
-  // Em Production e não em Maintenance de propósito: o Downtime & Reliability, ao lado
-  // das ordens, mede avarias — e as avarias são 4% das horas que a linha não anda. Os
-  // outros 96% são preparação, limpeza e espera, e a dona disso é a produção.
-  //
-  // Sem `operator`, por decisão de 03/10/2026. Tem de bater com a MATRIX em
-  // `permissions.ts`: o `navItemShows()` cruza esta lista com o `can()`, por isso um
-  // `operator` escrito aqui não devolve o ecrã sozinho — mas deixa as duas listas a
-  // dizer coisas diferentes, que é como este ecrã apareceu a quem não o devia ver.
-  { title: "Stop Analysis", shortTitle: "Stops", url: "/dashboard/stop-analysis", icon: Timer, roles: ["admin", "manager", "production_office_admin", "quality_supervisor"], group: "Production", action: "stopanalysis.view" },
   // A diagnostic for now: per line and shift, what the forecast can say and what it
   // is still missing. Same roles as the MATRIX grants smarttarget.view, so the two
   // lists say the same thing.
