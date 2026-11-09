@@ -19,7 +19,11 @@ import { MemoryRouter } from "react-router-dom";
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     rpc: vi.fn(async () => ({ data: null, error: null })),
-    auth: { setSession: vi.fn(async () => ({ error: null })) },
+    auth: {
+      setSession: vi.fn(async () => ({ error: null })),
+      signUp: vi.fn(async () => ({ data: { user: null, session: null }, error: null })),
+      signOut: vi.fn(async () => ({ error: null })),
+    },
   },
 }));
 const invoke = vi.hoisted(() => vi.fn(async () => ({ data: null, error: null })));
@@ -159,4 +163,34 @@ describe("Create account — o que a pessoa à frente do ecrã pode saber", () =
     rpc.mockImplementation((async () => ({ data: null, error: null })) as never);
   });
 
+
+  /**
+   * 09/11/2026, after the move to the new database: email confirmation is off there
+   * (`mailer_autoconfirm`), so no email is ever sent — and the screen still said
+   * "Check your email and tap the confirmation link". People waited for an email that
+   * was never coming and read it as the account not having been made.
+   */
+  it("says the account is ready to sign in when the server confirmed it on the spot", async () => {
+    vi.mocked(supabase.rpc).mockImplementation((async (fn: string) =>
+      ({ data: fn === "check_invite_code" ? true : fn === "self_signup_role" ? "employee" : null, error: null })) as never);
+    vi.mocked(supabase.auth.signUp).mockResolvedValueOnce({
+      data: { user: { id: "u1", email_confirmed_at: "2026-11-09T21:00:00Z" }, session: { access_token: "t" } },
+      error: null,
+    } as never);
+    renderPage();
+    await fillEmailDoor();
+    expect(await screen.findByText(/Your account is ready/i)).toBeTruthy();
+    expect(screen.queryByText(/Check your email/i)).toBeNull();
+  });
+
+  it("still asks for the email click when the server is waiting for one", async () => {
+    vi.mocked(supabase.rpc).mockImplementation((async (fn: string) =>
+      ({ data: fn === "check_invite_code" ? true : fn === "self_signup_role" ? "employee" : null, error: null })) as never);
+    vi.mocked(supabase.auth.signUp).mockResolvedValueOnce({
+      data: { user: { id: "u1", email_confirmed_at: null }, session: null }, error: null,
+    } as never);
+    renderPage();
+    await fillEmailDoor();
+    expect(await screen.findByText(/Check your email/i)).toBeTruthy();
+  });
 });

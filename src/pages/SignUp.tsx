@@ -115,6 +115,12 @@ export default function SignUp() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  /**
+   * The server confirmed the address on the spot (email confirmation off, as on the
+   * database the site moved to on 06/11). Then no email is coming, and saying "check
+   * your email" left people waiting for one and believing no account was made (09/11).
+   */
+  const [readyNow, setReadyNow] = useState(false);
 
 
   /**
@@ -153,7 +159,7 @@ export default function SignUp() {
       // Repeating a sign-up whose first attempt did arrive is harmless: with confirmation
       // on, the server answers an already-registered address exactly as it answers a new
       // one, and sends nothing twice.
-      const { error: signErr } = await withConnectionRetry(() => auth.signUp({
+      const { data: signed, error: signErr } = await withConnectionRetry(() => auth.signUp({
         email: email.trim().toLowerCase(),
         password,
         options: {
@@ -167,6 +173,7 @@ export default function SignUp() {
         },
       }));
       if (signErr) throw signErr;
+      setReadyNow(!!(signed?.session || signed?.user?.email_confirmed_at));
       forgetInviteCode();
       // Don't leave a half-session around — the account still needs approval. On a
       // tablet there is none to clear, and signing out would sign the tablet out.
@@ -181,12 +188,16 @@ export default function SignUp() {
 
   if (done) {
     return (
-      <AuthShell title="Account created" subtitle="One more step">
+      <AuthShell title="Account created" subtitle={readyNow && autoRole ? "Ready to sign in" : "One more step"}>
         <div className="space-y-4 text-center">
           <CheckCircle2 className="mx-auto h-12 w-12 text-auth-success" />
           <p className="text-sm text-auth-ink">
             {onTablet
               ? <>Your account is ready. Sign in on your own phone with your email and the password you just chose — this tablet stays signed in as the line.</>
+              : readyNow && autoRole
+              ? <>Your account is ready. Sign in with your email and the password you just chose, pick your name once, and you're set — you'll be told whenever overtime opens.</>
+              : readyNow
+              ? <>Your account is created. Wait for an administrator to approve it and assign your role — then sign in with your email and the password you just chose.</>
               : autoRole
               ? <>Check your email and tap the confirmation link. Then sign in, pick your name once, and you're set — you'll be told whenever overtime opens.</>
               : <>Check your email to confirm your address, then wait for an administrator to approve your account and assign your role. You'll be able to sign in once approved.</>}
