@@ -448,9 +448,11 @@ export default function RAGWeeklyPage() {
       .channel(`rag-live-${weekStartStr}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "rag_weekly_entries" }, () => {
         qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+        qc.invalidateQueries({ queryKey: ["rag-plan-history"] });
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "production_items" }, () => {
         qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+        qc.invalidateQueries({ queryKey: ["rag-plan-history"] });
       })
       .subscribe();
     return () => { supabase.removeChannel(ch); };
@@ -690,6 +692,7 @@ export default function RAGWeeklyPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+      qc.invalidateQueries({ queryKey: ["rag-plan-history"] });
       toast.success("Saved");
       setEditing(null);
     },
@@ -722,6 +725,7 @@ export default function RAGWeeklyPage() {
     },
     onSuccess: (n, vars) => {
       qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+      qc.invalidateQueries({ queryKey: ["rag-plan-history"] });
       toast.success(`${vars.dir > 0 ? "+" : "−"}1% applied to ${n} target${n === 1 ? "" : "s"}`);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -759,17 +763,24 @@ export default function RAGWeeklyPage() {
       }
 
       // 1) Entries — only Excel merges blanks over stored values. SharePoint rows
-      // are rebuilt after the selected week was cleared, so stale Sunday/WTD
-      // values cannot survive a new sync.
+      // are rebuilt after the selected week was cleared (hand-typed targets
+      // excepted), so stale Sunday/WTD values cannot survive a new sync.
       const rows = rowsForImport.map((r) => {
         const prev = existing.get(`${r.entry_date}|${r.line}|${r.shift}`);
         const keep = (v: number | undefined, old: number | null | undefined) =>
           v !== undefined ? v : (isSharePoint ? 0 : (old ?? 0));
+        // The last write wins (owner, 09/11/2026). A sync that brings a plan for this
+        // cell replaces a hand-typed one; a sync with no plan for it leaves the
+        // hand-typed target alone, because SharePoint did not say anything there.
+        const keepManualPlan =
+          isSharePoint &&
+          prev?.plan_source === "manual" &&
+          !(r.plan_qty !== undefined && r.plan_qty > 0);
         return {
           entry_date: r.entry_date,
           line: r.line,
           shift: r.shift,
-          plan_qty: keep(r.plan_qty, prev?.plan_qty),
+          plan_qty: keepManualPlan ? Number(prev?.plan_qty ?? 0) : keep(r.plan_qty, prev?.plan_qty),
           actual_qty: keep(r.actual_qty, prev?.actual_qty),
           upm_target: keep(r.upm_target, prev?.upm_target),
           upm_actual: keep(r.upm_actual, prev?.upm_actual),
@@ -778,8 +789,9 @@ export default function RAGWeeklyPage() {
           // Where the plan came from. A SharePoint row with no plan sends none, so the
           // database can give a running line its Smart Target (BLOCO 155); a plan from
           // SharePoint later replaces it.
-          plan_source:
-            r.plan_qty !== undefined && r.plan_qty > 0
+          plan_source: keepManualPlan
+            ? "manual"
+            : r.plan_qty !== undefined && r.plan_qty > 0
               ? (isSharePoint ? "sharepoint" : "workbook")
               : (isSharePoint ? null : (prev?.plan_source ?? null)),
           // SharePoint is the master source: mark the row so the workbook's
@@ -792,6 +804,9 @@ export default function RAGWeeklyPage() {
       // SharePoint is authoritative only for the lines it actually returned for
       // this week. Clearing is scoped to those lines (and only once we have
       // replacement rows) so hand-typed data for other lines survives.
+      // A row whose target was typed by hand is never cleared: a day SharePoint does
+      // not return keeps it, and a day it does return is updated in place (the plan
+      // only if SharePoint has one), so the row keeps its id and its target history.
       if (isSharePoint && rows.length) {
         const syncedLines = Array.from(new Set(rows.map((r) => r.line)));
         const { error: deleteError } = await supabase
@@ -799,7 +814,8 @@ export default function RAGWeeklyPage() {
           .delete()
           .gte("entry_date", weekStartStr)
           .lte("entry_date", weekEndStr)
-          .in("line", syncedLines);
+          .in("line", syncedLines)
+          .or("plan_source.is.null,plan_source.neq.manual");
         if (deleteError) throw deleteError;
       }
 
@@ -842,6 +858,7 @@ export default function RAGWeeklyPage() {
 
     onSuccess: ({ count, commentCount }) => {
       qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+      qc.invalidateQueries({ queryKey: ["rag-plan-history"] });
       qc.invalidateQueries({ queryKey: ["rag-comments", weekStartStr] });
       qc.invalidateQueries({ queryKey: ["rag-comments"] });
       toast.success(
@@ -930,6 +947,7 @@ export default function RAGWeeklyPage() {
     },
     onSuccess: (n) => {
       qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+      qc.invalidateQueries({ queryKey: ["rag-plan-history"] });
       toast.success(`Synced ${n} cells from Planner & Downtime`);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -2394,6 +2412,7 @@ function DayNightTotalSummary({
                       if (error) { toast.error(error.message); return; }
                       toast.success("Saved");
                       qcExcl.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+                      qcExcl.invalidateQueries({ queryKey: ["rag-plan-history"] });
                     } else if (onSave) {
                       onSave({
                         entry_date: ds,
