@@ -4,40 +4,55 @@ import { londonTime as hm, type LineReport } from "@/lib/shiftReport";
 const n = (v: number | null) => (v === null ? "—" : v.toLocaleString());
 
 /**
- * How a line did against its target, as a tone. Green when it met the target or came
- * within the margin, amber when it fell short by more. Never red: a miss here is a
- * forecast to look at, not a fault. While the shift is still running the comparison is
- * not finished, so it stays neutral.
+ * Logged against target, in percent of the target: +4 means 4% over it, -4 means 4% under.
+ * Null when there is no target or nothing logged, so no sign is shown for a line that did
+ * not run.
  */
-export type ResultTone = "good" | "short" | "neutral";
+export function vsTarget(target: number | null, logged: number): number | null {
+  if (target === null || target <= 0 || logged <= 0) return null;
+  return Math.round(((logged - target) / target) * 100);
+}
 
-export const MISS_MARGIN = 15;
+export const signed = (v: number | null) => (v === null ? "—" : `${v > 0 ? "+" : ""}${v}%`);
 
-export function resultTone(miss: number | null, running: boolean): ResultTone {
-  if (miss === null || running) return "neutral";
-  return miss <= MISS_MARGIN ? "good" : "short";
+/**
+ * How a line did against its target, as a tone: green at or over the target, red under it.
+ * While the shift is still running the line has not finished, so it stays neutral.
+ */
+export type ResultTone = "above" | "below" | "neutral";
+
+export function resultTone(target: number | null, logged: number, running: boolean): ResultTone {
+  const v = vsTarget(target, logged);
+  if (v === null || running) return "neutral";
+  return logged >= (target ?? 0) ? "above" : "below";
 }
 
 export const TONE_TEXT: Record<ResultTone, string> = {
-  good: "text-success-strong",
-  short: "text-warning-strong",
+  above: "text-success-strong",
+  below: "text-destructive-strong",
   neutral: "text-muted-foreground",
 };
 
-/** Logged against target as a bar: green fill, capped at the target. */
-export function TargetBar({ target, logged, className }: { target: number | null; logged: number; className?: string }) {
+const BAR: Record<ResultTone, { track: string; fill: string }> = {
+  above: { track: "bg-success/15", fill: "bg-success" },
+  below: { track: "bg-destructive/15", fill: "bg-destructive" },
+  neutral: { track: "bg-muted", fill: "bg-foreground/45" },
+};
+
+/** Logged against target as a bar, capped at the target, in the line's tone. */
+export function TargetBar({ target, logged, tone, className }: { target: number | null; logged: number; tone: ResultTone; className?: string }) {
   if (!target || target <= 0) return null;
   const pct = Math.min(100, (logged / target) * 100);
   return (
     <div
-      className={cn("h-1.5 overflow-hidden rounded-full bg-success/15", className)}
+      className={cn("h-1.5 overflow-hidden rounded-full", BAR[tone].track, className)}
       role="meter"
       aria-label="Logged against target"
       aria-valuemin={0}
       aria-valuemax={target}
       aria-valuenow={logged}
     >
-      <div className="h-full rounded-full bg-success" style={{ width: `${pct}%` }} />
+      <div className={cn("h-full rounded-full", BAR[tone].fill)} style={{ width: `${pct}%` }} />
     </div>
   );
 }
@@ -114,10 +129,9 @@ export function ShiftReport({ report }: { report: LineReport }) {
   );
 }
 
-const TONE_LABEL: Record<ResultTone, string> = { good: "On target", short: "Short of target", neutral: "In progress" };
 const TONE_CHIP: Record<ResultTone, string> = {
-  good: "border-success/40 bg-success/10 text-success-strong",
-  short: "border-warning/40 bg-warning/10 text-warning-strong",
+  above: "border-success/40 bg-success/10 text-success-strong",
+  below: "border-destructive/40 bg-destructive/10 text-destructive-strong",
   neutral: "border-border bg-muted text-muted-foreground",
 };
 
@@ -134,7 +148,8 @@ export function PrintShiftReport({ reports, date, shift, running }: { reports: L
   const totalTarget = withTarget.length ? withTarget.reduce((s, r) => s + (r.target ?? 0), 0) : null;
   const totalLogged = reports.reduce((s, r) => s + r.logged, 0);
   const totalStops = reports.reduce((s, r) => s + r.stopMinutes, 0);
-  const onTarget = reports.filter((r) => resultTone(r.miss, running) === "good").length;
+  const onTarget = reports.filter((r) => resultTone(r.target, r.logged, running) === "above").length;
+  const totalTone = totalTarget === null ? "neutral" : resultTone(totalTarget, withTarget.reduce((s, r) => s + r.logged, 0), running);
   const printedAt = new Date().toLocaleString("en-GB", { timeZone: "Europe/London", dateStyle: "medium", timeStyle: "short" });
   const shiftName = shift === "DAY" ? "Day shift, 06:00–18:00" : "Night shift, 18:00–06:00";
   const dateName = new Date(`${date}T12:00:00`).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -158,17 +173,20 @@ export function PrintShiftReport({ reports, date, shift, running }: { reports: L
       <section className="mt-3 grid grid-cols-4 gap-3" aria-label="Shift totals">
         {[
           { label: "Target, all lines", value: n(totalTarget) },
-          { label: "Logged", value: totalLogged > 0 ? totalLogged.toLocaleString() : "—", strong: true },
-          { label: "Lines on target", value: running ? "—" : `${onTarget} of ${withTarget.length}` },
+          { label: "Logged", value: totalLogged > 0 ? totalLogged.toLocaleString() : "—", note: totalTarget !== null ? signed(vsTarget(totalTarget, totalLogged)) : null, tone: totalTone },
+          { label: "Lines at or over target", value: running ? "—" : `${onTarget} of ${withTarget.length}` },
           { label: "Stops logged", value: `${totalStops.toLocaleString()} min` },
         ].map((k) => (
-          <div key={k.label} className={cn("rounded border px-3 py-2", k.strong ? "border-success/50 bg-success/5" : "border-neutral-300")}>
+          <div key={k.label} className={cn("rounded border px-3 py-2", k.tone ? TONE_CHIP[k.tone] : "border-neutral-300")}>
             <p className="text-[8pt] text-neutral-600">{k.label}</p>
-            <p className={cn("text-[14pt] font-semibold tabular-nums", k.strong && "text-success-strong")}>{k.value}</p>
+            <p className={cn("text-[14pt] font-semibold tabular-nums", k.tone && TONE_TEXT[k.tone])}>
+              {k.value}
+              {k.note && k.note !== "—" && <span className="ml-1.5 text-[9pt] font-medium">{k.note}</span>}
+            </p>
           </div>
         ))}
       </section>
-      {totalTarget !== null && <TargetBar target={totalTarget} logged={totalLogged} className="mt-2 h-2" />}
+      {totalTarget !== null && <TargetBar target={totalTarget} logged={totalLogged} tone={totalTone} className="mt-2 h-2" />}
 
       <table className="mt-4 w-full border-collapse text-[9pt]">
         <thead>
@@ -177,7 +195,7 @@ export function PrintShiftReport({ reports, date, shift, running }: { reports: L
             <th className="py-1 pr-2 text-right font-medium">Target</th>
             <th className="py-1 pr-2 text-right font-medium">RAG plan</th>
             <th className="py-1 pr-2 text-right font-medium">Logged</th>
-            <th className="py-1 pr-2 font-medium">Against target</th>
+            <th className="py-1 pr-2 font-medium">Against target, %</th>
             <th className="py-1 pr-2 text-right font-medium">Running</th>
             <th className="py-1 pr-2 text-right font-medium">Stops</th>
             <th className="py-1 pl-3 font-medium">Leader</th>
@@ -185,7 +203,7 @@ export function PrintShiftReport({ reports, date, shift, running }: { reports: L
         </thead>
         <tbody>
           {reports.map((r) => {
-            const tone = resultTone(r.miss, running);
+            const tone = resultTone(r.target, r.logged, running);
             return (
               <tr key={r.line} className="border-b border-neutral-200 align-middle">
                 <td className="py-1.5 pr-2 font-semibold">Line {r.line}</td>
@@ -194,9 +212,9 @@ export function PrintShiftReport({ reports, date, shift, running }: { reports: L
                 <td className="py-1.5 pr-2 text-right font-medium tabular-nums">{r.logged > 0 ? r.logged.toLocaleString() : "—"}</td>
                 <td className="w-[22%] py-1.5 pr-2">
                   <div className="flex items-center gap-2">
-                    <TargetBar target={r.target} logged={r.logged} className="flex-1" />
-                    <span className={cn("shrink-0 rounded border px-1.5 text-[7.5pt] font-medium", TONE_CHIP[tone])}>
-                      {r.target === null ? "No target" : TONE_LABEL[tone]}
+                    <TargetBar target={r.target} logged={r.logged} tone={tone} className="flex-1" />
+                    <span className={cn("min-w-12 shrink-0 whitespace-nowrap rounded border px-1.5 text-center text-[7.5pt] font-semibold tabular-nums", TONE_CHIP[tone])}>
+                      {r.target === null ? "No target" : signed(vsTarget(r.target, r.logged))}
                     </span>
                   </div>
                 </td>
