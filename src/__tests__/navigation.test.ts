@@ -111,10 +111,8 @@ describe("sidebar", () => {
     // Headcount spent a release declared among the admin screens for exactly that
     // reason, and read as an afterthought under Production.
     //
-    // Stop Analysis sits right after Performance because the two are one question
-    // asked twice: Performance says how much the week made, Stop Analysis says why
-    // it was not more. Appended to the end it would have read as a footnote to
-    // Headcount, which is the mistake this test exists to catch.
+    // Stop Analysis left the sidebar on 09/11/2026: the stops by reason now live
+    // inside Smart Target, line by line. The route still answers for old links.
     const order = navItems.filter((i) => i.group === "Production").map((i) => i.title);
     expect(order).toEqual([
       // The department's dashboard heads its group: it is the summary the rows below
@@ -122,7 +120,6 @@ describe("sidebar", () => {
       "Production Dashboard",
       "RAG Weekly",
       "Performance",
-      "Stop Analysis",
       // What the shift should make, after what it made and why not: the forecast
       // reads against the two rows above it.
       "Smart Target",
@@ -339,6 +336,7 @@ const NO_MENU_ROW: Partial<Record<Action, string>> = {
   "workforce.view": "OFF THE MENU — seventeen people have no shift pattern, so the board would read as a rota when it is still an import. Reason recorded on the Headcount item.",
   "controlcenter.view": "OFF THE MENU — not being opened; route untouched.",
   "suppliers.view": "OFF THE MENU — part of Reports, taken off on the same pass.",
+  "stopanalysis.view": "OFF THE MENU — since 09/11/2026 the stops by reason live inside Smart Target, line by line; route untouched for old links.",
   "production.target.view": "REACHED FROM ANOTHER SCREEN — My Production is the operator's own screen; every other role reads targets on Performance and Production Control.",
   "sku.view": "REACHED FROM ANOTHER SCREEN — the SKU Products row gates on sku.manage, which is the narrower right.",
   "production.performance.view": "REACHED FROM ANOTHER SCREEN for the operator — a button on My Production. Every other role holding it has the Performance row.",
