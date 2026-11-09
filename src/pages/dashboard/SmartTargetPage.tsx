@@ -51,7 +51,7 @@ import { ShiftReport } from "@/components/smartTarget/ShiftReport";
 import { useShiftRuns } from "@/hooks/useShiftRuns";
 import { endedBeforeHalfway, shiftOutcome } from "@/lib/shiftOutcome";
 import { useShiftReportData } from "@/hooks/useShiftReportData";
-import { lineReport, londonTime, machineClock, stopsByReason, type LineReport } from "@/lib/shiftReport";
+import { lineReport, londonTime, plannedProducts, machineClock, stopsByReason, type LineReport } from "@/lib/shiftReport";
 import { printElementAsDocument } from "@/lib/printDocument";
 import * as XLSX from "xlsx";
 import { getCurrentFactoryShift } from "@/lib/shifts";
@@ -691,7 +691,8 @@ export default function SmartTargetPage() {
         ragPlan: reportData.data?.rag.find((r) => r.line === name)?.plan_qty ?? null,
         logged,
         miss: targetVersusLogged(kept?.expected_total, logged),
-        planned: (kept?.jobs?.length ? kept.jobs : result.jobs).map((j) => ({ sku: j.sku ?? "—", expected: null })),
+        // Only the products that make up the target, not everything iTouch had queued for the line.
+        planned: plannedProducts(kept?.jobs?.length ? kept.jobs : result.jobs.map((j) => ({ sku: j.sku, expected: j.expectedContainers }))),
         made: [...made.entries()].map(([sku, qty]) => ({ sku, qty })),
         offPlan,
         stops: stopsByReason(reportData.data?.downtimes ?? [], name, shift),
@@ -709,7 +710,7 @@ export default function SmartTargetPage() {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map(({ report: r }) => ({
       Line: r.line, Target: r.target, "Target set": r.targetSetAt ? londonTime(r.targetSetAt) : null, "RAG plan": r.ragPlan, Logged: r.logged, "Miss %": r.miss,
       Leader: r.leader, "First ran": r.clock?.firstRun ? londonTime(r.clock.firstRun) : null, "Last ran": r.clock?.lastRun ? londonTime(r.clock.lastRun) : null, "Running min": r.clock?.runningMinutes ?? null, "Log covered min": r.clock?.coveredMinutes ?? null,
-      "Stops min": r.stopMinutes, Expected: r.planned.map((p) => p.sku).join(", "), Made: r.made.map((m) => `${m.sku} ${m.qty}`).join(", "), Why: r.why.join(" "), Comment: r.comment,
+      "Stops min": r.stopMinutes, Expected: r.planned.map((p) => (p.expected === null ? p.sku : `${p.sku} ${p.expected}`)).join(", "), Made: r.made.map((m) => `${m.sku} ${m.qty}`).join(", "), Why: r.why.join(" "), Comment: r.comment,
     }))), "Shift");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.flatMap(({ report: r }) => r.stops.map((s) => ({ Line: r.line, Reason: s.reason, Minutes: s.minutes })))), "Stops");
     XLSX.writeFile(wb, `smart-target_${date}_${shift}.xlsx`);

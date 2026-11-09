@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { lineReport, machineClock, reportRefreshMs, stopsByReason, type LineReportInput, type StatusRow } from "./shiftReport";
+import { lineReport, machineClock, plannedProducts, reportRefreshMs, stopsByReason, type LineReportInput, type StatusRow } from "./shiftReport";
 import { ENGINE_VERSION } from "./smartTargetEngine";
 
 const at = (hhmm: string) => `2026-11-06T${hhmm}:00.000Z`;
@@ -103,5 +103,22 @@ describe("lineReport", () => {
   it("does not guess when there is nothing to go on", () => {
     const r = lineReport({ ...base, logged: 0, miss: null, target: null, targetVersion: ENGINE_VERSION, offPlan: [], stops: [], clock: null });
     expect(r.why).toEqual(["Nothing logged."]);
+  });
+});
+
+describe("the products the target is made of", () => {
+  it("lists only the jobs that add to the target, as Line 1 on 09/11: EP16PC 1,582 with EP16SC and EP16CB queued after it", () => {
+    expect(plannedProducts([
+      { sku: "EP16PC", expected: 1582 },
+      { sku: "EP16SC", expected: 0 },
+      { sku: "EP16CB", expected: null },
+    ])).toEqual([{ sku: "EP16PC", expected: 1582 }]);
+  });
+  it("adds the same SKU twice into one product", () => {
+    expect(plannedProducts([{ sku: "A", expected: 100 }, { sku: "B", expected: 50 }, { sku: "A", expected: 30 }]))
+      .toEqual([{ sku: "A", expected: 130 }, { sku: "B", expected: 50 }]);
+  });
+  it("lists a forecast saved without numbers as it was saved", () => {
+    expect(plannedProducts([{ sku: "A" }, { sku: "B" }, { sku: "A" }])).toEqual([{ sku: "A", expected: null }, { sku: "B", expected: null }]);
   });
 });

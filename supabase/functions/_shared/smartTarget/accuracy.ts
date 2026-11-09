@@ -31,7 +31,7 @@ export interface StoredForecast {
   /** The method that made it. Only the current method is scored; a missing one counts as current. */
   engine_version?: string | null;
   /** What the forecast was built from; a job marked estimated keeps it out of the main measure. */
-  jobs?: { sku?: string | null; estimated?: boolean }[] | null;
+  jobs?: { sku?: string | null; estimated?: boolean; expected?: number | null }[] | null;
 }
 
 export interface LineAccuracy {
