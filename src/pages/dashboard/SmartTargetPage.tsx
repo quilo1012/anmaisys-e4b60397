@@ -47,7 +47,7 @@ import {
 } from "@/lib/smartTargetRates";
 import { ItouchCyclesCard } from "@/components/smartTarget/ItouchCyclesCard";
 import { ShiftStrip, stripHours, stripSegments } from "@/components/smartTarget/ShiftStrip";
-import { PrintShiftReport, ShiftReport, TargetBar, TONE_TEXT, resultTone } from "@/components/smartTarget/ShiftReport";
+import { PrintShiftReport, ShiftReport, TargetBar, TONE_TEXT, resultTone, signed, vsTarget } from "@/components/smartTarget/ShiftReport";
 import { useShiftRuns } from "@/hooks/useShiftRuns";
 import { endedBeforeHalfway, shiftOutcome } from "@/lib/shiftOutcome";
 import { useShiftReportData } from "@/hooks/useShiftReportData";
@@ -244,12 +244,12 @@ function LineRow({ line, result, notes, basis, kept, logged, offPlan, nowPct, re
   ];
   const setup = setupMinutes(result);
   const reasons = explainTarget(result.jobs);
-  const miss = targetVersusLogged(kept?.expected_total, logged);
   const { noTime } = stripSegments(result);
   // Only the jobs that make up the target; what iTouch has queued after them is left out.
   const shown = jobsInTarget(result.jobs);
   const target = kept ? kept.expected_total : result.expectedTotal;
-  const tone = resultTone(miss, nowPct !== null);
+  const tone = resultTone(target, logged, nowPct !== null);
+  const versus = vsTarget(target, logged);
   return (
     <details data-testid={`smart-target-line-${line}`} className="group">
       <summary className={cn(grid, "cursor-pointer list-none px-4 py-3 hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden")}>
@@ -282,16 +282,16 @@ function LineRow({ line, result, notes, basis, kept, logged, offPlan, nowPct, re
             <dt className="text-xs text-muted-foreground md:sr-only">Logged</dt>
             <dd>
               <span className="tabular-nums" data-testid={`smart-target-logged-${line}`}>{logged > 0 ? logged.toLocaleString() : "—"}</span>
-              <TargetBar target={target} logged={logged} className="mt-1.5" />
+              <TargetBar target={target} logged={logged} tone={tone} className="mt-1.5" />
             </dd>
           </div>
           <div className="md:text-right">
-            <dt className="text-xs text-muted-foreground md:sr-only">Miss</dt>
+            <dt className="text-xs text-muted-foreground md:sr-only">Against target</dt>
             <dd
               data-testid={`smart-target-miss-${line}`}
               className={cn("tabular-nums", tone !== "neutral" && "font-semibold", TONE_TEXT[tone])}
             >
-              {miss === null ? "—" : `${miss > 0 ? "+" : ""}${miss}%`}
+              {signed(versus)}
             </dd>
           </div>
         </dl>
@@ -382,7 +382,7 @@ function StripHeader({ shift, gross, nowPct }: { shift: ShiftType; gross: number
       </div>
       <span className="text-right">Target</span>
       <span className="text-right">Logged</span>
-      <span className="text-right">Miss</span>
+      <span className="text-right" title="Logged against the target: + over it, − under it">vs target</span>
     </div>
   );
 }
@@ -397,26 +397,40 @@ function ShiftTotals({ rows, nowPct }: { rows: LineReport[]; nowPct: number | nu
   const target = withTarget.reduce((s, r) => s + (r.target ?? 0), 0);
   const logged = withTarget.reduce((s, r) => s + r.logged, 0);
   const running = nowPct !== null;
-  const onTarget = withTarget.filter((r) => resultTone(r.miss, running) === "good").length;
-  const share = target > 0 ? Math.round((logged / target) * 100) : null;
+  const tone = resultTone(target, logged, running);
+  const versus = vsTarget(target, logged);
+  const gap = logged - target;
+  const onTarget = withTarget.filter((r) => resultTone(r.target, r.logged, running) === "above").length;
   return (
-    <section data-testid="smart-target-totals" aria-label="Shift totals" className="rounded-lg border border-success/30 bg-success/5 px-4 py-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-        <p className="text-sm">
-          <span className="text-2xl font-semibold tabular-nums text-success-strong">{logged > 0 ? logged.toLocaleString() : "—"}</span>
-          <span className="text-muted-foreground"> logged of </span>
-          <span className="font-semibold tabular-nums">{target.toLocaleString()}</span>
-          <span className="text-muted-foreground"> target on {withTarget.length} {withTarget.length === 1 ? "line" : "lines"}</span>
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {running
-            ? `Shift running${share !== null ? `: ${share}% of target so far` : ""}`
-            : `${onTarget} of ${withTarget.length} on target`}
-        </p>
+    <section data-testid="smart-target-totals" aria-label="Shift totals" className="rounded-lg border bg-card px-4 py-3 shadow-sm">
+      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-2">
+        <div>
+          <p className="text-xs text-muted-foreground">Logged, all lines</p>
+          <p className="flex items-baseline gap-2">
+            <span className={cn("text-3xl font-semibold leading-none tabular-nums", tone === "neutral" ? "text-foreground" : TONE_TEXT[tone])}>
+              {logged > 0 ? logged.toLocaleString() : "—"}
+            </span>
+            <span className="text-sm text-muted-foreground">
+              of <span className="font-semibold tabular-nums text-foreground">{target.toLocaleString()}</span> target
+            </span>
+          </p>
+        </div>
+        {versus !== null && (
+          <div className="text-right">
+            <p className="text-xs text-muted-foreground">{running ? "So far" : gap >= 0 ? "Over target" : "Under target"}</p>
+            <p className={cn("text-lg font-semibold leading-tight tabular-nums", TONE_TEXT[tone])}>
+              {running ? `${Math.round((logged / target) * 100)}% of target` : `${gap > 0 ? "+" : gap < 0 ? "−" : ""}${Math.abs(gap).toLocaleString()} (${signed(versus)})`}
+            </p>
+          </div>
+        )}
+        <div className="text-right">
+          <p className="text-xs text-muted-foreground">Lines at or over target</p>
+          <p className="text-lg font-semibold leading-tight tabular-nums">{running ? "—" : `${onTarget} of ${withTarget.length}`}</p>
+        </div>
       </div>
-      <div className="relative mt-2">
-        <TargetBar target={target} logged={logged} className="h-2.5" />
-        {nowPct !== null && <div className="absolute -top-0.5 h-3.5 w-0.5 rounded bg-foreground/70" style={{ left: `${nowPct}%` }} title="Now" />}
+      <div className="relative mt-3">
+        <TargetBar target={target} logged={logged} tone={tone} className="h-2" />
+        {nowPct !== null && <div className="absolute -top-1 h-4 w-0.5 rounded bg-foreground/70" style={{ left: `${nowPct}%` }} title="Now" />}
       </div>
     </section>
   );
@@ -753,7 +767,7 @@ export default function SmartTargetPage() {
   const exportReport = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map(({ report: r }) => ({
-      Line: r.line, Target: r.target, "Target set": r.targetSetAt ? londonTime(r.targetSetAt) : null, "RAG plan": r.ragPlan, Logged: r.logged, "Miss %": r.miss,
+      Line: r.line, Target: r.target, "Target set": r.targetSetAt ? londonTime(r.targetSetAt) : null, "RAG plan": r.ragPlan, Logged: r.logged, "vs target %": vsTarget(r.target, r.logged), "Forecast miss %": r.miss,
       Leader: r.leader, "First ran": r.clock?.firstRun ? londonTime(r.clock.firstRun) : null, "Last ran": r.clock?.lastRun ? londonTime(r.clock.lastRun) : null, "Running min": r.clock?.runningMinutes ?? null, "Log covered min": r.clock?.coveredMinutes ?? null,
       "Stops min": r.stopMinutes, Expected: r.planned.map((p) => (p.expected === null ? p.sku : `${p.sku} ${p.expected}`)).join(", "), Made: r.made.map((m) => `${m.sku} ${m.qty}`).join(", "), Why: r.why.join(" "), Comment: r.comment,
     }))), "Shift");
