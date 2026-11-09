@@ -57,12 +57,13 @@ export function stripHours(firstHour: number, gross: number): { label: string; l
   return out;
 }
 
-const HATCH = "repeating-linear-gradient(135deg, hsl(var(--warning) / 0.45) 0 2px, transparent 2px 6px)";
+// Changeover is planned time, not a fault: drawn as a quiet grey hatch so the green runs carry the strip.
+const HATCH = "repeating-linear-gradient(135deg, hsl(var(--muted-foreground) / 0.35) 0 2px, transparent 2px 6px)";
 
 export function ShiftStrip({ result, nowPct }: { result: ShiftForecast; nowPct: number | null }) {
   const { segments } = stripSegments(result);
   return (
-    <div className="relative h-9 overflow-hidden rounded-md bg-muted/60" aria-hidden="true">
+    <div className="relative h-9 overflow-hidden rounded-md bg-muted/60 ring-1 ring-inset ring-border/60" aria-hidden="true">
       {segments.map((s) =>
         s.kind === "setup" ? (
           <div
@@ -77,10 +78,10 @@ export function ShiftStrip({ result, nowPct }: { result: ShiftForecast; nowPct: 
             className={cn(
               "absolute inset-y-0 flex items-center overflow-hidden px-1.5 text-2xs font-medium",
               s.estimated
-                ? "border border-dashed border-primary/70 bg-primary/5 text-foreground"
+                ? "border border-dashed border-success/70 bg-success/5 text-success-strong"
                 : s.index % 2
-                  ? "bg-primary/60 text-primary-foreground"
-                  : "bg-primary/85 text-primary-foreground",
+                  ? "bg-success/70 text-success-foreground"
+                  : "bg-success text-success-foreground",
             )}
             style={{ left: `${s.left}%`, width: `${s.width}%` }}
             title={`${s.sku ?? "No SKU"}: ${s.expected?.toLocaleString() ?? "—"} in ${Math.round(s.minutes)} min${s.estimated ? " (estimate)" : ""}`}
