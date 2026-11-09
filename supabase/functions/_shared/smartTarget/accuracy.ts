@@ -99,7 +99,11 @@ export function accuracyByLine(
       if (f.engine_version && f.engine_version !== ENGINE_VERSION) { acc.oldMethod++; continue; }
       if (!frozenOnTime(f)) { acc.frozenLate++; continue; }
       if (f.expected_total === null) { acc.noNumber++; continue; }
-      if (f.jobs?.some((j) => j.estimated)) { acc.estimated++; continue; }
+      // Only a job that adds to the number can make it an estimate. What iTouch queued past
+      // the shift sits in the row with 0 expected, and on 09/11 kept Line 2's day out of the
+      // measure although its whole 6,666 came from COL165SR's own history. A row saved before
+      // jobs carried their number still counts every estimated job.
+      if (f.jobs?.some((j) => j.estimated && (typeof j.expected !== "number" || j.expected > 0))) { acc.estimated++; continue; }
       if (endedEarly.has(`${f.session_date}|${f.shift}|${line}`)) { acc.endedEarly++; continue; }
       const actual = actuals.get(`${f.session_date}|${f.shift}|${line}`);
       if (!actual) { acc.noActual++; continue; }
