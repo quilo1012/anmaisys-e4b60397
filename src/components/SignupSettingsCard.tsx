@@ -119,7 +119,10 @@ export function SignupSettingsCard() {
     }).eq("id", true);
     setSaving(false);
     if (error) { toast.error(error.message); return; }
-    toast.success("Sign-up settings saved");
+    // Saved with the switch off, every code is refused: on 09/11 a save left it off and
+    // the floor kept reading "invite code isn't valid" with the right code in hand.
+    if (enabled) toast.success("Sign-up settings saved — new people can register with the code");
+    else toast.warning("Saved, but sign-up is OFF — every invite code is refused until you switch it on");
   };
 
   return (
@@ -137,8 +140,13 @@ export function SignupSettingsCard() {
                 <Label className="text-sm">Allow new users to register</Label>
                 <p className="text-xs text-muted-foreground">When on, people can create an account with the invite code. What they become is set below.</p>
               </div>
-              <Switch checked={enabled} onCheckedChange={setEnabled} />
+              <Switch checked={enabled} onCheckedChange={setEnabled} aria-label="Allow new users to register" />
             </div>
+            {!enabled && (
+              <p role="status" data-testid="signup-off" className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
+                Sign-up is <b>off</b>: nobody can create an account, and the screen tells them their invite code isn't valid — even the right one. Switch it on and press <b>Save</b>.
+              </p>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="invite-code" className="text-sm">Invite code</Label>
               <div className="flex gap-2">
