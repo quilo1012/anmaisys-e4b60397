@@ -51,7 +51,7 @@ import { ShiftReport } from "@/components/smartTarget/ShiftReport";
 import { useShiftRuns } from "@/hooks/useShiftRuns";
 import { endedBeforeHalfway, shiftOutcome } from "@/lib/shiftOutcome";
 import { useShiftReportData } from "@/hooks/useShiftReportData";
-import { lineReport, londonTime, plannedProducts, machineClock, stopsByReason, type LineReport } from "@/lib/shiftReport";
+import { jobsInTarget, lineReport, londonTime, plannedProducts, machineClock, stopsByReason, type LineReport } from "@/lib/shiftReport";
 import { printElementAsDocument } from "@/lib/printDocument";
 import * as XLSX from "xlsx";
 import { getCurrentFactoryShift } from "@/lib/shifts";
@@ -247,7 +247,9 @@ function LineRow({ line, result, notes, basis, kept, logged, offPlan, nowPct, re
   const setup = setupMinutes(result);
   const reasons = explainTarget(result.jobs);
   const miss = targetVersusLogged(kept?.expected_total, logged);
-  const { notReached, noTime } = stripSegments(result);
+  const { noTime } = stripSegments(result);
+  // Only the jobs that make up the target; what iTouch has queued after them is left out.
+  const shown = jobsInTarget(result.jobs);
   const target = kept ? kept.expected_total : result.expectedTotal;
   return (
     <details data-testid={`smart-target-line-${line}`} className="group">
@@ -258,14 +260,13 @@ function LineRow({ line, result, notes, basis, kept, logged, offPlan, nowPct, re
         </h3>
         <div className="min-w-0">
           <ShiftStrip result={result} nowPct={nowPct} />
-          {(offPlan.length > 0 || notReached.length > 0 || noTime.length > 0) && (
+          {(offPlan.length > 0 || noTime.length > 0) && (
             <div className="mt-1 space-y-0.5 text-xs">
               {offPlan.length > 0 && (
                 <p className="font-medium text-warning-strong">
                   Plan changed: {offPlan.join(", ")} {offPlan.length === 1 ? "was" : "were"} not in it. The target stays as set.
                 </p>
               )}
-              {notReached.length > 0 && <p className="text-muted-foreground">Not reached this shift: {notReached.join(", ")}</p>}
               {noTime.length > 0 && <p className="text-muted-foreground">No rate, so no time on the strip: {noTime.join(", ")}</p>}
             </div>
           )}
@@ -309,7 +310,7 @@ function LineRow({ line, result, notes, basis, kept, logged, offPlan, nowPct, re
         </div>
         <div className="-mx-1 overflow-x-auto px-1 pb-1">
           <div className="flex min-w-max gap-2 sm:min-w-0 sm:flex-wrap">
-            {result.jobs.map((j, i) => (
+            {shown.map((j, i) => (
               <Fragment key={j.jobId}>
                 {(i > 0 || j.changeoverMinutes + j.mixingMinutes > 0) && <Transition job={j} />}
                 <JobBlock job={j} />
@@ -681,7 +682,12 @@ export default function SmartTargetPage() {
         if (qty > 0 && code) made.set(code, (made.get(code) ?? 0) + qty);
       }
       const logged = own.reduce((sum, i) => sum + Math.max(0, Number(i.actual_qty) || 0), 0);
-      const offPlan = kept?.jobs?.length ? productsOffPlan({ jobs: kept.jobs }, [...made.keys()], skuFamily(catalogue)) : [];
+      // Only the products that make up the target, not everything iTouch had queued for the line.
+      // A forecast saved before each job kept its number falls back to today's calculation.
+      const keptWithNumbers = kept?.jobs?.some((j) => typeof j.expected === "number") ? kept.jobs! : null;
+      const planned = plannedProducts(keptWithNumbers ?? jobsInTarget(result.jobs).map((j) => ({ sku: j.sku, expected: j.expectedContainers })));
+      // Made but not in the target's products: off plan, even if iTouch had it queued further down.
+      const offPlan = planned.length ? productsOffPlan({ jobs: planned }, [...made.keys()], skuFamily(catalogue)) : [];
       const target = kept ? kept.expected_total : result.expectedTotal;
       const report = lineReport({
         line,
@@ -691,8 +697,7 @@ export default function SmartTargetPage() {
         ragPlan: reportData.data?.rag.find((r) => r.line === name)?.plan_qty ?? null,
         logged,
         miss: targetVersusLogged(kept?.expected_total, logged),
-        // Only the products that make up the target, not everything iTouch had queued for the line.
-        planned: plannedProducts(kept?.jobs?.length ? kept.jobs : result.jobs.map((j) => ({ sku: j.sku, expected: j.expectedContainers }))),
+        planned,
         made: [...made.entries()].map(([sku, qty]) => ({ sku, qty })),
         offPlan,
         stops: stopsByReason(reportData.data?.downtimes ?? [], name, shift),

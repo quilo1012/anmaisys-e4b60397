@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { lineReport, machineClock, plannedProducts, reportRefreshMs, stopsByReason, type LineReportInput, type StatusRow } from "./shiftReport";
+import { jobsInTarget, lineReport, machineClock, plannedProducts, reportRefreshMs, stopsByReason, type LineReportInput, type StatusRow } from "./shiftReport";
 import { ENGINE_VERSION } from "./smartTargetEngine";
 
 const at = (hhmm: string) => `2026-11-06T${hhmm}:00.000Z`;
@@ -120,5 +120,21 @@ describe("the products the target is made of", () => {
   });
   it("lists a forecast saved without numbers as it was saved", () => {
     expect(plannedProducts([{ sku: "A" }, { sku: "B" }, { sku: "A" }])).toEqual([{ sku: "A", expected: null }, { sku: "B", expected: null }]);
+  });
+});
+
+describe("the jobs shown for the target", () => {
+  const job = (sku: string, expectedContainers: number | null, allocation: { setupEnd: number; end: number } | null) => ({ sku, expectedContainers, allocation });
+  it("leaves out what iTouch has queued after the job that fills the shift", () => {
+    const jobs = [job("EP16PC", 1582, { setupEnd: 30, end: 720 }), job("EP16SC", 0, { setupEnd: 720, end: 720 }), job("EP16CB", null, null)];
+    expect(jobsInTarget(jobs).map((j) => j.sku)).toEqual(["EP16PC"]);
+  });
+  it("keeps a reached job that has no rate yet", () => {
+    const jobs = [job("A", 900, { setupEnd: 0, end: 300 }), job("B", null, { setupEnd: 320, end: 720 }), job("C", null, null)];
+    expect(jobsInTarget(jobs).map((j) => j.sku)).toEqual(["A", "B"]);
+  });
+  it("shows every job when none adds to a target", () => {
+    const jobs = [job("A", null, null), job("B", null, null)];
+    expect(jobsInTarget(jobs)).toEqual(jobs);
   });
 });

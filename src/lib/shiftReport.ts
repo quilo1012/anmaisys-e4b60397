@@ -146,6 +146,19 @@ export function plannedProducts(jobs: { sku?: string | null; expected?: number |
   return out;
 }
 
+/**
+ * The jobs the target is made of: the ones the shift reaches and that add containers to it.
+ * Everything else iTouch has queued for the line after them is not part of the plan for this
+ * shift. A reached job with no rate (no number yet) still counts, since it takes shift time.
+ * When none qualifies (no target could be worked out), every job is returned so the line is not blank.
+ */
+export function jobsInTarget<J extends { expectedContainers: number | null; allocation: { setupEnd: number; end: number } | null }>(jobs: J[]): J[] {
+  const kept = jobs.filter((j) =>
+    j.expectedContainers !== null ? j.expectedContainers > 0 : !!j.allocation && j.allocation.end > j.allocation.setupEnd,
+  );
+  return kept.length ? kept : jobs;
+}
+
 export interface LineReportInput {
   line: number;
   target: number | null;
