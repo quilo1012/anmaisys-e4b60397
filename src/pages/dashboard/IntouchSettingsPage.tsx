@@ -28,11 +28,6 @@ export default function IntouchSettingsPage() {
   const [loadingMachines, setLoadingMachines] = useState(false);
   const [machineErr, setMachineErr] = useState<string | null>(null);
   const [machineFilter, setMachineFilter] = useState("");
-  const [autoMapping, setAutoMapping] = useState(false);
-  const [autoMapResult, setAutoMapResult] = useState<null | {
-    matched: number; saved: number; skipped: number; total: number;
-    details: { intouch: string; matched?: string; guid: string; status: "saved" | "skipped" | "already" | "error"; reason?: string }[];
-  }>(null);
 
 
 
@@ -200,138 +195,6 @@ export default function IntouchSettingsPage() {
     setMachines(Array.isArray(list) ? list : []);
     toast.success(`${Array.isArray(list) ? list.length : 0} machines loaded`);
   };
-
-  const normalize = (s: string) =>
-    s.toLowerCase()
-      .replace(/[_\-\/]+/g, " ")
-      .replace(/[^a-z0-9 ]+/g, "")
-      .replace(/\s+/g, " ")
-      .trim();
-
-  const tokens = (s: string) => new Set(normalize(s).split(" ").filter(Boolean));
-
-  const similarity = (a: string, b: string) => {
-    const na = normalize(a), nb = normalize(b);
-    if (!na || !nb) return 0;
-    if (na === nb) return 1;
-    const ta = tokens(a), tb = tokens(b);
-    const inter = [...ta].filter((t) => tb.has(t)).length;
-    const union = new Set([...ta, ...tb]).size;
-    const jaccard = union ? inter / union : 0;
-    const contains = na.includes(nb) || nb.includes(na) ? 0.85 : 0;
-    return Math.max(jaccard, contains);
-  };
-
-  // Manual alias map: iTouching name (normalized) -> list of DB machine name patterns to match
-  // Supports one-to-many (e.g. Filler Line 5 -> Line 5A + Line 5B share the same GUID)
-  const ALIASES: { intouch: RegExp; dbPatterns: RegExp[] }[] = [
-    { intouch: /tablet/i, dbPatterns: [/^tablet/i] },
-    { intouch: /filler.*5|^line\s*5/i, dbPatterns: [/^line\s*5a$/i, /^line\s*5b$/i] },
-    { intouch: /filler.*6|^line\s*6/i, dbPatterns: [/^line\s*6a$/i, /^line\s*6b$/i] },
-    { intouch: /gel/i, dbPatterns: [/gel\s*packing/i] },
-    { intouch: /unscheduled/i, dbPatterns: [/unscheduled/i] },
-  ];
-
-
-  const autoMapMachines = async () => {
-    if (!machines || machines.length === 0) {
-      toast.error("Load iTouching machines first");
-      return;
-    }
-    setAutoMapping(true);
-    setAutoMapResult(null);
-    try {
-      const { data: dbMachines, error } = await (supabase as any)
-        .from("machines")
-        .select("id, name, code");
-      if (error) throw error;
-      const dbList: { id: string; name: string; code: string | null }[] = dbMachines || [];
-
-      const details: any[] = [];
-      let matched = 0, saved = 0, skipped = 0;
-
-      // Collect planned updates and flush as a single batched upsert.
-      const pending = new Map<string, { row: typeof dbList[number]; name: string; guid: string }>();
-      const queue = (row: typeof dbList[number], name: string, guid: string) => {
-        if ((row.code || "").trim().toLowerCase() === guid.toLowerCase()) {
-          details.push({ intouch: name, matched: row.name, guid, status: "already" });
-          return;
-        }
-        pending.set(row.id, { row, name, guid });
-      };
-
-      for (const m of machines) {
-        const name: string = (m.name ?? m.Name ?? m.MachineName ?? "").toString();
-        const guid: string = (m.guid ?? m.MachineID ?? m.MachineId ?? m.MachineGuid ?? m.MachineGUID ?? m.Guid ?? m.GUID ?? m.Id ?? m.ID ?? m.id ?? "").toString();
-        if (!name || !guid) {
-          skipped++;
-          details.push({ intouch: name || "(unnamed)", guid, status: "skipped", reason: "missing name/guid" });
-          continue;
-        }
-
-        // 1) Try alias map (supports one-to-many). Alias is EXCLUSIVE — if it matches by name,
-        // we never fall through to fuzzy (prevents e.g. "Tablet Line" matching "Line 5A").
-        const alias = ALIASES.find((a) => a.intouch.test(name));
-        if (alias) {
-          const targets = dbList.filter((r) => alias.dbPatterns.some((p) => p.test(r.name || "")));
-          if (targets.length > 0) {
-            matched++;
-            for (const row of targets) queue(row, name, guid);
-          } else {
-            skipped++;
-            details.push({ intouch: name, guid, status: "skipped", reason: "alias matched but no DB machine found" });
-          }
-          continue;
-        }
-
-        // 2) Fallback to fuzzy similarity (lowered threshold)
-        let best: { row: typeof dbList[number]; score: number } | null = null;
-        for (const row of dbList) {
-          const score = similarity(name, row.name || "");
-          if (!best || score > best.score) best = { row, score };
-        }
-        if (!best || best.score < 0.3) {
-          skipped++;
-          details.push({ intouch: name, guid, status: "skipped", reason: `no match (best ${best?.score.toFixed(2) ?? "0"})` });
-          continue;
-        }
-        matched++;
-        queue(best.row, name, guid);
-      }
-
-      if (pending.size > 0) {
-        const payload = Array.from(pending.values()).map(({ row, guid }) => ({
-          id: row.id,
-          name: row.name,
-          code: guid,
-        }));
-        const { error: upErr } = await (supabase as any)
-          .from("machines").upsert(payload, { onConflict: "id" });
-        if (upErr) {
-          for (const { row, name, guid } of pending.values()) {
-            details.push({ intouch: name, matched: row.name, guid, status: "error", reason: upErr.message });
-          }
-        } else {
-          for (const { row, name, guid } of pending.values()) {
-            saved++;
-            details.push({ intouch: name, matched: row.name, guid, status: "saved" });
-          }
-        }
-      }
-
-      setAutoMapResult({ matched, saved, skipped, total: machines.length, details });
-      toast.success(`Auto-map: ${saved} saved, ${skipped} skipped`);
-    } catch (e: any) {
-      toast.error(e.message || "Auto-map failed");
-
-    } finally {
-      setAutoMapping(false);
-    }
-  };
-
-
-
-
 
   return (
     <DashboardLayout>
@@ -522,20 +385,15 @@ export default function IntouchSettingsPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Fetches all machines from iTouching. Copy each GUID and paste it into the matching
-              machine's <strong>Code</strong> field on the Machines page so the integration can map them.
+              Fetches all machines from iTouching. To link one to a line, use the{" "}
+              <Link to="/dashboard/intouch-machines" className="underline">Machine Map</Link>.
+              The machine's <strong>Code</strong> is its own asset code, never the iTouching GUID.
             </p>
             <div className="flex gap-2">
               <Button onClick={loadMachines} disabled={loadingMachines}>
                 {loadingMachines ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <List className="h-4 w-4 mr-2" />}
                 Load machines
               </Button>
-              {machines && machines.length > 0 && (
-                <Button onClick={autoMapMachines} disabled={autoMapping} variant="secondary">
-                  {autoMapping ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Plug className="h-4 w-4 mr-2" />}
-                  Auto-map all machines
-                </Button>
-              )}
               {machines && machines.length > 0 && (
                 <div className="relative flex-1">
                   <Search className="h-4 w-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -548,25 +406,6 @@ export default function IntouchSettingsPage() {
                 </div>
               )}
             </div>
-            {autoMapResult && (
-              <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-2">
-                <div className="font-medium">
-                  Auto-map summary: {autoMapResult.saved} saved · {autoMapResult.matched - autoMapResult.saved} already mapped · {autoMapResult.skipped} skipped · {autoMapResult.total} total
-                </div>
-                <div className="max-h-48 overflow-auto text-xs font-figure space-y-1">
-                  {autoMapResult.details.map((d, i) => (
-                    <div key={i} className={
-                      d.status === "saved" ? "text-success-strong" :
-                      d.status === "already" ? "text-muted-foreground" :
-                      d.status === "error" ? "text-destructive-strong" :
-                      "text-warning-strong"
-                    }>
-                      [{d.status}] {d.intouch}{d.matched ? ` → ${d.matched}` : ""}{d.reason ? ` (${d.reason})` : ""}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {machineErr && (
               <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive-strong">
