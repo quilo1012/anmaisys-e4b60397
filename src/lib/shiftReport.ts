@@ -121,6 +121,31 @@ export function stopsByReason(rows: DowntimeRow[], line: string, shift: string):
   return [...by.entries()].map(([reason, minutes]) => ({ reason, minutes })).filter((s) => s.minutes > 0).sort((a, b) => b.minutes - a.minutes);
 }
 
+/**
+ * The products the target is made of, with what each one adds to it. A job the shift does not
+ * reach (queued in iTouch after the order that fills the shift, or left with no time) adds
+ * nothing, so it is not part of what was expected. The same SKU twice is one product.
+ * Forecasts saved before each job kept its number have no `expected` at all; those are listed
+ * as they were saved, without quantities.
+ */
+export function plannedProducts(jobs: { sku?: string | null; expected?: number | null }[]): { sku: string; expected: number | null }[] {
+  const withNumber = jobs.some((j) => typeof j.expected === "number");
+  const out: { sku: string; expected: number | null }[] = [];
+  for (const job of jobs) {
+    const sku = job.sku ?? "—";
+    if (!withNumber) {
+      if (!out.some((p) => p.sku === sku)) out.push({ sku, expected: null });
+      continue;
+    }
+    const qty = Number(job.expected) || 0;
+    if (qty <= 0) continue;
+    const seen = out.find((p) => p.sku === sku);
+    if (seen) seen.expected = (seen.expected ?? 0) + qty;
+    else out.push({ sku, expected: qty });
+  }
+  return out;
+}
+
 export interface LineReportInput {
   line: number;
   target: number | null;

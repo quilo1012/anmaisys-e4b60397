@@ -17,7 +17,7 @@ export function ShiftReport({ report }: { report: LineReport }) {
           <dt className="text-muted-foreground">RAG plan</dt>
           <dd className="tabular-nums">{n(report.ragPlan)}</dd>
           <dt className="text-muted-foreground">Products</dt>
-          <dd>{report.planned.length ? report.planned.map((p) => p.sku).join(", ") : "—"}</dd>
+          <dd>{report.planned.length ? report.planned.map((p) => (p.expected === null ? p.sku : `${p.sku} ${p.expected.toLocaleString()}`)).join(", ") : "—"}</dd>
         </dl>
         <h4 className="mt-3 font-semibold">What happened</h4>
         <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
