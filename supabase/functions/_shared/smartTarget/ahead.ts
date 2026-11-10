@@ -29,6 +29,8 @@ import {
   type RateRecord,
   type ShiftForecast,
   type ShiftType,
+  type CleaningRule,
+  type CleaningStep,
 } from "./engine.ts";
 import { queuedProduct, type QueueRow } from "./queue.ts";
 import { isEstimateRate, isSampleProduct, LINE_RATES_CONFIG, planRates, type CleanCycle, type HistoryShift, type LineFactor } from "./rates.ts";
@@ -149,7 +151,7 @@ export interface AheadRow {
   confidence: string;
   factor: number | null;
   factor_shifts: number | null;
-  jobs: { sku: string | null | undefined; order: number | null | undefined; expected: number | null; basis: string | null; estimated: boolean }[];
+  jobs: { sku: string | null | undefined; order: number | null | undefined; expected: number | null; basis: string | null; estimated: boolean; cleaning?: { kind: string; minutes: number } | null }[];
   engine_version: string;
   notes: string[];
 }
@@ -173,6 +175,8 @@ export interface AheadInput {
   previousSkus?: Partial<Record<LineNo, string | undefined>>;
   /** Lines whose number reaches the tablet. */
   shownLines: readonly LineNo[];
+  /** Each line's deep and drill clean rule (Q81); none charged without it. */
+  cleaningFor?: (line: LineNo) => CleaningRule | null;
 }
 
 /**
@@ -217,6 +221,7 @@ export function forecastAhead(input: AheadInput): { rows: AheadRow[]; forecasts:
       breaks: null,
       downtime: [],
       rates,
+      cleaning: input.cleaningFor?.(line) ?? null,
       events: [],
       eventSemantics: null,
     }, LINE_RATES_CONFIG);
@@ -230,7 +235,10 @@ export function forecastAhead(input: AheadInput): { rows: AheadRow[]; forecasts:
       confidence: result.confidence,
       factor: factor?.factor ?? null,
       factor_shifts: factor?.shiftsUsed ?? null,
-      jobs: result.jobs.map((j) => ({ sku: j.sku, order: j.orderQty, expected: j.expectedContainers, basis: j.allocation?.basis ?? null, estimated: isEstimateRate(j.rate?.source) })),
+      jobs: result.jobs.map((j) => ({
+        sku: j.sku, order: j.orderQty, expected: j.expectedContainers, basis: j.allocation?.basis ?? null, estimated: isEstimateRate(j.rate?.source),
+        cleaning: j.cleaning ? { kind: j.cleaning.kind, minutes: j.cleaning.minutes } : null,
+      })),
       engine_version: ENGINE_VERSION,
       notes: plan.notes,
     });
@@ -257,3 +265,126 @@ export function productsOffPlan(
   }
   return out;
 }
+
+// ── The next shifts, ahead of time (decided 10/11, Q84) ───────────────────────
+
+export interface PreviewLine {
+  line: LineNo;
+  expectedTotal: number | null;
+  jobs: { sku: string | null; expected: number | null; cleaning: CleaningStep | null }[];
+}
+
+export interface PreviewShift {
+  date: string;
+  shift: ShiftType;
+  lines: PreviewLine[];
+}
+
+export type PreviewInput = Omit<AheadInput, "date" | "shift" | "minutesToStart" | "final" | "shownLines"> & {
+  nowMs: number;
+  /** How many shifts after the current one. */
+  count?: number;
+};
+
+const nextShiftOf = (date: string, shift: ShiftType): { date: string; shift: ShiftType } => {
+  if (shift === "DAY") return { date, shift: "NIGHT" };
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return { date: d.toISOString().slice(0, 10), shift: "DAY" };
+};
+
+/** The shift the moment falls in. */
+export function shiftAt(nowMs: number): { date: string; shift: ShiftType } | null {
+  for (const date of [ymd(nowMs - 86_400_000), ymd(nowMs)]) {
+    for (const shift of ["DAY", "NIGHT"] as ShiftType[]) {
+      const w = shiftWindow(date, shift);
+      if (w && nowMs >= w.startMs && nowMs < w.endMs) return { date, shift };
+    }
+  }
+  return null;
+}
+
+/** Takes what each job is expected to make off the queue, in the queue's order. */
+function consume(queue: QueueRow[], line: LineNo, made: { sku: string | null; expected: number | null }[]): QueueRow[] {
+  const out = queue.map((q) => ({ ...q }));
+  const own = out
+    .filter((q) => parseLineNo(q.line) === line)
+    .sort((a, b) => (a.status === "Running" ? 0 : 1) - (b.status === "Running" ? 0 : 1) || a.seq - b.seq);
+  for (const m of made) {
+    let left = Math.max(0, m.expected ?? 0);
+    for (const q of own) {
+      if (left <= 0) break;
+      if (!m.sku || queuedProduct(q.sku) !== m.sku || q.order_qty === null) continue;
+      const room = Math.max(0, q.order_qty - Math.max(0, q.done_qty ?? 0));
+      const take = Math.min(room, left);
+      q.done_qty = Math.max(0, q.done_qty ?? 0) + take;
+      left -= take;
+    }
+  }
+  return out;
+}
+
+/**
+ * What the next shifts should make, from iTouch's queue as it stands now. The rest of the
+ * current shift is forecast first, with the time already gone blocked, and taken off the
+ * queue; each next shift then starts from what is left, with the last product made before
+ * it as the one on the line, so its first clean is charged. A preview: nothing is saved,
+ * and the kept number is still made 30 minutes before each shift.
+ */
+export function previewShifts(input: PreviewInput): PreviewShift[] {
+  const now = shiftAt(input.nowMs);
+  if (!now) return [];
+  let queue = input.queue;
+  const lastSku = new Map<LineNo, string | undefined>(LINES.map((l) => [l, input.previousSkus?.[l]]));
+  const out: PreviewShift[] = [];
+  let cur = now;
+  for (let step = 0; step <= (input.count ?? 2); step++) {
+    const w = shiftWindow(cur.date, cur.shift)!;
+    const lines: PreviewLine[] = [];
+    for (const line of LINES) {
+      const inputs = {
+        cycles: input.cycles,
+        factor: input.factors.find((f) => f.line === line) ?? null,
+        history: input.history,
+        familyOf: input.familyOf ?? (() => null),
+        isSample: input.isSample ?? ((sku: string) => isSampleProduct(sku)),
+      };
+      const plan = planFromQueue(line, queue, 0, []);
+      if (step === 0 && plan.previousSku) lastSku.set(line, plan.previousSku);
+      if (!plan.jobs.length) {
+        if (step > 0) lines.push({ line, expectedTotal: null, jobs: [] });
+        continue;
+      }
+      const { jobs, rates } = planRates(line, plan.jobs, inputs);
+      const result = forecastShift({
+        date: cur.date,
+        shift: cur.shift,
+        line,
+        jobs,
+        previousSku: step === 0 ? plan.previousSku ?? lastSku.get(line) : lastSku.get(line),
+        breaks: null,
+        // The current shift from now on only: what has gone is gone.
+        downtime: step === 0 ? [{ start: new Date(w.startMs).toISOString(), end: new Date(input.nowMs).toISOString(), reason: "already passed" }] : [],
+        rates,
+        cleaning: input.cleaningFor?.(line) ?? null,
+        events: [],
+        eventSemantics: null,
+      }, LINE_RATES_CONFIG);
+      const made = result.jobs.map((j) => ({ sku: j.sku, expected: j.expectedContainers }));
+      queue = consume(queue, line, made);
+      const last = [...result.jobs].reverse().find((j) => (j.expectedContainers ?? 0) > 0);
+      if (last?.sku) lastSku.set(line, last.sku);
+      if (step > 0) {
+        lines.push({
+          line,
+          expectedTotal: result.expectedTotal,
+          jobs: result.jobs.filter((j) => (j.expectedContainers ?? 0) > 0).map((j) => ({ sku: j.sku, expected: j.expectedContainers, cleaning: j.cleaning })),
+        });
+      }
+    }
+    if (step > 0) out.push({ date: cur.date, shift: cur.shift, lines });
+    cur = nextShiftOf(cur.date, cur.shift);
+  }
+  return out;
+}
+

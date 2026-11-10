@@ -9,11 +9,26 @@ export interface SkuFields {
 }
 
 /** Editable attributes only; the primary key is used in the filter, never in the payload. */
-export function skuUpdatePayload(sku: SkuFields) {
+export function skuUpdatePayload(sku: SkuFields & { allergens?: string[] | null }) {
   return {
     code: (sku.code ?? "").trim(), name: sku.name ?? "", category: sku.category ?? null,
     target_per_hour: sku.target_per_hour ?? 0, weight: sku.weight ?? null, active: sku.active ?? true,
+    // Only once BLOCO 157 has added the column, and only when the form carries it: a
+    // product nobody has confirmed stays NULL rather than becoming "no allergens".
+    ...(sku.allergens !== undefined ? { allergens: sku.allergens } : {}),
   };
+}
+
+/** "Milk, gluten" → ["Milk", "Gluten"]; an empty box is a confirmed none. */
+export function parseAllergens(text: string): string[] {
+  const out: string[] = [];
+  for (const part of text.split(/[,;\n]+/)) {
+    const t = part.trim();
+    if (!t) continue;
+    const word = t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+    if (!out.includes(word)) out.push(word);
+  }
+  return out;
 }
 
 export function skuDeleteError(error: { code?: string; message: string }): string {

@@ -87,6 +87,7 @@ export function useFreezeSmartTargetForecasts(date: string, shift: ShiftType, to
           expected: j.expectedContainers,
           basis: j.allocation?.basis ?? null,
           estimated: isEstimateRate(j.rate?.source),
+          cleaning: j.cleaning ? { kind: j.cleaning.kind, minutes: j.cleaning.minutes } : null,
         })),
         engine_version: ENGINE_VERSION,
       }));

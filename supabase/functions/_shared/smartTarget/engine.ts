@@ -40,9 +40,22 @@
 
 import { londonWallToUtc } from "../production/shifts.ts";
 
-export const ENGINE_VERSION = "smart-target-engine/2.0";
+/** 2.1 (10/11, Q81): deep and drill cleans between products take their time. */
+export const ENGINE_VERSION = "smart-target-engine/2.1";
 
 export type ShiftType = "DAY" | "NIGHT";
+
+/** A deep ("full") or drill clean before a product (Q81). The rule lives in cleaning.ts. */
+export interface CleaningStep {
+  kind: "drill" | "full";
+  minutes: number;
+  /** Where the minutes came from, for the screen. */
+  minutesFrom: "line_history" | "plan_sheet";
+  reason: string;
+}
+
+/** From one SKU to the next; null when no clean is needed or the products are unknown. */
+export type CleaningRule = (from: string, to: string) => CleaningStep | null;
 export type LineNo = 1 | 2 | 3 | 4 | 5 | 6;
 
 const MS_PER_MIN = 60_000;
@@ -160,6 +173,8 @@ export interface ShiftForecastInput {
   breaks?: TimedWindow[] | null;
   downtime?: TimedWindow[] | null;
   rates: RateRecord[];
+  /** Deep or drill clean between two products, if one is needed (Q81). Absent: none charged. */
+  cleaning?: CleaningRule | null;
   events?: FillEvent[] | null;
   eventSemantics?: FillEventSemantics | null;
 }
@@ -188,6 +203,8 @@ export interface JobForecast {
   transition: Transition;
   changeoverMinutes: number;
   mixingMinutes: number;
+  /** The clean before this job, when the product change needs one; its minutes are the changeover. */
+  cleaning: CleaningStep | null;
   /** Minutes from shift start. null when the job's time could not be worked out. */
   allocation: {
     start: number;
@@ -570,7 +587,9 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
     }
 
     const measuredChange = cfg.measuredChangeMinutes[line];
-    const changeover = transition === "sku_change" ? job.changeoverMinutes ?? measuredChange ?? cfg.changeoverMinutes : 0;
+    // A clean replaces the changeover: brushing and blowing the blender are part of it.
+    const cleaning = transition === "sku_change" && input.cleaning && prevSku && sku ? input.cleaning(prevSku, sku) : null;
+    const changeover = transition === "sku_change" ? job.changeoverMinutes ?? cleaning?.minutes ?? measuredChange ?? cfg.changeoverMinutes : 0;
     const mixing =
       transition === "sku_unknown" ? 0
         : transition === "sku_change" && measuredChange !== undefined && job.mixingMinutes == null ? 0
@@ -676,6 +695,7 @@ export function forecastShift(input: ShiftForecastInput, config: Partial<EngineC
       transition,
       changeoverMinutes: changeover,
       mixingMinutes: mixing,
+      cleaning,
       allocation,
       rateStatus: resolved.status,
       rate: resolved.rate ? { perHour: resolved.rate.perHour, sampleShifts: resolved.rate.sampleShifts, source: resolved.rate.source } : null,
