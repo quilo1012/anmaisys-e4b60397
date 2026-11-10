@@ -13,6 +13,9 @@ import { useSkuCatalogue } from "@/hooks/useSkuCatalogue";
 import { useItouchCycles } from "@/hooks/useItouchCycles";
 import { useSmartTargetHistory } from "@/hooks/useSmartTargetHistory";
 import { useSmartTargetQueue, type QueueState } from "@/hooks/useSmartTargetQueue";
+import { useCleaningBasis } from "@/hooks/useCleaningBasis";
+import { NextShifts } from "@/components/smartTarget/NextShifts";
+import { cleanLabel } from "@/lib/smartTargetCleaning";
 import { planFromQueue, productsOffPlan } from "@/lib/smartTargetAhead";
 import { fillFromQueue } from "@/lib/smartTargetQueue";
 import { useFreezeSmartTargetForecasts, useSmartTargetForecastRows, type LineToFreeze } from "@/hooks/useSmartTargetForecastLog";
@@ -146,6 +149,18 @@ function Transition({ job }: { job: JobForecast }) {
       <span className="self-center px-1 text-2xs text-muted-foreground" title="This job or the one before it has no SKU, so no changeover is charged.">
         ?
       </span>
+    );
+  }
+  if (job.cleaning) {
+    // A deep or drill clean before this product (Q81): its minutes are the changeover.
+    return (
+      <div
+        className="flex shrink-0 flex-col items-center justify-center rounded-md border border-dashed border-warning bg-warning/10 px-2 py-1 text-center text-2xs leading-tight text-warning-strong"
+        title={`${job.cleaning.reason}; ${job.cleaning.minutesFrom === "line_history" ? "the line's own logged time" : "the plan sheet's time, as the line has too few logged"}`}
+      >
+        <span className="font-medium">{cleanLabel(job.cleaning)}</span>
+        {job.mixingMinutes > 0 && <span className="tabular-nums">+ mix {job.mixingMinutes} min</span>}
+      </div>
     );
   }
   if (job.transition === "same_sku" && minutes === 0) {
@@ -596,6 +611,10 @@ export default function SmartTargetPage() {
   const cyclesQuery = useItouchCycles();
   const historyQuery = useSmartTargetHistory(date);
   const queue = useSmartTargetQueue(date, shift);
+  const skuFamilyOf = useMemo(() => skuFamily(catalogue), [catalogue]);
+  const skuIsSampleOf = useMemo(() => skuIsSample(catalogue), [catalogue]);
+  // Deep and drill cleans between products (Q81–Q83).
+  const cleaning = useCleaningBasis(catalogue);
 
   // Each line's performance over the eight weeks before `date`, against iTouch's ideal.
   const rateBasis = useMemo(() => {
@@ -693,11 +712,11 @@ export default function SmartTargetPage() {
         const planned = rateBasis
           ? planRates(l.line, input.jobs, { cycles: rateBasis.cycles, factor, history: rateBasis.history, familyOf: skuFamily(catalogue), isSample: skuIsSample(catalogue) })
           : { jobs: input.jobs, rates: [] };
-        const result = forecastShift({ ...input, jobs: planned.jobs, rates: planned.rates }, LINE_RATES_CONFIG);
+        const result = forecastShift({ ...input, jobs: planned.jobs, rates: planned.rates, cleaning: cleaning.ruleFor?.(l.line) ?? null }, LINE_RATES_CONFIG);
         return { ...l, notes, basis, result, shown, factor };
       }),
     };
-  }, [data, date, shift, catalogue, rateBasis, queue.rows, cautions]);
+  }, [data, date, shift, catalogue, rateBasis, queue.rows, cautions, cleaning.ruleFor]);
 
   const toFreeze = useMemo<LineToFreeze[] | null>(
     () => built?.lines.map((l) => ({ line: l.line, shown: l.shown, forecast: l.result, factor: l.factor })) ?? null,
@@ -864,6 +883,13 @@ export default function SmartTargetPage() {
             )}
           </>
         )}
+
+        <NextShifts
+          basis={rateBasis}
+          ruleFor={cleaning.ruleFor}
+          familyOf={skuFamilyOf}
+          isSample={skuIsSampleOf}
+        />
 
         <Card>
           <CardHeader className="pb-2">

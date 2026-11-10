@@ -15,10 +15,11 @@ import { Plus, Trash2, Pencil, Upload, Search, Download, Eraser, Undo2, Boxes, M
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import ExcelJS from "exceljs";
-import { assertSkuRowsChanged, skuDeleteError, skuUpdatePayload } from "@/lib/skuCatalog";
+import { assertSkuRowsChanged, parseAllergens, skuDeleteError, skuUpdatePayload } from "@/lib/skuCatalog";
+import { suggestAllergens } from "@/lib/smartTargetCleaning";
 import { Switch } from "@/components/ui/switch";
 
-interface Sku { id: string; code: string; name: string; category: string | null; target_per_hour: number | null; weight: number | null; active: boolean }
+interface Sku { id: string; code: string; name: string; category: string | null; target_per_hour: number | null; weight: number | null; active: boolean; allergens?: string[] | null }
 
 type SkuImportRow = {
   code: string;
@@ -157,7 +158,14 @@ export default function SKUProductsPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
-  const [editing, setEditing] = useState<Partial<Sku> | null>(null);
+  const [editing, setEditingRaw] = useState<Partial<Sku> | null>(null);
+  // What is typed in the allergens box; null until touched, so opening and saving a product
+  // nobody has confirmed leaves it unconfirmed.
+  const [allergenText, setAllergenText] = useState<string | null>(null);
+  const setEditing = (sku: Partial<Sku> | null) => {
+    if (sku?.id !== editing?.id || !sku) setAllergenText(null);
+    setEditingRaw(sku);
+  };
   const [open, setOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const importInput = useRef<HTMLInputElement | null>(null);
@@ -204,6 +212,8 @@ export default function SKUProductsPage() {
     return all.filter((p) => !s || p.code.toLowerCase().includes(s) || p.name.toLowerCase().includes(s));
   }, [all, search]);
   const pageRows = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  // BLOCO 158 adds the column; until then the rows have no `allergens` key and the field is hidden.
+  const hasAllergens = all.some((p) => "allergens" in p);
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
   // The SKU already on the list under the code being typed, if there is one.
@@ -225,11 +235,12 @@ export default function SKUProductsPage() {
       const payload = skuUpdatePayload(sku);
       if (!payload.code || !payload.name) throw new Error("Code and Name required");
       if (sku.id) {
-        const { data, error } = await supabase.from("sku_products").update(payload).eq("id", sku.id).select("id");
+        // `allergens` is not in the generated types until BLOCO 158 is pasted and types.ts regenerated.
+        const { data, error } = await supabase.from("sku_products").update(payload as Omit<typeof payload, "allergens">).eq("id", sku.id).select("id");
         if (error) throw error;
         assertSkuRowsChanged(data, "saved");
       } else {
-        const { data, error } = await supabase.from("sku_products").insert(payload).select("id");
+        const { data, error } = await supabase.from("sku_products").insert(payload as Omit<typeof payload, "allergens">).select("id");
         if (error) throw error;
         assertSkuRowsChanged(data, "saved");
       }
@@ -457,12 +468,31 @@ export default function SKUProductsPage() {
                   </div>
                   <div><Label>Product</Label><Input value={editing?.name ?? ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></div>
                   <div><Label>Weight</Label><Input type="number" inputMode="decimal" step="0.001" value={editing?.weight ?? ""} onChange={(e) => setEditing({ ...editing, weight: e.target.value ? +e.target.value : null })} /></div>
+                  {hasAllergens && (
+                    <div>
+                      <Label htmlFor="sku-allergens">Allergens</Label>
+                      <Input
+                        id="sku-allergens"
+                        placeholder="e.g. Milk, Gluten — leave empty for none"
+                        value={allergenText ?? (editing?.allergens ?? []).join(", ")}
+                        onChange={(e) => setAllergenText(e.target.value)}
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Smart Target deep cleans from a product with an allergen to one without it.
+                        {editing?.allergens == null && (
+                          <>
+                            {" "}Not confirmed yet{suggestAllergens(editing?.name ?? "").length ? `; the name suggests ${suggestAllergens(editing?.name ?? "").join(", ")}` : ""}. Saving confirms what is in the box.
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between gap-3">
                     <Label htmlFor="sku-active">Active</Label>
                     <Switch id="sku-active" checked={editing?.active ?? true} onCheckedChange={(active) => setEditing({ ...editing, active })} />
                   </div>
                 </div>
-                <DialogFooter><Button onClick={() => editing && save.mutate(editing)} disabled={save.isPending || !editing?.code?.trim() || !editing?.name || !!clash}>Save</Button></DialogFooter>
+                <DialogFooter><Button onClick={() => editing && save.mutate(hasAllergens && (allergenText !== null || editing.allergens != null) ? { ...editing, allergens: parseAllergens(allergenText ?? (editing.allergens ?? []).join(", ")) } : { ...editing, allergens: undefined })} disabled={save.isPending || !editing?.code?.trim() || !editing?.name || !!clash}>Save</Button></DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
@@ -478,15 +508,24 @@ export default function SKUProductsPage() {
           </CardHeader>
           <CardContent>
             <Table>
-              <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Product</TableHead><TableHead>Weight</TableHead><TableHead>Active</TableHead><TableHead /></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Product</TableHead><TableHead>Weight</TableHead>{hasAllergens && <TableHead>Allergens</TableHead>}<TableHead>Active</TableHead><TableHead /></TableRow></TableHeader>
               <TableBody>
-                {isLoading && <TableRow><TableCell colSpan={5} className="text-center">Loading...</TableCell></TableRow>}
-                {!isLoading && pageRows.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground">No SKUs</TableCell></TableRow>}
+                {isLoading && <TableRow><TableCell colSpan={hasAllergens ? 6 : 5} className="text-center">Loading...</TableCell></TableRow>}
+                {!isLoading && pageRows.length === 0 && <TableRow><TableCell colSpan={hasAllergens ? 6 : 5} className="text-center text-muted-foreground">No SKUs</TableCell></TableRow>}
                 {pageRows.map((p) => (
                   <TableRow key={p.id}>
                     <TableCell className="font-figure">{p.code}</TableCell>
                     <TableCell>{p.name}</TableCell>
                     <TableCell>{p.weight ?? "—"}</TableCell>
+                    {hasAllergens && (
+                      <TableCell>
+                        {p.allergens == null ? (
+                          <span className="text-muted-foreground" title="Not confirmed: Smart Target uses what the name suggests">
+                            {suggestAllergens(p.name).length ? `${suggestAllergens(p.name).join(", ")}?` : "?"}
+                          </span>
+                        ) : p.allergens.length ? p.allergens.join(", ") : "None"}
+                      </TableCell>
+                    )}
                     <TableCell>{p.active ? <Badge className="bg-success hover:bg-success/90 text-success-foreground border-transparent">Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" aria-label="Edit this SKU" title="Edit" onClick={() => { setEditing(p); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>

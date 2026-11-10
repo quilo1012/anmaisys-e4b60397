@@ -23,7 +23,9 @@ import { queueRowsFromSections, type QueueRow, type ScheduledJobItem } from "../
 import { cleanCycles, lineFactors, type CycleRecord } from "../_shared/smartTarget/rates.ts";
 import { FORECAST_LINES, factorWindow, skuFamily, skuIsSample, historyFromSessions, type HistoryItem } from "../_shared/smartTarget/history.ts";
 import { buildShiftInputs, previousShiftOf, type SmartTargetItem, type SmartTargetSession } from "../_shared/smartTarget/input.ts";
-import { buildSkuCatalogue } from "../_shared/production/lineSku.ts";
+import { buildSkuCatalogue, identifyItemSku, type SkuCatalogue } from "../_shared/production/lineSku.ts";
+import { CLEAN_HISTORY_DAYS, cleanMinutesByLine, cleaningRule, type CleaningRule } from "../_shared/smartTarget/cleaning.ts";
+import type { LineNo } from "../_shared/smartTarget/engine.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -108,6 +110,35 @@ async function factorsFor(date: string) {
   return { cycles, history, catalogue, factors: cycles.length ? lineFactors(history, cycles) : [] };
 }
 
+/**
+ * Deep and drill cleans (Q81–Q83): each line's logged clean times over eight weeks, and the
+ * products' confirmed allergens. Without BLOCO 158 the allergens read fails and the rule
+ * goes by the name's suggestion; a failed read of the stops leaves the plan sheet's times.
+ */
+async function cleaningFor(catalogue: SkuCatalogue): Promise<(line: LineNo) => CleaningRule> {
+  const from = new Date(Date.now() - CLEAN_HISTORY_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const stops = await allRows<{ line: string | null; shift: string | null; downtime_date: string | null; occurred_date: string | null; reason: string | null; duration_minutes: number | null }>(
+    (a, b) => admin.from("production_downtimes").select("line, shift, downtime_date, occurred_date, reason, duration_minutes")
+      .or("reason.ilike.%drill clean%,reason.ilike.%deep clean%").gte("occurred_date", from).order("id").range(a, b),
+  ).catch(() => []);
+  const allergens = new Map<string, string[]>();
+  try {
+    const rows = await allRows<{ code: string; allergens: string[] | null }>(
+      (a, b) => admin.from("sku_products").select("code, allergens").not("allergens", "is", null).order("code").range(a, b),
+    );
+    for (const r of rows) if (r.allergens) allergens.set(r.code.trim().toUpperCase(), r.allergens);
+  } catch {
+    // BLOCO 158 not pasted yet.
+  }
+  const minutes = cleanMinutesByLine(stops.map((s) => ({ line: s.line, shift: s.shift, date: s.downtime_date ?? s.occurred_date, reason: s.reason, duration_minutes: s.duration_minutes })));
+  const productOf = (sku: string) => {
+    const row = identifyItemSku({ sku_id: null, sku_code_text: sku, actual: 0, started_at: null, finished_at: null }, catalogue);
+    if (!row || row.uncatalogued) return null;
+    return { name: row.name, allergens: allergens.get(String(row.code ?? sku).trim().toUpperCase()) ?? null };
+  };
+  return (line) => cleaningRule(line, productOf, minutes);
+}
+
 /** What each line last logged on the shift before, the same way the page reads it (Q17). */
 async function previousSkusFor(date: string, shift: "DAY" | "NIGHT", catalogue: ReturnType<typeof buildSkuCatalogue>) {
   const prev = previousShiftOf(date, shift);
@@ -162,7 +193,8 @@ Deno.serve(async (req) => {
 
     const { cycles, factors, history, catalogue } = await factorsFor(date);
     const previousSkus = await previousSkusFor(date, shift, catalogue);
-    const { rows } = forecastAhead({ date, shift, minutesToStart, final, queue: queue.rows, cycles, factors, history, shownLines: FORECAST_LINES, previousSkus, familyOf: skuFamily(catalogue), isSample: skuIsSample(catalogue) });
+    const cleaning = await cleaningFor(catalogue);
+    const { rows } = forecastAhead({ date, shift, minutesToStart, final, queue: queue.rows, cycles, factors, history, shownLines: FORECAST_LINES, previousSkus, familyOf: skuFamily(catalogue), isSample: skuIsSample(catalogue), cleaningFor: cleaning });
     const toSave = rows
       .filter((r) => !done.has(r.line) && (r.expected_total !== null || !saidNothing.has(r.line)))
       .map((r) => ({ ...r, source: "ahead", queue_read_at: new Date().toISOString() }));
