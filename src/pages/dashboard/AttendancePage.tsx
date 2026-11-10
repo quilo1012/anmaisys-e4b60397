@@ -28,6 +28,7 @@ import { ReadFailed } from "@/components/workforce/ReadFailed";
 import { ClockCoverageNote } from "@/components/workforce/ClockCoverageNote";
 import { ClockReconciliation } from "@/components/workforce/ClockReconciliation";
 import { parseTimeMotoWorkbook, dropDaysNotWorkedYet, matchNames, mergeClockRowsPerDay, settlementsFor, type TimeMotoParse } from "@/lib/timeMotoSheet";
+import { saveSettlement } from "@/lib/saveSettlement";
 import { splitAbsences } from "@/lib/absenceKind";
 
 
@@ -334,11 +335,10 @@ export default function AttendancePage() {
       const settled = settlementsFor(assigned, roster);
       let renamed = 0;
       for (const change of settled) {
-        const { error: upErr } = await supabase.from("employees")
-          .update({ sheet_aliases: change.sheet_aliases, ...(change.full_name ? { full_name: change.full_name } : {}) })
-          .eq("id", change.employeeId);
-        if (upErr) toast.error(`Could not save the TimeMoto name for one employee: ${upErr.message}`);
-        else if (change.full_name) renamed++;
+        const saved = await saveSettlement(change, async (id, patch) =>
+          await supabase.from("employees").update(patch).eq("id", id));
+        if (!saved.ok) toast.error(`Could not save the TimeMoto name for one employee: ${saved.message}`);
+        else if (saved.renamed) renamed++;
       }
       if (renamed > 0) qc.invalidateQueries({ queryKey: ["attendance-roster"] });
       toast.success(`Imported ${rows.length} day${rows.length === 1 ? "" : "s"}`);
