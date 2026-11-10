@@ -65,6 +65,7 @@ import { ProfilePhotoDialog } from "@/components/chat/ProfilePhotoDialog";
 import { AvailabilityMenu } from "@/components/chat/AvailabilityMenu";
 import { endMyPresence } from "@/components/chat/PresenceHeartbeat";
 import { useTelemetryCrashCount } from "@/hooks/useTelemetryBadge";
+import { UpcomingMeetingsWidget } from "@/components/meetings/UpcomingMeetingsWidget";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -316,6 +317,9 @@ export const navItems: NavItem[] = [
   { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "production_office_admin"], group: "Overview", action: "reports.analytics" },
 
   { title: "Communication Hub", shortTitle: "Messages", url: "/dashboard/communication", icon: MessageCircle, roles: ["admin", "manager", "operator", "supervisor", "production_office_admin", "employee"], group: "Communication", action: "chat.dm" },
+  // Meetings (BLOCO 159): every role, because the database shows each person only the
+  // meetings they are invited to; only `meetings.manage` schedules.
+  { title: "Meetings", url: "/dashboard/communication/meetings", icon: CalendarDays, roles: ["admin", "manager", "maintenance_manager", "engineer", "operator", "warehouse", "quality_supervisor", "production_office_admin", "supervisor", "employee"], group: "Communication", action: "meetings.view" },
 
   // Administration — who can do what. Everything that configures the system itself
   // (the audit trail, the iTouching integration) lives under System.
@@ -727,6 +731,7 @@ export const routeTitles: Record<string, string> = {
   "/dashboard/reliability": "Reliability Dashboard",
   "/dashboard/suppliers": "Suppliers & Purchasing",
   "/dashboard/communication": "Communication Hub",
+  "/dashboard/communication/meetings": "Meetings",
   "/dashboard/messages": "Communication Hub",
   "/users/manage": "User Management",
   "/dashboard/engineers": "Engineers (PIN)",
@@ -1180,6 +1185,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     messages. Both at once were 464px of a phone saying the same thing,
                     and the conversation started under the tab bar (30/10/2026). */}
                 {!location.pathname.startsWith("/dashboard/communication") && <PushPromptBanner role={role} />}
+                {/* Each person's Overview is their landing page; the next three meetings sit
+                    on top of it, and nothing is drawn when there are none. */}
+                {location.pathname === homePath && <UpcomingMeetingsWidget className="mb-3" />}
                 <ShellTitleContext.Provider value={currentPageTitle}><InShellContentContext.Provider value={true}>{children}</InShellContentContext.Provider></ShellTitleContext.Provider>
               </div>
             </div>

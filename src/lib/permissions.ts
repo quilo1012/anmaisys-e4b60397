@@ -95,6 +95,9 @@ export type Action =
   | "chat.dm"
   | "chat.groups.manage"
   | "chat.settings"
+  // Meetings (BLOCO 159)
+  | "meetings.view"
+  | "meetings.manage"
   // Notifications
   | "notifications.view"
   | "notifications.manage"
@@ -305,6 +308,12 @@ const MATRIX: Record<Action, Role[]> = {
   "chat.groups.manage": ["admin", "supervisor", "production_office_admin"],
   // Who may name the chat administrators the operators write to.
   "chat.settings": ["admin", "manager"],
+  // Meetings: everybody opens the calendar, and the database shows each person only the
+  // meetings they are invited to (RLS on `meetings`/`meeting_participants`), so the
+  // employee holds it inside the ceiling. Scheduling is the admin's alone; SQL asks
+  // `has_action(uid, 'meetings.manage', '{admin}')`, so a grant here reaches both sides.
+  "meetings.view": [...ALL, "warehouse", "quality_supervisor", "production_office_admin", "supervisor", "employee"],
+  "meetings.manage": ["admin"],
 
 
   "notifications.view": [...ALL, "quality_supervisor", "production_office_admin"],
@@ -441,9 +450,10 @@ export function roleHolds(role: Role, action: Action): boolean {
  * (20261012160000_an_employee_sees_only_their_own.sql) — except `chat.dm`, which no
  * database check asks `has_action` about: Messages is guarded by participation (RLS on
  * `direct_messages` and the group tables), so the employee reads their own
- * conversations and nothing else whatever the screen allows (BLOCO 108).
+ * conversations and nothing else whatever the screen allows (BLOCO 108). `meetings.view`
+ * is the same: RLS shows only the meetings the person is invited to (BLOCO 159).
  */
-export const EMPLOYEE_CEILING: readonly Action[] = ["overtime.respond", "attendance.view_own", "chat.dm"];
+export const EMPLOYEE_CEILING: readonly Action[] = ["overtime.respond", "attendance.view_own", "chat.dm", "meetings.view"];
 
 /** Whether a grant of this action to this role could take effect at all. */
 export function roleMayHold(role: Role, action: Action): boolean {
@@ -614,6 +624,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "pm", label: "Preventive Maint.", actions: ["pm.view", "pm.manage"] },
   { key: "eng", label: "Engineers & Leaders", actions: ["engineers.view", "engineers.manage", "leaders.view", "leaders.manage"] },
   { key: "chat", label: "Chat & Messages", actions: ["chat.line", "chat.dm", "chat.groups.manage", "chat.settings"] },
+  { key: "meetings", label: "Meetings", actions: ["meetings.view", "meetings.manage"] },
   { key: "notif", label: "Notifications", actions: ["notifications.view", "notifications.manage"] },
   { key: "intouch", label: "iTouching", actions: ["intouch.view", "intouch.manage"] },
   { key: "cc", label: "Control Center", actions: ["controlcenter.view", "assets.manage"] },
@@ -626,6 +637,8 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
 export const ACTION_LABELS: Partial<Record<Action, string>> = {
   "chat.line": "Line Chat",
   "chat.dm": "Messages",
+  "meetings.view": "Meetings",
+  "meetings.manage": "Schedule meetings",
   "chat.groups.manage": "Create & manage groups",
 };
 
@@ -688,6 +701,8 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "chat.dm": "Open Messages: private conversations and the groups the person is in.",
   "chat.groups.manage": "Create department or team groups and change who is in them, for the departments the person runs.",
   "chat.settings": "Choose who the operators reach when they write from a line.",
+  "meetings.view": "Open the meetings calendar and answer invitations. Each person sees only the meetings they are invited to.",
+  "meetings.manage": "Create, change and cancel meetings and choose who is invited.",
   "notifications.view": "See the notifications center.",
   "notifications.manage": "Configure and clear notifications.",
   "intouch.view": "Open the iTouching monitoring pages.",

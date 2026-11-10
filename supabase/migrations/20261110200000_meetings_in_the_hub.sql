@@ -183,6 +183,77 @@ $$;
 revoke all on function public.meeting_occurrences(timestamptz, timestamptz, text, date) from public, anon;
 grant execute on function public.meeting_occurrences(timestamptz, timestamptz, text, date) to authenticated;
 
+-- ── 3b. What the screens read ───────────────────────────────────────────────
+-- Invoker functions: RLS above decides which meetings come back. The screens call these
+-- and never the tables, so before this block exists they get one declared PGRST202.
+create or replace function public.my_meetings(p_from timestamptz, p_to timestamptz)
+returns table (id uuid, series_id uuid, title text, description text, starts_at timestamptz,
+               ends_at timestamptz, location text, video_link text, recurrence text,
+               recurrence_until date, created_by uuid, cancelled_at timestamptz, my_response text)
+language sql stable security invoker set search_path = public
+as $$
+  select m.id, m.series_id, m.title, m.description, m.starts_at, m.ends_at, m.location,
+         m.video_link, m.recurrence, m.recurrence_until, m.created_by, m.cancelled_at,
+         (select mp.response from public.meeting_participants mp
+           where mp.meeting_id = m.id and mp.user_id = auth.uid())
+    from public.meetings m
+   where m.starts_at < p_to and m.ends_at > p_from
+   order by m.starts_at
+   limit 2000;
+$$;
+revoke all on function public.my_meetings(timestamptz, timestamptz) from public, anon;
+grant execute on function public.my_meetings(timestamptz, timestamptz) to authenticated;
+
+create or replace function public.my_meeting(p_id uuid)
+returns table (id uuid, series_id uuid, title text, description text, starts_at timestamptz,
+               ends_at timestamptz, location text, video_link text, recurrence text,
+               recurrence_until date, created_by uuid, cancelled_at timestamptz, my_response text)
+language sql stable security invoker set search_path = public
+as $$
+  select m.id, m.series_id, m.title, m.description, m.starts_at, m.ends_at, m.location,
+         m.video_link, m.recurrence, m.recurrence_until, m.created_by, m.cancelled_at,
+         (select mp.response from public.meeting_participants mp
+           where mp.meeting_id = m.id and mp.user_id = auth.uid())
+    from public.meetings m
+   where m.id = p_id;
+$$;
+revoke all on function public.my_meeting(uuid) from public, anon;
+grant execute on function public.my_meeting(uuid) to authenticated;
+
+-- The next ones I am in and have not declined, for the Overview.
+create or replace function public.my_upcoming_meetings(p_limit integer default 3)
+returns table (id uuid, series_id uuid, title text, description text, starts_at timestamptz,
+               ends_at timestamptz, location text, video_link text, recurrence text,
+               recurrence_until date, created_by uuid, cancelled_at timestamptz, my_response text)
+language sql stable security invoker set search_path = public
+as $$
+  select m.id, m.series_id, m.title, m.description, m.starts_at, m.ends_at, m.location,
+         m.video_link, m.recurrence, m.recurrence_until, m.created_by, m.cancelled_at, mp.response
+    from public.meeting_participants mp
+    join public.meetings m on m.id = mp.meeting_id
+   where mp.user_id = auth.uid()
+     and mp.response <> 'declined'
+     and m.cancelled_at is null
+     and m.ends_at > now()
+   order by m.starts_at
+   limit least(greatest(coalesce(p_limit, 3), 1), 20);
+$$;
+revoke all on function public.my_upcoming_meetings(integer) from public, anon;
+grant execute on function public.my_upcoming_meetings(integer) to authenticated;
+
+-- For the bell: my answer to each of these meetings, and whether it can still be given.
+create or replace function public.my_meeting_answers(p_ids uuid[])
+returns table (meeting_id uuid, response text, cancelled boolean, started boolean)
+language sql stable security invoker set search_path = public
+as $$
+  select mp.meeting_id, mp.response, m.cancelled_at is not null, m.starts_at <= now()
+    from public.meeting_participants mp
+    join public.meetings m on m.id = mp.meeting_id
+   where mp.user_id = auth.uid() and mp.meeting_id = any (p_ids);
+$$;
+revoke all on function public.my_meeting_answers(uuid[]) from public, anon;
+grant execute on function public.my_meeting_answers(uuid[]) to authenticated;
+
 -- ── 4. The people an admin can invite ────────────────────────────────────────
 -- Every active login, with the department and crew of its employee record when there is
 -- one. The form groups these into departments, teams (department + crew) and crews.

@@ -48,7 +48,22 @@ interface PendingRpc {
   probe?: Record<string, unknown>;
 }
 
+const MEETINGS_BLOCK = "BLOCO 159 — 20261110200000_meetings_in_the_hub.sql";
+const MEETINGS_FALLBACK =
+  "useMeetings turns PGRST202 into isNotInstalled: MeetingsPage says 'Meetings are not " +
+  "switched on yet', UpcomingMeetingsWidget draws nothing, and the bell offers no " +
+  "Accept/Decline — nobody can be invited to anything until the block exists.";
+
 const PENDING: readonly PendingRpc[] = [
+  // BLOCO 159: every read the screens make before the paste goes through these, never
+  // the tables, so the gap is a declared PGRST202 rather than an undeclared PGRST205.
+  { name: "my_meetings", block: MEETINGS_BLOCK, fallback: MEETINGS_FALLBACK },
+  { name: "my_meeting", block: MEETINGS_BLOCK, fallback: MEETINGS_FALLBACK },
+  { name: "my_upcoming_meetings", block: MEETINGS_BLOCK, fallback: MEETINGS_FALLBACK },
+  { name: "my_meeting_answers", block: MEETINGS_BLOCK, fallback: MEETINGS_FALLBACK },
+  { name: "meeting_participant_list", block: MEETINGS_BLOCK, fallback: MEETINGS_FALLBACK },
+  { name: "meeting_invitable_people", block: MEETINGS_BLOCK, fallback: MEETINGS_FALLBACK },
+  { name: "meeting_respond", block: MEETINGS_BLOCK, fallback: MEETINGS_FALLBACK },
   {
     name: "login_link_candidates",
     block: "BLOCO 91 — 20261012170000_a_supervisor_links_a_login_to_its_person.sql",

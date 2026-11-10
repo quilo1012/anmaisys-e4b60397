@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Bell, AlertTriangle, Wrench, Package, Activity, UserCheck, Hand } from "lucide-react";
+import { Bell, AlertTriangle, Wrench, Package, Activity, UserCheck, Hand, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { PushNotificationSetup } from "@/components/PushNotificationSetup";
 import { railEdge } from "@/components/ui/StatusRail";
 import { useMyNotifications } from "@/hooks/useMyNotifications";
-import { askAvailability, notificationTarget, type StoredNotification } from "@/lib/notificationFeed";
+import { askAvailability, inviteAnswerable, notificationTarget, type InviteState, type StoredNotification } from "@/lib/notificationFeed";
 
 type NotifType = "new_wo" | "assigned" | "status_change" | "overdue" | "low_stock" | "system_error";
 type Priority = "critical" | "high" | "medium" | "low";
@@ -346,7 +346,27 @@ export function NotificationPanel() {
           ) : (
             <div className="divide-y">
               {rows.map(({ stored: sn, live }) => {
-                if (sn) return <StoredRow key={`s-${sn.id}`} n={sn} available={sn.overtime_request_id ? askAvailability(stored.asks.get(sn.overtime_request_id)) : null} onClick={() => handleStoredClick(sn)} />;
+                if (sn) {
+                  const invite = sn.kind === "meeting_invite" && sn.meeting_id ? stored.invites.get(sn.meeting_id) : undefined;
+                  return (
+                    <StoredRow
+                      key={`s-${sn.id}`}
+                      n={sn}
+                      available={sn.overtime_request_id ? askAvailability(stored.asks.get(sn.overtime_request_id)) : null}
+                      onClick={() => handleStoredClick(sn)}
+                      invite={invite}
+                      answering={stored.respondToInvite.isPending}
+                      onAnswer={(response) => {
+                        if (!sn.meeting_id) return;
+                        if (!sn.read_at) stored.markRead.mutate([sn.id]);
+                        stored.respondToInvite.mutate({ meetingId: sn.meeting_id, response }, {
+                          onSuccess: () => toast.success(response === "accepted" ? "Meeting accepted" : "Meeting declined"),
+                          onError: (e) => toast.error((e as { message?: string })?.message ?? "Could not answer"),
+                        });
+                      }}
+                    />
+                  );
+                }
                 const n = live!;
                 const Icon = typeIcon[n.type];
                 const styles = priorityStyles[n.priority];
@@ -398,14 +418,21 @@ export function NotificationPanel() {
 }
 
 /** One row the server wrote. An overtime ask says whether it can still be taken. */
-function StoredRow({ n, available, onClick }: {
+function StoredRow({ n, available, onClick, invite, answering, onAnswer }: {
   n: StoredNotification;
   available: "open" | "unavailable" | null;
   onClick: () => void;
+  /** A meeting invite: my current answer, and whether it can still be given. */
+  invite?: InviteState;
+  answering?: boolean;
+  onAnswer?: (response: "accepted" | "declined") => void;
 }) {
   const isOvertime = n.kind === "overtime_new";
-  const Icon = isOvertime ? Hand : Bell;
+  const isMeeting = !!n.kind?.startsWith("meeting_");
+  const Icon = isOvertime ? Hand : isMeeting ? CalendarDays : Bell;
+  const answerable = n.kind === "meeting_invite" && inviteAnswerable(invite);
   return (
+    <div>
     <button
       onClick={onClick}
       className={cn(
@@ -431,9 +458,20 @@ function StoredRow({ n, available, onClick }: {
           <p className="text-muted-foreground text-2xs mt-1">
             {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
             {isOvertime && <span className="ml-2 font-medium text-primary">View overtime →</span>}
+            {n.kind === "meeting_invite" && invite && invite.response !== "pending" && (
+              <span className="ml-2 font-medium">{invite.response === "accepted" ? "You accepted" : "You declined"}</span>
+            )}
+            {n.kind === "meeting_invite" && invite?.cancelled && <span className="ml-2 font-medium">Cancelled</span>}
           </p>
         </div>
       </div>
     </button>
+    {answerable && onAnswer && (
+      <div className="flex gap-2 px-4 pb-3 pl-10">
+        <Button size="sm" className="h-7 text-xs" disabled={answering || invite?.response === "accepted"} onClick={() => onAnswer("accepted")}>Accept</Button>
+        <Button size="sm" variant="outline" className="h-7 text-xs" disabled={answering || invite?.response === "declined"} onClick={() => onAnswer("declined")}>Decline</Button>
+      </div>
+    )}
+    </div>
   );
 }

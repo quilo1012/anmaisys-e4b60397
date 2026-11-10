@@ -54,7 +54,15 @@
 ## Employee Management System improvements (uploaded doc 19/10) — staged, all items approved
 - [x] Stage 1 — Overtime: (A) quantity optional when opening an ask, (B) employee can cancel a confirmed booking, (C) Day vs Night overtime colours
 - [ ] Stage 2 — Communication Centre: messages off Overview, dedicated centre, team/all announcements, Teams-like notifications
-- [ ] Stage 3 — Meeting scheduling: schedule/update/cancel with notifications and reminders
+- [ ] Stage 3 — Meeting scheduling: schedule/update/cancel with notifications and reminders (10 Nov: code on branch `feat/meeting-scheduling`; live once BLOCO 159 is pasted and the PR is merged)
+  - [x] Database (BLOCO 159, `20261110200000_meetings_in_the_hub.sql`): `meetings` (one row per occurrence, `series_id`), `meeting_participants` (unique meeting+person), indexes on `meeting_participants(user_id)` and `meetings(starts_at)`; RLS — only `meetings.manage` (admin) writes, everybody else reads only meetings they are invited to and changes only their own answer (column grant)
+  - [x] Create / edit / cancel with "Only this one" or "This and the following ones"; recurrence daily/weekly/monthly with required "repeat until", each occurrence its own row; teams, departments and crews resolved to people at invite time; creator auto-accepted; end-before-start and no-participant refused in the form and in SQL
+  - [x] Notices through the existing bell + phone push: invite (Accept/Decline in the bell), date/time/place change, cancellation, answer to the creator; reminder 15 min before to whoever has not declined, pg_cron every minute, claimed once per person (`reminder_sent_at` + unique index)
+  - [x] Calendar at /dashboard/communication/meetings (Communication menu): Day/Week/Month, Week default, previous/today/next, Europe/London, colour = my answer, cancelled struck through, details panel with participants and Join; admin "New meeting" and click-an-empty-slot; phone shows the day as a list
+  - [x] "Upcoming meetings" (next 3) on each role's Overview (landing page); hidden when there are none
+  - [x] Tests: `supabase/tests/meetings_test.sql` (RLS, recurrence, reminder once — passed on local Postgres 16, with negative controls), `src/lib/meetings.test.ts`, `MeetingsPage.test.tsx`, NotificationPanel invite rows, paste-block test
+  - [ ] Paste BLOCO 159 into the AN Maintenance SQL editor, run VERIFY-159 and `supabase/tests/meetings_test.sql` there
+  - [ ] Verify signed in with an admin and a second invited account (invite → bell → Accept → creator notified; reminder on the phone)
 - [ ] Stage 4 — Attendance notifications: late arrivals, missing clock-in/out alerts, employee attendance summaries
 - [ ] Stage 5 — Notification management: centralised categories, read/unread, history
 - [ ] Stage 6 — UI/UX polish: consistent professional look, clean Overview, desktop+mobile

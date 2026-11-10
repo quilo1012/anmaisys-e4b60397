@@ -135,6 +135,20 @@ SELECT pg_temp.expect_true('Ben (not invited) sees no meeting',
   pg_temp.int_as((SELECT v FROM zz_ids WHERE k = 'ben'),
     format('SELECT count(*)::int FROM public.meetings WHERE id = %L', (SELECT v FROM zz_ids WHERE k = 'soon_m'))) = 0);
 
+SELECT pg_temp.expect_true('Ben gets nothing from my_meetings, my_meeting or my_upcoming_meetings',
+  pg_temp.int_as((SELECT v FROM zz_ids WHERE k = 'ben'),
+    $q$SELECT ((SELECT count(*) FROM public.my_meetings(now() - interval '1 day', now() + interval '1 day'))
+             + (SELECT count(*) FROM public.my_upcoming_meetings(20)))::int$q$) = 0
+  AND pg_temp.int_as((SELECT v FROM zz_ids WHERE k = 'ben'),
+    format('SELECT count(*)::int FROM public.my_meeting(%L)', (SELECT v FROM zz_ids WHERE k = 'soon_m'))) = 0);
+
+SELECT pg_temp.expect_true('Ana gets it from my_meetings with her answer, and in her upcoming',
+  pg_temp.int_as((SELECT v FROM zz_ids WHERE k = 'ana'),
+    format($q$SELECT count(*)::int FROM public.my_meetings(now(), now() + interval '1 day')
+               WHERE id = %L AND my_response = 'pending'$q$, (SELECT v FROM zz_ids WHERE k = 'soon_m'))) = 1
+  AND pg_temp.int_as((SELECT v FROM zz_ids WHERE k = 'ana'),
+    'SELECT count(*)::int FROM public.my_upcoming_meetings(3)') = 1);
+
 SELECT pg_temp.expect_true('Ben sees no participant row of it',
   pg_temp.int_as((SELECT v FROM zz_ids WHERE k = 'ben'),
     format('SELECT count(*)::int FROM public.meeting_participants WHERE meeting_id = %L', (SELECT v FROM zz_ids WHERE k = 'soon_m'))) = 0);
@@ -181,6 +195,12 @@ SELECT pg_temp.expect_true('Ana accepts',
 SELECT pg_temp.expect_true('Cat declines',
   pg_temp.int_as((SELECT v FROM zz_ids WHERE k = 'cat'),
     format($q$SELECT public.meeting_respond(%L, 'declined')$q$, (SELECT v FROM zz_ids WHERE k = 'soon_m'))) = 1);
+
+SELECT pg_temp.expect_true('Cat no longer has it in her upcoming; her bell knows she declined',
+  pg_temp.int_as((SELECT v FROM zz_ids WHERE k = 'cat'), 'SELECT count(*)::int FROM public.my_upcoming_meetings(3)') = 0
+  AND pg_temp.int_as((SELECT v FROM zz_ids WHERE k = 'cat'),
+    format($q$SELECT count(*)::int FROM public.my_meeting_answers(array[%L]::uuid[]) WHERE response = 'declined' AND NOT cancelled$q$,
+      (SELECT v FROM zz_ids WHERE k = 'soon_m'))) = 1);
 
 SELECT pg_temp.expect_true('the creator heard both answers',
   (SELECT count(*) FROM public.notifications
