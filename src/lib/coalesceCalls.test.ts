@@ -24,6 +24,17 @@ describe("coalesceCalls", () => {
     expect(fn).toHaveBeenCalledTimes(2);
   });
 
+  it("a steady stream still fires by maxWaitMs", () => {
+    const fn = vi.fn();
+    const call = coalesceCalls(fn, 500, 2_000);
+    // A call every 300 ms never leaves a 500 ms gap.
+    for (let t = 0; t < 2_000; t += 300) {
+      call();
+      vi.advanceTimersByTime(300);
+    }
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
   it("cancel drops the pending call", () => {
     const fn = vi.fn();
     const call = coalesceCalls(fn, 500);

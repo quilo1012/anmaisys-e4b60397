@@ -17,15 +17,23 @@ let woReads = 0;
 let channelsOpened = 0;
 let channelsRemoved = 0;
 let handlers: Array<() => void> = [];
+let sessionLive = true;
 
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "u-1" } }) }));
 
-vi.mock("@/lib/authenticatedRpc", () => ({
+vi.mock("@/lib/authenticatedRpc", async () => {
+  const { NoLiveSessionError } = await import("@/lib/liveSession");
+  return {
+  liveAccessToken: async () => {
+    if (!sessionLive) throw new NoLiveSessionError();
+    return "token";
+  },
   authenticatedRpc: async (fn: string) => {
     rpcCalls.push(fn);
     return { data: [{ id: "eng-1", name: "Engineer One" }], error: null };
   },
-}));
+  };
+});
 
 vi.mock("@/integrations/supabase/client", () => {
   const builder = () => {
@@ -79,6 +87,7 @@ beforeEach(() => {
   channelsOpened = 0;
   channelsRemoved = 0;
   handlers = [];
+  sessionLive = true;
 });
 afterEach(() => vi.useRealTimers());
 
@@ -94,6 +103,18 @@ describe("useWorkOrders load", () => {
     expect(woReads).toBe(2);
     expect(rpcCalls.filter((f) => f === "list_active_profile_names")).toHaveLength(1);
     expect(rpcCalls.filter((f) => f === "list_engineer_names")).toHaveLength(1);
+  });
+
+  it("still fails the read when the session has gone, names cached or not", async () => {
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useWorkOrders(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    sessionLive = false;
+    await act(async () => { await result.current.refetch(); });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    // An anon read returns no rows under RLS; that must not be cached as "no orders".
+    expect(result.current.isError).toBe(true);
+    expect(result.current.data?.length).toBe(1);
   });
 
   it("opens one channel for several mounts and closes it with the last", () => {

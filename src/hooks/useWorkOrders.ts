@@ -6,7 +6,8 @@ import { WAREHOUSE_WO_TYPE } from "@/lib/woKinds";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
-import { authenticatedRpc } from "@/lib/authenticatedRpc";
+import { authenticatedRpc, liveAccessToken } from "@/lib/authenticatedRpc";
+import { NoLiveSessionError } from "@/lib/liveSession";
 import { coalesceCalls } from "@/lib/coalesceCalls";
 
 /**
@@ -18,40 +19,42 @@ import { coalesceCalls } from "@/lib/coalesceCalls";
  * A name missing from a stale list falls back exactly as before (requester_name /
  * engineer_name / "Operator").
  *
- * Failure semantics are the ones the reads had: a refused profile list resolves to no
- * names, and the engineer list's NoLiveSessionError still fails the read. Failures are
- * not cached — fetchQuery stores only data.
+ * Failure semantics are the ones the reads had: a refused list resolves to no names,
+ * and a read without a live session fails. That last one used to come for free from
+ * `authenticatedRpc("list_engineer_names")` on every refetch — without it, an expired
+ * session reads `work_orders` as anon, RLS returns nothing, and React Query would cache
+ * the empty list as a success. With the list cached, the session is checked here on
+ * every call instead. Failures are not cached — fetchQuery stores only data.
  */
 const NAME_LOOKUP_STALE_MS = 5 * 60_000;
 type NameRow = { id: string; name: string };
 
-async function fetchWoNameMaps(queryClient: QueryClient) {
-  const [profiles, engineers] = await Promise.all([
-    queryClient
-      .fetchQuery({
-        queryKey: ["wo_name_lookup", "profiles"],
-        staleTime: NAME_LOOKUP_STALE_MS,
-        queryFn: async () => {
-          const { data, error } = await supabase.rpc("list_active_profile_names");
-          if (error) throw error;
-          return (data ?? []) as NameRow[];
-        },
-      })
-      .catch(() => [] as NameRow[]),
-    queryClient.fetchQuery({
-      queryKey: ["wo_name_lookup", "engineers"],
+function cachedNameList(
+  queryClient: QueryClient,
+  which: "profiles" | "engineers",
+  read: () => PromiseLike<{ data: unknown; error: unknown }>,
+): Promise<NameRow[]> {
+  return queryClient
+    .fetchQuery({
+      queryKey: ["wo_name_lookup", which],
       staleTime: NAME_LOOKUP_STALE_MS,
       queryFn: async () => {
-        const { data, error } = await authenticatedRpc("list_engineer_names");
-        // Before: an error here resolved to no names; only a thrown NoLiveSessionError
-        // failed the read. Keep that: return [] uncached instead of throwing.
-        if (error) return null;
+        const { data, error } = await read();
+        if (error) throw error;
         return (data ?? []) as NameRow[];
       },
-    }).then((rows) => {
-      if (rows === null) queryClient.removeQueries({ queryKey: ["wo_name_lookup", "engineers"], exact: true });
-      return rows ?? [];
-    }),
+    })
+    .catch((e) => {
+      if (e instanceof NoLiveSessionError) throw e;
+      return [] as NameRow[];
+    });
+}
+
+async function fetchWoNameMaps(queryClient: QueryClient) {
+  await liveAccessToken(); // throws NoLiveSessionError — see above
+  const [profiles, engineers] = await Promise.all([
+    cachedNameList(queryClient, "profiles", () => supabase.rpc("list_active_profile_names")),
+    cachedNameList(queryClient, "engineers", () => authenticatedRpc("list_engineer_names")),
   ]);
   return {
     profileNames: new Map(profiles.map((p) => [p.id, p.name])),
