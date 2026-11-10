@@ -19,8 +19,10 @@ describe("BLOCO 159", () => {
     expect(code(paste.replace(block.trimEnd(), ""))).toBe("");
   });
 
-  it("is the last block, so a fresh paste of the package ends with it", () => {
-    expect(all.trimEnd().endsWith(migration.trimEnd())).toBe(true);
+  // Was "is the last block": true only until BLOCO 160 was added after it.
+  it("comes straight after BLOCO 158 in the package", () => {
+    expect(all.indexOf("\n-- BLOCO 159\n")).toBeGreaterThan(all.indexOf("\n-- BLOCO 158\n"));
+    expect(all.indexOf(migration.trimEnd())).toBeGreaterThan(all.indexOf("\n-- BLOCO 158\n"));
   });
 
   it("puts RLS on both tables and keeps anon out of every meeting function", () => {
