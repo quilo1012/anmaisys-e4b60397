@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { coalesceCalls } from "@/lib/coalesceCalls";
 
 /**
  * Returns the count of maintenance orders that currently have the line marked as stopped
@@ -27,16 +28,17 @@ export function useStoppedLinesCount() {
     refetchInterval: 30_000,
   });
 
-  // Realtime: refresh on any work_orders change
+  // Realtime: refresh on any work_orders change — once per burst. `refetch()` cancels
+  // the count already in flight, so a bulk update used to run one count per row.
   useEffect(() => {
     if (!enabled) return;
+    const refresh = coalesceCalls(() => { query.refetch(); }, 500);
     const channel = supabase
       .channel(`stopped_lines_${Math.random().toString(36).slice(2, 8)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "work_orders" }, () => {
-        query.refetch();
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "work_orders" }, () => refresh())
       .subscribe();
     return () => {
+      refresh.cancel();
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
