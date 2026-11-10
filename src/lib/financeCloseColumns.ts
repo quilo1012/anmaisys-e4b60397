@@ -59,6 +59,12 @@ export interface CloseColumn {
    */
   dashWhenZero?: boolean;
   /**
+   * Held as a positive amount (hours deducted) but SHOWN with a minus sign in red,
+   * because it comes off the pay. Display only: the spreadsheet keeps the positive
+   * number so the "Deducted" column still sums the way its header reads.
+   */
+  showNegative?: boolean;
+  /**
    * Printed whatever the print settings say. Only the name: a row of figures with no
    * name on it cannot be paid from, and "Clear all" must not be able to produce one.
    */
@@ -88,7 +94,7 @@ export const CLOSE_COLUMNS: CloseColumn[] = [
   { key: "clockedOtHours", header: "Period", band: "clockedHours", align: "right", value: (r) => r.clockedOtHours, mm: 13, wch: 10 },
   { key: "closingHours", header: "Closing bank", band: "clockedHours", align: "right", value: (r) => r.closingHours, mm: 15, wch: 13 },
   { key: "overtimeHours", header: "Overtime", band: "clockedHours", align: "right", value: (r) => r.overtimeHours, mm: 14, wch: 11 },
-  { key: "owedHours", header: "Deducted", band: "clockedHours", align: "right", value: (r) => r.owedHours, mm: 14, wch: 11, dashWhenZero: true },
+  { key: "owedHours", header: "Deducted", band: "clockedHours", align: "right", value: (r) => r.owedHours, mm: 14, wch: 11, dashWhenZero: true, showNegative: true },
   { key: "payrollOtHours", header: "Payroll OT", band: "clockedHours", align: "right", value: (r) => r.payrollOtHours, mm: 14, wch: 11 },
   { key: "deltaHours", header: "Δ", band: "clockedHours", align: "right", value: (r) => r.deltaHours, mm: 11, wch: 9 },
 
@@ -158,6 +164,7 @@ export function closeDisplayValues(
     if (v == null) return "—";
     if (typeof v === "string") return v || "—";
     if (v === 0 && c.dashWhenZero) return "—";
+    if (c.showNegative && v > 0) return `-${v.toFixed(2)}`;
     // The shift balance is the one figure whose sign is the answer: "+2" and "2" read
     // differently to somebody deciding whether to pay.
     if (c.key === "shiftBalance") return v > 0 ? `+${v}` : String(v);
@@ -192,6 +199,7 @@ export function closeTotalValues(
     const sum = Math.round(nums.reduce((a, b) => a + b, 0) * 100) / 100;
     if (c.key === "shiftBalance") return sum > 0 ? `+${sum}` : String(sum);
     if (sum === 0 && c.dashWhenZero) return "—";
+    if (c.showNegative && sum > 0) return `-${sum.toFixed(2)}`;
     return Number.isInteger(sum) && c.band !== "clockedHours" && c.band !== "boardHours"
       ? String(sum)
       : sum.toFixed(2);
