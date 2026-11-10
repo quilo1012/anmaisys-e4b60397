@@ -147,9 +147,15 @@ export function NotificationPanel() {
 
   useEffect(() => {
     if (!user) return;
+    // Only the roles the handlers below act for subscribe. Everyone else used to hold
+    // this channel open and drop every event — and Supabase checks RLS once per
+    // subscriber per changed row, so each operator tablet and employee phone added a
+    // read to every work-order insert and every stock movement for nothing.
+    const isManager = role === "manager" || role === "maintenance_manager";
+    if (!isManager && role !== "admin") return;
 
-    const channel = supabase
-      .channel(`notifications_panel_${user.id}`)
+    let channel = supabase.channel(`notifications_panel_${user.id}`);
+    if (isManager) channel = channel
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "work_orders", filter: "status=eq.open" },
@@ -172,10 +178,11 @@ export function NotificationPanel() {
             });
           }
         }
-      )
-      // NOTE: UPDATE listener intentionally removed — it caused the alert to re-fire
-      // immediately after Accept (status open→received is an UPDATE event).
-      // Status/assignment/line-stopped notifications are no longer surfaced via the panel.
+      );
+    // NOTE: UPDATE listener intentionally removed — it caused the alert to re-fire
+    // immediately after Accept (status open→received is an UPDATE event).
+    // Status/assignment/line-stopped notifications are no longer surfaced via the panel.
+    channel = channel
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "products" }, (payload) => {
         const product = payload.new as any;
         if ((role === "admin" || (role === "manager" || role === "maintenance_manager")) && product.quantity <= product.min_stock) {

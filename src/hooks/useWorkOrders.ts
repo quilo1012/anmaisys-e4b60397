@@ -1,11 +1,101 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { WAREHOUSE_WO_TYPE } from "@/lib/woKinds";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 import { logAuditEvent } from "@/hooks/useAuditLogs";
-import { authenticatedRpc } from "@/lib/authenticatedRpc";
+import { authenticatedRpc, liveAccessToken } from "@/lib/authenticatedRpc";
+import { NoLiveSessionError } from "@/lib/liveSession";
+import { coalesceCalls } from "@/lib/coalesceCalls";
+
+/**
+ * The two name lists every work-order read resolves against, cached for five minutes.
+ *
+ * They were fetched again on every refetch of every work-order query: the 30-second
+ * poll, and every realtime event on `work_orders` in every open client. Three requests
+ * where one carried the orders, and the two extra lists change when someone is hired.
+ * A name missing from a stale list falls back exactly as before (requester_name /
+ * engineer_name / "Operator").
+ *
+ * Failure semantics are the ones the reads had: a refused list resolves to no names,
+ * and a read without a live session fails. That last one used to come for free from
+ * `authenticatedRpc("list_engineer_names")` on every refetch — without it, an expired
+ * session reads `work_orders` as anon, RLS returns nothing, and React Query would cache
+ * the empty list as a success. With the list cached, the session is checked here on
+ * every call instead. Failures are not cached — fetchQuery stores only data.
+ */
+const NAME_LOOKUP_STALE_MS = 5 * 60_000;
+type NameRow = { id: string; name: string };
+
+function cachedNameList(
+  queryClient: QueryClient,
+  which: "profiles" | "engineers",
+  read: () => PromiseLike<{ data: unknown; error: unknown }>,
+): Promise<NameRow[]> {
+  return queryClient
+    .fetchQuery({
+      queryKey: ["wo_name_lookup", which],
+      staleTime: NAME_LOOKUP_STALE_MS,
+      queryFn: async () => {
+        const { data, error } = await read();
+        if (error) throw error;
+        return (data ?? []) as NameRow[];
+      },
+    })
+    .catch((e) => {
+      if (e instanceof NoLiveSessionError) throw e;
+      return [] as NameRow[];
+    });
+}
+
+async function fetchWoNameMaps(queryClient: QueryClient) {
+  await liveAccessToken(); // throws NoLiveSessionError — see above
+  const [profiles, engineers] = await Promise.all([
+    cachedNameList(queryClient, "profiles", () => supabase.rpc("list_active_profile_names")),
+    cachedNameList(queryClient, "engineers", () => authenticatedRpc("list_engineer_names")),
+  ]);
+  return {
+    profileNames: new Map(profiles.map((p) => [p.id, p.name])),
+    engineerNames: new Map(engineers.map((e) => [e.id, e.name])),
+  };
+}
+
+/**
+ * One realtime channel on `work_orders` per QueryClient, however many components
+ * mount useWorkOrders.
+ *
+ * Each mount opened its own unfiltered channel, and each one invalidated every
+ * `work_orders` query. A screen with three mounts got three events per changed row,
+ * and Supabase checks RLS for every subscriber on every change. Now: one channel,
+ * reference-counted, and a burst of events folds into one invalidation.
+ */
+const woChannels = new Map<QueryClient, { channel: RealtimeChannel; users: number; invalidate: ReturnType<typeof coalesceCalls> }>();
+
+function retainWorkOrdersChannel(queryClient: QueryClient): () => void {
+  let entry = woChannels.get(queryClient);
+  if (!entry) {
+    const invalidate = coalesceCalls(() => {
+      queryClient.invalidateQueries({ queryKey: ["work_orders"] });
+    }, 500);
+    const channel = supabase
+      .channel(`work_orders_changes_${Math.random().toString(36).slice(2, 8)}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "work_orders" }, () => invalidate())
+      .subscribe();
+    entry = { channel, users: 0, invalidate };
+    woChannels.set(queryClient, entry);
+  }
+  entry.users += 1;
+  const held = entry;
+  return () => {
+    held.users -= 1;
+    if (held.users > 0) return;
+    held.invalidate.cancel();
+    woChannels.delete(queryClient);
+    supabase.removeChannel(held.channel);
+  };
+}
 
 export type WOStatus = "open" | "received" | "arrived" | "in_progress" | "finished" | "closed" | "force_closed";
 
@@ -202,13 +292,7 @@ export function useWorkOrders(filter?: {
         }
         rows = (data || []) as unknown as WorkOrder[];
       }
-      const [profilesRes, engineersRes] = await Promise.all([
-        supabase.rpc("list_active_profile_names"),
-        authenticatedRpc("list_engineer_names"),
-      ]);
-
-      const profileNames = new Map((profilesRes.data || []).map((p) => [p.id, p.name]));
-      const engineerNames = new Map((engineersRes.data || []).map((e) => [e.id, e.name]));
+      const { profileNames, engineerNames } = await fetchWoNameMaps(queryClient);
 
       return rows.map((wo) => ({
         ...wo,
@@ -224,17 +308,7 @@ export function useWorkOrders(filter?: {
     staleTime: 15_000,
   });
 
-  useEffect(() => {
-    const channelName = `work_orders_changes_${Math.random().toString(36).slice(2, 8)}`;
-    const channel = supabase
-      .channel(channelName)
-      .on("postgres_changes", { event: "*", schema: "public", table: "work_orders" }, () => {
-        queryClient.invalidateQueries({ queryKey: ["work_orders"] });
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [queryClient]);
+  useEffect(() => retainWorkOrdersChannel(queryClient), [queryClient]);
 
   return query;
 }
@@ -912,6 +986,7 @@ export function useWorkOrderAccessHint(id: string, enabled: boolean) {
 }
 
 export function useWorkOrderById(id: string) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: ["work_orders", id],
     queryFn: async () => {
@@ -923,12 +998,7 @@ export function useWorkOrderById(id: string) {
       if (error) throw error;
 
       const wo = data as unknown as WorkOrder;
-      const [profilesRes, engineersRes] = await Promise.all([
-        supabase.rpc("list_active_profile_names"),
-        authenticatedRpc("list_engineer_names"),
-      ]);
-      const profileNames = new Map((profilesRes.data || []).map((p) => [p.id, p.name]));
-      const engineerNames = new Map((engineersRes.data || []).map((e) => [e.id, e.name]));
+      const { profileNames, engineerNames } = await fetchWoNameMaps(queryClient);
 
       return {
         ...wo,
