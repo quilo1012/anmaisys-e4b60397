@@ -10,7 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChevronLeft, ChevronRight, Info, ReceiptText } from "lucide-react";
 import { toast } from "sonner";
 import { myPayslipDraft } from "@/lib/myPayslipDraft";
-import { printPayslipDrafts } from "@/components/workforce/PayslipDraftSheet";
+import { PayslipDraftSheet, printPayslipDrafts } from "@/components/workforce/PayslipDraftSheet";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import type { PayslipDraft } from "@/lib/payslipDraft";
 import { Button } from "@/components/ui/button";
 import { areaText, fmtDay } from "@/lib/myShiftText";
 import { cn } from "@/lib/utils";
@@ -146,6 +148,8 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
   const choices = useMemo(() => rangeChoices(data.periods, today), [data.periods, today]);
   const [selected, setSelected] = useState<MyDay | null>(null);
   const [printing, setPrinting] = useState(false);
+  /** The draft on screen, with when it was built. Null while closed. */
+  const [draft, setDraft] = useState<{ draft: PayslipDraft; at: Date } | null>(null);
   const currentKey = choices.find((c) => c.from === range.from && c.to === range.to)?.key ?? "custom";
   const todayDay = days.find((d) => d.date === today) ?? null;
   // Overtime the office placed on the Headcount by hand, from today to the end of the range.
@@ -231,24 +235,57 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
             <Button
               type="button" size="sm" variant="outline" className="h-8"
               disabled={!otRecords || printing}
-              onClick={async () => {
-                setPrinting(true);
+              onClick={() => {
+                // Opened on screen, not sent to print: the home-screen app on an iPhone
+                // ignores a print request, so the button did nothing there (10/11/2026).
                 try {
-                  const draft = myPayslipDraft({
-                    data, period: s.settled!.period, today, now: new Date(),
-                    overtime: otRecords ?? [], marks: boardMarks ?? null,
+                  const at = new Date();
+                  setDraft({
+                    at,
+                    draft: myPayslipDraft({
+                      data, period: s.settled!.period, today, now: at,
+                      overtime: otRecords ?? [], marks: boardMarks ?? null,
+                    }),
                   });
-                  await printPayslipDrafts([draft], `Payslip draft · ${s.settled!.period.name}`);
                 } catch (e) {
                   toast.error("The payslip draft could not be built.", { description: String((e as Error)?.message ?? e) });
-                } finally {
-                  setPrinting(false);
                 }
               }}
             >
               <ReceiptText className="mr-1.5 h-4 w-4" /> Payslip draft
             </Button>
           )}
+          <Dialog open={!!draft} onOpenChange={(o) => { if (!o) setDraft(null); }}>
+            <DialogContent className="max-h-[92dvh] w-[calc(100vw-1rem)] max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] gap-3 overflow-hidden p-3 sm:p-5">
+              <DialogHeader>
+                <DialogTitle>Payslip draft · {s.settled?.period.name}</DialogTitle>
+                <DialogDescription>Hours only, no pay amounts. Check them against your payslip.</DialogDescription>
+              </DialogHeader>
+              {/* The sheet is laid out for paper: white, black ink, in either theme. */}
+              <div className="min-h-0 overflow-auto rounded border bg-white p-3 text-black">
+                {draft && <PayslipDraftSheet draft={draft.draft} generatedAt={draft.at} />}
+              </div>
+              <DialogFooter className="flex-row justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setDraft(null)}>Close</Button>
+                <Button
+                  type="button" disabled={!draft || printing}
+                  onClick={async () => {
+                    if (!draft) return;
+                    setPrinting(true);
+                    try {
+                      await printPayslipDrafts([draft.draft], `Payslip draft · ${s.settled!.period.name}`);
+                    } catch (e) {
+                      toast.error("The payslip draft could not be printed.", { description: String((e as Error)?.message ?? e) });
+                    } finally {
+                      setPrinting(false);
+                    }
+                  }}
+                >
+                  Print
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           {s.settled ? (

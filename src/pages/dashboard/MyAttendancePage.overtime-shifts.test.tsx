@@ -6,7 +6,7 @@
  */
 import React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import type { MyAttendanceData, MyOvertimeShiftRecord } from "@/lib/myAttendance";
@@ -20,7 +20,10 @@ const env = vi.hoisted(() => ({
   marks: null as unknown,
   print: vi.fn(async () => {}),
 }));
-vi.mock("@/components/workforce/PayslipDraftSheet", () => ({ printPayslipDrafts: env.print }));
+vi.mock("@/components/workforce/PayslipDraftSheet", () => ({
+  printPayslipDrafts: env.print,
+  PayslipDraftSheet: ({ draft }: { draft: { header: { name: string } } }) => <article data-testid="payslip-draft">{draft.header.name}</article>,
+}));
 vi.mock("@/hooks/useMyAttendance", () => ({ useMyAttendance: env.attendance }));
 vi.mock("@/hooks/useMyOvertimeShifts", () => ({ useMyOvertimeShifts: env.shifts }));
 // my_board_marks not pasted: the asks keep their own hours.
@@ -132,11 +135,24 @@ describe("overtime shifts beside the clock's figure", () => {
     expect(screen.queryByTestId("overtime-shifts")).not.toBeInTheDocument();
   });
 
-  it("prints my own payslip draft for the pay period: hours only, the phone's overtime", async () => {
+  it("opens my own payslip draft on screen, without printing: an iPhone app ignores print", async () => {
+    // 10/11/2026: employees tapped "Payslip draft" on the home-screen app and nothing
+    // opened — the button only ever asked the browser to print.
     env.shifts.mockReturnValue({ data: SHIFTS });
     env.print.mockClear();
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: /Payslip draft/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByTestId("payslip-draft")).toHaveTextContent("Ailton Junior");
+    expect(env.print).not.toHaveBeenCalled();
+  });
+
+  it("prints that draft from the page: hours only, the phone's overtime", async () => {
+    env.shifts.mockReturnValue({ data: SHIFTS });
+    env.print.mockClear();
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /Payslip draft/ }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: /^Print$/ }));
     await waitFor(() => expect(env.print).toHaveBeenCalledTimes(1));
     const [[drafts, title]] = env.print.mock.calls as unknown as [[{ header: { name: string }; overtime: { periodHours: number | null } }[], string]];
     expect(title).toBe("Payslip draft · October 2026");
