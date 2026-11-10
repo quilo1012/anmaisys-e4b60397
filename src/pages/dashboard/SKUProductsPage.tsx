@@ -212,7 +212,7 @@ export default function SKUProductsPage() {
     return all.filter((p) => !s || p.code.toLowerCase().includes(s) || p.name.toLowerCase().includes(s));
   }, [all, search]);
   const pageRows = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-  // BLOCO 157 adds the column; until then the rows have no `allergens` key and the field is hidden.
+  // BLOCO 158 adds the column; until then the rows have no `allergens` key and the field is hidden.
   const hasAllergens = all.some((p) => "allergens" in p);
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
@@ -235,7 +235,7 @@ export default function SKUProductsPage() {
       const payload = skuUpdatePayload(sku);
       if (!payload.code || !payload.name) throw new Error("Code and Name required");
       if (sku.id) {
-        // `allergens` is not in the generated types until BLOCO 157 is pasted and types.ts regenerated.
+        // `allergens` is not in the generated types until BLOCO 158 is pasted and types.ts regenerated.
         const { data, error } = await supabase.from("sku_products").update(payload as Omit<typeof payload, "allergens">).eq("id", sku.id).select("id");
         if (error) throw error;
         assertSkuRowsChanged(data, "saved");

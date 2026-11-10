@@ -2,13 +2,16 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-/** Q82: each product's allergens, for Smart Target's deep clean rule. */
+/**
+ * 10/11: each 60-second presence beat bumped communication_presence_changes, which is in
+ * Realtime, so every open tab re-read the presence list on every other tab's beat.
+ */
 const root = resolve(__dirname, "../..");
 const dir = resolve(root, "docs/apply-passo-3");
 const read = (p: string) => readFileSync(p, "utf8");
 const all = read(resolve(dir, "APPLY-ALL-IN-ORDER.sql"));
-const paste = read(resolve(dir, "APLICAR-157-alergenios-dos-produtos.sql"));
-const migration = read(resolve(root, "supabase/migrations/20261110180000_sku_allergens.sql"));
+const paste = read(resolve(dir, "APLICAR-157-presenca-sem-marcador-a-cada-batida.sql"));
+const migration = read(resolve(root, "supabase/migrations/20261110140000_presence_marker_only_when_someone_connects.sql"));
 const block = all.split(/\n(?=-- =+\n-- BLOCO \d+\n)/).find((b) => /^-- =+\n-- BLOCO 157\n/.test(b))!;
 const code = (sql: string) => sql.split("\n").filter((l) => l.trim() && !l.trim().startsWith("--")).join("\n");
 
@@ -19,8 +22,14 @@ describe("BLOCO 157", () => {
     expect(code(paste.replace(block.trimEnd(), ""))).toBe("");
   });
 
-  it("only adds a nullable column, so it can be pasted twice and changes no data", () => {
-    expect(code(migration)).toMatch(/alter table public\.sku_products add column if not exists allergens text\[\];/);
-    expect(code(migration)).not.toMatch(/\b(update|delete|insert|drop|grant|revoke|policy)\b/i);
+  it("writes the marker only when the user had no live lease", () => {
+    const sql = code(migration);
+    expect(sql).toMatch(/v_was_online := exists \(select 1 from public\.communication_connection_leases l where l\.user_id = v_me\);/);
+    expect(sql).toMatch(/if not v_was_online then\s+insert into public\.communication_presence_changes/);
+  });
+
+  it("does not touch grants or any table", () => {
+    const sql = code(migration);
+    expect(sql).not.toMatch(/\b(grant|revoke|alter table|create table|drop)\b/i);
   });
 });

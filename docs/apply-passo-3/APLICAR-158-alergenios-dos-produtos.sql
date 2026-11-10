@@ -1,14 +1,14 @@
--- APLICAR 157 — alergénios de cada produto, para a regra do deep clean do Smart Target.
+-- APLICAR 158 — alergénios de cada produto, para a regra do deep clean do Smart Target.
 --
--- PT: Colar no SQL Editor do AN Maintenance (Supabase), o ficheiro inteiro. É o BLOCO 157 do
+-- PT: Colar no SQL Editor do AN Maintenance (Supabase), o ficheiro inteiro. É o BLOCO 158 do
 -- APPLY-ALL-IN-ORDER.sql, byte a byte. Só acrescenta uma coluna vazia a sku_products; não
--- muda dados. Pode colar-se duas vezes. Depois correr VERIFY-157-alergenios-dos-produtos.sql.
+-- muda dados. Pode colar-se duas vezes. Depois correr VERIFY-158-alergenios-dos-produtos.sql.
 --
--- EN: Paste the whole file into the AN Maintenance SQL Editor; it is BLOCO 157. One empty
--- column on sku_products, no data change. Then run VERIFY-157.
+-- EN: Paste the whole file into the AN Maintenance SQL Editor; it is BLOCO 158. One empty
+-- column on sku_products, no data change. Then run VERIFY-158.
 
 -- ================================================================
--- BLOCO 157
+-- BLOCO 158
 -- 20261110180000_sku_allergens.sql
 -- ================================================================
 -- Smart Target: each product's allergens, for the deep clean rule (decided 10/11, Q82).

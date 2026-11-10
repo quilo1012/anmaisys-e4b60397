@@ -14,7 +14,7 @@ import type { LineNo } from "@/lib/smartTargetEngine";
 
 /**
  * What the deep and drill clean rule needs (Q81–Q83): how long each line's cleans took over
- * the last eight weeks, and each product's confirmed allergens (BLOCO 157). Before 157 the
+ * the last eight weeks, and each product's confirmed allergens (BLOCO 158). Before 157 the
  * allergens read fails quietly and the rule uses the name's suggestion.
  */
 export function useCleaningBasis(catalogue: SkuCatalogue) {
@@ -33,7 +33,7 @@ export function useCleaningBasis(catalogue: SkuCatalogue) {
         (async () => {
           try {
             return await fetchAllRows<{ id: string; code: string; allergens: string[] | null }>(
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- not in the generated types until BLOCO 157
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any -- not in the generated types until BLOCO 158
               (supabase as any).from("sku_products").select("id, code, allergens").not("allergens", "is", null).order("code"),
             );
           } catch {

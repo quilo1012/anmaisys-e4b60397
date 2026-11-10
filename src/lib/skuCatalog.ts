@@ -13,7 +13,7 @@ export function skuUpdatePayload(sku: SkuFields & { allergens?: string[] | null 
   return {
     code: (sku.code ?? "").trim(), name: sku.name ?? "", category: sku.category ?? null,
     target_per_hour: sku.target_per_hour ?? 0, weight: sku.weight ?? null, active: sku.active ?? true,
-    // Only once BLOCO 157 has added the column, and only when the form carries it: a
+    // Only once BLOCO 158 has added the column, and only when the form carries it: a
     // product nobody has confirmed stays NULL rather than becoming "no allergens".
     ...(sku.allergens !== undefined ? { allergens: sku.allergens } : {}),
   };

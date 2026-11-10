@@ -112,7 +112,7 @@ async function factorsFor(date: string) {
 
 /**
  * Deep and drill cleans (Q81–Q83): each line's logged clean times over eight weeks, and the
- * products' confirmed allergens. Without BLOCO 157 the allergens read fails and the rule
+ * products' confirmed allergens. Without BLOCO 158 the allergens read fails and the rule
  * goes by the name's suggestion; a failed read of the stops leaves the plan sheet's times.
  */
 async function cleaningFor(catalogue: SkuCatalogue): Promise<(line: LineNo) => CleaningRule> {
@@ -128,7 +128,7 @@ async function cleaningFor(catalogue: SkuCatalogue): Promise<(line: LineNo) => C
     );
     for (const r of rows) if (r.allergens) allergens.set(r.code.trim().toUpperCase(), r.allergens);
   } catch {
-    // BLOCO 157 not pasted yet.
+    // BLOCO 158 not pasted yet.
   }
   const minutes = cleanMinutesByLine(stops.map((s) => ({ line: s.line, shift: s.shift, date: s.downtime_date ?? s.occurred_date, reason: s.reason, duration_minutes: s.duration_minutes })));
   const productOf = (sku: string) => {
