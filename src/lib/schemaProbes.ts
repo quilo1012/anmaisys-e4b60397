@@ -30,6 +30,12 @@
  */
 const PROBED_COLUMNS = new Map<string, string>([
   [
+    "notifications.meeting_id",
+    "useMyNotifications feed rung 1 (BLOCO 159, 20261110200000): absent drops to the "
+    + "kind/overtime_request_id rung, and the bell shows no Accept/Decline because no row "
+    + "can be a meeting invite yet",
+  ],
+  [
     "quality_options.is_gate",
     "useQualityOptions selectOptions rung 2 (20260824090000): absent reads as "
     + "'nothing gates', and useGateLabels().missing says so out loud in the lists manager",

@@ -15,6 +15,21 @@ export interface StoredNotification {
   created_at: string;
   kind: string | null;
   overtime_request_id: string | null;
+  /** BLOCO 159: the meeting a meeting notice is about. */
+  meeting_id: string | null;
+}
+
+/** What the bell needs to know to offer Accept/Decline on a meeting invite. */
+export interface InviteState {
+  meeting_id: string;
+  response: "pending" | "accepted" | "declined";
+  cancelled: boolean;
+  started: boolean;
+}
+
+/** Accept/Decline is offered only while the meeting can still be answered. */
+export function inviteAnswerable(s: InviteState | undefined): boolean {
+  return !!s && !s.cancelled && !s.started;
 }
 
 export interface AskState {

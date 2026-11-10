@@ -27,13 +27,20 @@ describe("employee", () => {
     expect(can("employee", "chat.dm")).toBe(true);
   });
 
+  it("sees the meetings they are invited to, and cannot schedule one", () => {
+    expect(can("employee", "meetings.view")).toBe(true);
+    setPermissionOverrides({ "employee:meetings.manage": true });
+    expect(can("employee", "meetings.manage")).toBe(false);
+    setPermissionOverrides({});
+  });
+
   it("cannot create groups", () => {
     expect(can("employee", "chat.groups.manage")).toBe(false);
   });
 
   it("holds nothing else", () => {
     expect(ALL_ACTIONS.filter((a) => can("employee", a)).sort())
-      .toEqual(["attendance.view_own", "chat.dm", "overtime.respond"]);
+      .toEqual(["attendance.view_own", "chat.dm", "meetings.view", "overtime.respond"]);
   });
 
   it("cannot publish overtime asks", () => {
@@ -76,8 +83,8 @@ describe("the employee ceiling", () => {
     expect(can("employee", "attendance.view_own")).toBe(false);
   });
 
-  it("is exactly the three self-service actions", () => {
-    expect([...EMPLOYEE_CEILING].sort()).toEqual(["attendance.view_own", "chat.dm", "overtime.respond"]);
+  it("is exactly the four self-service actions", () => {
+    expect([...EMPLOYEE_CEILING].sort()).toEqual(["attendance.view_own", "chat.dm", "meetings.view", "overtime.respond"]);
   });
 
   it("does not touch any other role's grants", () => {

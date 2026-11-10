@@ -189,6 +189,7 @@ const MyProductionPage = lazyWithReload(() => import("./pages/dashboard/MyProduc
 const OperatorPerformancePage = lazyWithReload(() => import("./pages/dashboard/OperatorPerformancePage"));
 const LeaderMyScorecardPage = lazyWithReload(() => import("./pages/dashboard/LeaderMyScorecardPage"));
 const DirectMessagesPage = lazyWithReload(() => import("./pages/dashboard/DirectMessagesPage"));
+const MeetingsPage = lazyWithReload(() => import("./pages/dashboard/MeetingsPage"));
 const PermissionsMatrixPage = lazyWithReload(() => import("./pages/dashboard/PermissionsMatrixPage"));
 const RootDiagnosticsPage = lazyWithReload(() => import("./pages/dashboard/RootDiagnosticsPage"));
 
@@ -916,6 +917,16 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAction="chat.dm">
                       <DirectMessagesPage />
+                    </ProtectedRoute>
+                  }
+                />
+                {/* Meetings (BLOCO 159). Its own action, not chat.dm: engineers, warehouse
+                    and quality are invited to meetings without holding Messages. */}
+                <Route
+                  path="/dashboard/communication/meetings"
+                  element={
+                    <ProtectedRoute requiredAction="meetings.view">
+                      <MeetingsPage />
                     </ProtectedRoute>
                   }
                 />
