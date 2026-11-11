@@ -697,7 +697,9 @@ export default function FinanceClosePage() {
                 <FileText className="mr-2 h-4 w-4" /> PDF · to hand over
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => {
-                exportCloseExcel(exportInput()).catch((e) => {
+                // Inside a promise, so a throw while gathering the input reaches the
+                // same toast as one while building the file.
+                Promise.resolve().then(() => exportCloseExcel(exportInput())).catch((e) => {
                   toast.error("The workbook could not be built.", { description: String(e?.message ?? e) });
                 });
               }}>

@@ -290,8 +290,21 @@ export function closeColumnNumFmt(c: CloseColumn): string | undefined {
   if (c.key === "deltaHours") return "+#,##0.00;-#,##0.00;0.00";
   if (c.band === "clockedHours" || c.band === "boardHours") return "#,##0.00";
   if (c.band === "shifts") return "0";
-  // Days away can be half days, so they are not forced to whole numbers.
-  return "0.##;-0.##;0";
+  // Days away can be half days. General shows 20 as "20" and 0.5 as "0.5"; a fixed
+  // "0.##" would print every whole day with a trailing point ("20.").
+  return "General";
+}
+
+/**
+ * A timestamp as the wall-clock time it was here.
+ *
+ * Excel dates have no time zone and ExcelJS writes a Date from its UTC value, so an
+ * import at 09:30 BST would read 08:30. Shifted by the local offset, it reads as the
+ * app shows it.
+ */
+function excelLocalDate(iso: string): Date {
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000);
 }
 
 /** The 1-based Excel column letter for a 1-based index. */
@@ -304,7 +317,9 @@ function colLetter(n: number): string {
 /** Title, subtitle and provenance across the top of a sheet. Returns the next free row. */
 function titleBlock(ws: ExcelJS.Worksheet, width: number, title: string, lines: string[]): number {
   const span = Math.max(width, 1);
-  ws.mergeCells(1, 1, 1, span);
+  // No merge across one column: Excel flags an A1:A1 merge as needing repair, and an
+  // unmerged cell lets the title spill into the empty cells beside it instead.
+  if (span > 1) ws.mergeCells(1, 1, 1, span);
   const t = ws.getCell(1, 1);
   t.value = title;
   t.font = { name: FONT, size: 16, bold: true, color: { argb: XL.navy } };
@@ -312,7 +327,7 @@ function titleBlock(ws: ExcelJS.Worksheet, width: number, title: string, lines: 
   ws.getRow(1).height = 26;
   lines.forEach((text, i) => {
     const r = 2 + i;
-    ws.mergeCells(r, 1, r, span);
+    if (span > 1) ws.mergeCells(r, 1, r, span);
     const c = ws.getCell(r, 1);
     c.value = text;
     c.font = { name: FONT, size: 10, color: { argb: XL.subtle } };
@@ -459,13 +474,14 @@ export async function buildCloseWorkbook(input: CloseExportInput): Promise<Excel
     r += 1;
     ws.mergeCells(r, 1, r, 4);
     const warn = ws.getCell(r, 1);
-    warn.value = closeWarningText(t);
+    const warning = closeWarningText(t);
+    warn.value = warning;
     warn.font = { name: FONT, size: 10, color: { argb: XL.ink } };
     warn.alignment = { wrapText: true, vertical: "top" };
     warn.fill = fill(XL.warnBg);
     warn.border = { top: thin(XL.warnBorder), left: thin(XL.warnBorder), bottom: thin(XL.warnBorder), right: thin(XL.warnBorder) };
     // Merged cells do not grow to fit wrapped text, so the height is set from the length.
-    ws.getRow(r).height = Math.max(60, Math.ceil(closeWarningText(t).length / 110) * 14 + 10);
+    ws.getRow(r).height = Math.max(60, Math.ceil(warning.length / 110) * 14 + 10);
     r += 1;
     const notes = [
       "Shifts come from the board; hours come from the clocks. Part day is hours from the board, not days away.",
@@ -542,7 +558,10 @@ export async function buildCloseWorkbook(input: CloseExportInput): Promise<Excel
       const cell = ws.getCell(totalRow, ci + 1);
       if (ci === 0) {
         cell.value = input.rows.length
-          ? { formula: `"Total · "&SUBTOTAL(103,A${first}:A${last})&" people"`, result: `Total · ${input.rows.length} people` }
+          ? {
+            formula: `"Total · "&SUBTOTAL(103,A${first}:A${last})&IF(SUBTOTAL(103,A${first}:A${last})=1," person"," people")`,
+            result: `Total · ${input.rows.length} ${input.rows.length === 1 ? "person" : "people"}`,
+          }
           : "Total · 0 people";
       } else if (col.align === "right") {
         const st = subtotal(ci + 1, first, last, values.map((row) => {
@@ -637,7 +656,7 @@ export async function buildCloseWorkbook(input: CloseExportInput): Promise<Excel
         const row: (string | number | Date | null)[] = [
           e.name, e.employeeRef, e.department || "to confirm", e.hours,
           e.note || (e.hours < 0 ? "Sickness against banked hours" : ""),
-          e.sourceNote, e.importedAt ? new Date(e.importedAt) : null,
+          e.sourceNote, e.importedAt ? excelLocalDate(e.importedAt) : null,
         ];
         row.forEach((v, ci) => {
           const cell = ws.getCell(first + ri, ci + 1);

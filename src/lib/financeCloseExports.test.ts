@@ -304,6 +304,25 @@ describe("the workbook", () => {
     expect(wide.getWorksheet("People")!.pageSetup.orientation).toBe("landscape");
   });
 
+  it("shows whole days as whole numbers, not with a trailing point", async () => {
+    const ws = (await roundTrip(input())).getWorksheet("People")!;
+    const at = CLOSE_COLUMNS.findIndex((c) => c.key === "daysPresent");
+    expect(ws.getCell(10, at + 1).numFmt ?? "General").toBe("General");
+  });
+
+  it("says person, not people, for a close of one", async () => {
+    const rows = buildClose([person()], PERIOD.from, PERIOD.to);
+    const wb = await roundTrip({ ...input(), rows, totals: closeTotals(rows) });
+    expect(sheetAoa(wb, "People").some((r) => r[0] === "Total · 1 person")).toBe(true);
+  });
+
+  it("does not merge the title across a single column when only the name is ticked", async () => {
+    const wb = await roundTrip(input({ columns: pickPrintColumns([]) }));
+    const ws = wb.getWorksheet("People")!;
+    expect(ws.getCell("A1").isMerged).toBe(false);
+    expect(sheetAoa(wb, "People").some((r) => r[0] === "Employee")).toBe(true);
+  });
+
   it("builds for an empty close rather than throwing", async () => {
     const rows: ClosePerson[] = [];
     const wb = await roundTrip({ ...input(), rows, totals: closeTotals(rows), byCrew: [] });
