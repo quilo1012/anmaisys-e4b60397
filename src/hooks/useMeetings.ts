@@ -67,7 +67,14 @@ export function useMeeting(id: string | null) {
   });
 }
 
-export interface ParticipantRow { user_id: string; name: string; response: MeetingResponse; responded_at: string | null }
+export interface ParticipantRow {
+  user_id: string;
+  name: string;
+  response: MeetingResponse;
+  responded_at: string | null;
+  /** BLOCO 161: only for who organises or manages, and for the person who declined. */
+  decline_reason?: string | null;
+}
 
 export function useMeetingParticipants(id: string | null) {
   return useQuery({
@@ -150,10 +157,20 @@ export function useMeetingActions() {
     onSuccess: refresh,
   });
   const respond = useMutation({
-    mutationFn: async ({ id, response, scope = "one" }: { id: string; response: "accepted" | "declined"; scope?: Scope }) => {
-      const { data, error } = await db.rpc("meeting_respond", { p_meeting: id, p_response: response, p_scope: scope });
+    mutationFn: async ({ id, response, scope = "one", reason }: {
+      id: string; response: "accepted" | "declined"; scope?: Scope; reason?: string;
+    }): Promise<{ changed: number; reasonDropped: boolean }> => {
+      const args = { p_meeting: id, p_response: response, p_scope: scope };
+      const text = response === "declined" ? (reason ?? "").trim() : "";
+      if (text) {
+        const { data, error } = await db.rpc("meeting_respond", { ...args, p_reason: text });
+        if (!error) return { changed: data as number, reasonDropped: false };
+        // Before BLOCO 161 there is no p_reason: the answer still counts, without it.
+        if (!isNotInstalled(error)) throw error;
+      }
+      const { data, error } = await db.rpc("meeting_respond", args);
       if (error) throw error;
-      return data as number;
+      return { changed: data as number, reasonDropped: !!text };
     },
     onSuccess: refresh,
   });

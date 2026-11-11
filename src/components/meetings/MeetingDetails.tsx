@@ -10,8 +10,10 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { TONE_LABEL, safeVideoLink, toneOf, whenLabel, type MyMeeting, type Scope } from "@/lib/meetings";
+import { TONE_LABEL, answerSummary, safeVideoLink, toneOf, whenLabel, type MyMeeting, type Scope } from "@/lib/meetings";
 import { useMeetingActions, useMeetingParticipants } from "@/hooks/useMeetings";
+import { DeclineDialog } from "@/components/meetings/DeclineDialog";
+import { answeredToast } from "@/lib/meetingToasts";
 
 const errText = (e: unknown) => (e as { message?: string })?.message ?? "Something went wrong";
 
@@ -58,6 +60,7 @@ export function MeetingDetails({ meeting, canManage, myId, onClose, onEdit }: {
   const { respond, cancel } = useMeetingActions();
   const [asking, setAsking] = useState(false);
   const [confirmOne, setConfirmOne] = useState(false);
+  const [declining, setDeclining] = useState(false);
 
   const m = meeting;
   const tone = m ? toneOf(m) : "pending";
@@ -66,10 +69,10 @@ export function MeetingDetails({ meeting, canManage, myId, onClose, onEdit }: {
   const past = m ? new Date(m.ends_at).getTime() < Date.now() : false;
   const invited = m?.my_response != null;
 
-  const answer = (response: "accepted" | "declined") => {
+  const answer = (response: "accepted" | "declined", reason?: string) => {
     if (!m) return;
-    respond.mutate({ id: m.id, response }, {
-      onSuccess: () => toast.success(response === "accepted" ? "Accepted" : "Declined"),
+    respond.mutate({ id: m.id, response, reason }, {
+      onSuccess: (r) => { setDeclining(false); answeredToast(response, r); },
       onError: (e) => toast.error(errText(e)),
     });
   };
@@ -113,24 +116,32 @@ export function MeetingDetails({ meeting, canManage, myId, onClose, onEdit }: {
                 <Button variant={m.my_response === "accepted" ? "default" : "outline"} disabled={respond.isPending} onClick={() => answer("accepted")}>
                   <Check className="mr-1 h-4 w-4" />Accept
                 </Button>
-                <Button variant={m.my_response === "declined" ? "destructive" : "outline"} disabled={respond.isPending} onClick={() => answer("declined")}>
+                <Button variant={m.my_response === "declined" ? "destructive" : "outline"} disabled={respond.isPending} onClick={() => setDeclining(true)}>
                   <X className="mr-1 h-4 w-4" />Decline
                 </Button>
               </div>
             )}
 
             <section>
-              <h3 className="mb-2 text-sm font-semibold">
+              <h3 className="text-sm font-semibold">
                 Participants{participants.data ? ` (${participants.data.length})` : ""}
               </h3>
+              {participants.data && participants.data.length > 0 && (
+                <p className="mb-2 text-xs tabular-nums text-muted-foreground">{answerSummary(participants.data)}</p>
+              )}
               {participants.isLoading && <p className="text-sm text-muted-foreground">Loading…</p>}
               {participants.error && <p className="text-sm text-destructive">Could not load the participants.</p>}
               <ul className="space-y-1">
                 {(participants.data ?? []).map((p) => (
-                  <li key={p.user_id} className="flex items-center gap-2 text-sm">
-                    <span className={cn("h-2 w-2 shrink-0 rounded-full", RESPONSE_DOT[p.response])} aria-hidden />
-                    <span className="min-w-0 flex-1 truncate">{p.name}{p.user_id === myId ? " (you)" : ""}</span>
-                    <span className="text-xs text-muted-foreground">{p.response === "pending" ? "Not answered" : p.response === "accepted" ? "Accepted" : "Declined"}</span>
+                  <li key={p.user_id} className="text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("h-2 w-2 shrink-0 rounded-full", RESPONSE_DOT[p.response])} aria-hidden />
+                      <span className="min-w-0 flex-1 truncate">{p.name}{p.user_id === myId ? " (you)" : ""}</span>
+                      <span className="text-xs text-muted-foreground">{p.response === "pending" ? "Not answered" : p.response === "accepted" ? "Accepted" : "Declined"}</span>
+                    </div>
+                    {p.response === "declined" && p.decline_reason && (
+                      <p className="ml-4 mt-0.5 whitespace-pre-wrap text-xs italic text-muted-foreground">“{p.decline_reason}”</p>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -144,6 +155,8 @@ export function MeetingDetails({ meeting, canManage, myId, onClose, onEdit }: {
               </div>
             )}
 
+            <DeclineDialog open={declining} title={m.title} pending={respond.isPending}
+              onCancel={() => setDeclining(false)} onDecline={(reason) => answer("declined", reason)} />
             <ScopeDialog open={asking} verb="Cancel" onCancel={() => setAsking(false)} onChoose={doCancel} />
             <AlertDialog open={confirmOne} onOpenChange={setConfirmOne}>
               <AlertDialogContent>

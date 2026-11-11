@@ -15,8 +15,10 @@ vi.mock("@/components/meetings/MeetingFormDialog", () => ({
     open ? <div data-testid="form">{slot ? `${slot.day} ${slot.time}` : "edit"}</div> : null,
 }));
 vi.mock("@/components/meetings/MeetingDetails", () => ({
-  MeetingDetails: ({ meeting }: { meeting: MyMeeting | null }) => (meeting ? <div data-testid="details">{meeting.title}</div> : null),
+  MeetingDetails: ({ meeting }: { meeting: MyMeeting | null }) =>
+    (meeting ? <div data-testid="details" data-response={meeting.my_response ?? ""}>{meeting.title}</div> : null),
 }));
+vi.mock("@/components/meetings/MeetingsToAnswer", () => ({ MeetingsToAnswer: () => null }));
 vi.mock("@/hooks/useMeetings", () => ({
   isNotInstalled: () => false,
   useMeetingsInRange: () => ({ data: meetings, error: null }),
@@ -34,7 +36,8 @@ const meeting = (over: Partial<MyMeeting>): MyMeeting => ({
   cancelled_at: null, my_response: "pending", ...over,
 });
 
-const mount = () => render(<MemoryRouter><MeetingsPage /></MemoryRouter>);
+const page = () => <MemoryRouter><MeetingsPage /></MemoryRouter>;
+const mount = () => render(page());
 
 describe("MeetingsPage", () => {
   beforeEach(() => { role = "admin"; mobile = false; meetings = [meeting({})]; });
@@ -52,6 +55,17 @@ describe("MeetingsPage", () => {
     const block = screen.getByRole("button", { name: /Line review, 10:00 to 10:30, Not answered/ });
     fireEvent.click(block);
     expect(screen.getByTestId("details").textContent).toBe("Line review");
+  });
+
+  // 11/11: answering left "Your answer" and the highlighted button on the old answer until
+  // the meeting was opened again. The page kept the meeting it was clicked with, not its id.
+  it("the open meeting follows the fresh data, so a new answer shows at once", () => {
+    const { rerender } = mount();
+    fireEvent.click(screen.getByRole("button", { name: /Line review, 10:00 to 10:30/ }));
+    expect(screen.getByTestId("details").getAttribute("data-response")).toBe("pending");
+    meetings = [meeting({ my_response: "accepted" })];
+    rerender(page());
+    expect(screen.getByTestId("details").getAttribute("data-response")).toBe("accepted");
   });
 
   it("a cancelled meeting is struck through", () => {

@@ -13,6 +13,7 @@ import { isNotInstalled, useMeeting, useMeetingsInRange } from "@/hooks/useMeeti
 import { MeetingCalendar, MeetingDayList, ToneLegend } from "@/components/meetings/MeetingCalendar";
 import { MeetingDetails } from "@/components/meetings/MeetingDetails";
 import { MeetingFormDialog } from "@/components/meetings/MeetingFormDialog";
+import { MeetingsToAnswer } from "@/components/meetings/MeetingsToAnswer";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -44,12 +45,17 @@ export default function MeetingsPage() {
 
   // ?meeting=<id> — where a bell row lands. The meeting is read on its own, so it opens
   // even when it is outside the week on screen.
+  // Only the id is kept, never the meeting it was clicked with: that copy went stale the
+  // moment the person answered, and "Your answer" kept the old one until reopened (11/11).
   const linkedId = params.get("meeting");
-  const linked = useMeeting(linkedId);
-  const [picked, setPicked] = useState<MyMeeting | null>(null);
-  const open = picked ?? linked.data ?? null;
+  const [pickedId, setPickedId] = useState<string | null>(null);
+  const openId = pickedId ?? linkedId;
+  const single = useMeeting(openId);
+  const inView = openId ? (meetings.data ?? []).find((x) => x.id === openId) ?? null : null;
+  const open = openId ? single.data ?? inView : null;
+  const pick = (m: MyMeeting) => setPickedId(m.id);
   const closeDetails = () => {
-    setPicked(null);
+    setPickedId(null);
     if (linkedId) { params.delete("meeting"); setParams(params, { replace: true }); }
   };
 
@@ -85,6 +91,7 @@ export default function MeetingsPage() {
           </p>
         ) : (
           <>
+            <MeetingsToAnswer onOpen={pick} />
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1">
                 <Button variant="outline" size="icon" aria-label="Previous" onClick={() => setAnchor(stepAnchor(view, anchor, -1))}><ChevronLeft className="h-4 w-4" /></Button>
@@ -104,7 +111,7 @@ export default function MeetingsPage() {
             {meetings.error && <p className="text-sm text-destructive">Could not load the meetings. They will retry on their own.</p>}
 
             {isMobile ? (
-              <MeetingDayList meetings={meetings.data ?? []} day={anchor} onOpen={setPicked} />
+              <MeetingDayList meetings={meetings.data ?? []} day={anchor} onOpen={pick} />
             ) : (
               <div className={view === "month" ? "" : "flex h-[calc(100dvh-16rem)] min-h-[420px] flex-col"}>
                 <MeetingCalendar
@@ -112,7 +119,7 @@ export default function MeetingsPage() {
                   anchor={anchor}
                   today={today}
                   meetings={meetings.data ?? []}
-                  onOpen={setPicked}
+                  onOpen={pick}
                   onSlot={canManage ? (day, time) => setForm({ slot: { day, time } }) : undefined}
                 />
               </div>

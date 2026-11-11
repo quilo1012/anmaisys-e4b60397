@@ -298,3 +298,23 @@ export function safeVideoLink(link: string | null): string | null {
     return null;
   }
 }
+
+/** "3 accepted · 1 declined · 2 not answered" — the organiser's count, zeros left out. */
+export function answerSummary(rows: { response: MeetingResponse }[]): string {
+  const n = { accepted: 0, declined: 0, pending: 0 };
+  for (const r of rows) n[r.response] += 1;
+  const parts = [
+    n.accepted ? `${n.accepted} accepted` : "",
+    n.declined ? `${n.declined} declined` : "",
+    n.pending ? `${n.pending} not answered` : "",
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
+/** The longest reason a decline can carry; the database cuts at the same place. */
+export const DECLINE_REASON_MAX = 200;
+
+/** The meetings still waiting for my answer: not cancelled, not over, not answered. */
+export function waitingForMyAnswer(list: MyMeeting[], now: Date = new Date()): MyMeeting[] {
+  return list.filter((m) => m.my_response === "pending" && !m.cancelled_at && new Date(m.ends_at).getTime() > now.getTime());
+}

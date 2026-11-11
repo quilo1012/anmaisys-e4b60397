@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  addMonths, audiences, dayKeyOf, expandOccurrences, formProblems, layoutDay, londonInstant,
-  meetingsOnDay, safeVideoLink, stepAnchor, timeOf, toneOf, viewDays, viewRange, type MeetingForm,
+  addMonths, answerSummary, audiences, dayKeyOf, expandOccurrences, formProblems, layoutDay, londonInstant,
+  meetingsOnDay, safeVideoLink, stepAnchor, timeOf, toneOf, viewDays, viewRange, waitingForMyAnswer, type MeetingForm,
 } from "./meetings";
 
 describe("London time", () => {
@@ -110,5 +110,28 @@ describe("video link", () => {
     expect(safeVideoLink("https://teams.microsoft.com/l/x")).toBe("https://teams.microsoft.com/l/x");
     expect(safeVideoLink("javascript:alert(1)")).toBeNull();
     expect(safeVideoLink("http://zoom.us")).toBeNull();
+  });
+});
+
+describe("answers", () => {
+  it("counts the answers for the organiser, leaving out zeros", () => {
+    expect(answerSummary([{ response: "accepted" }, { response: "accepted" }, { response: "pending" }])).toBe("2 accepted · 1 not answered");
+    expect(answerSummary([{ response: "declined" }])).toBe("1 declined");
+    expect(answerSummary([])).toBe("");
+  });
+
+  it("waits for my answer only on meetings that are open, not over and not answered", () => {
+    const base = {
+      series_id: "s", title: "x", description: null, location: null, video_link: null, recurrence: "none" as const,
+      recurrence_until: null, created_by: "a", starts_at: "2026-11-12T09:00:00Z", ends_at: "2026-11-12T10:00:00Z",
+    };
+    const now = new Date("2026-11-11T12:00:00Z");
+    const list = [
+      { ...base, id: "pending", cancelled_at: null, my_response: "pending" as const },
+      { ...base, id: "accepted", cancelled_at: null, my_response: "accepted" as const },
+      { ...base, id: "cancelled", cancelled_at: "2026-11-11T10:00:00Z", my_response: "pending" as const },
+      { ...base, id: "over", cancelled_at: null, my_response: "pending" as const, ends_at: "2026-11-11T11:00:00Z" },
+    ];
+    expect(waitingForMyAnswer(list, now).map((m) => m.id)).toEqual(["pending"]);
   });
 });
