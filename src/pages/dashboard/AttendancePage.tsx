@@ -335,8 +335,19 @@ export default function AttendancePage() {
       const settled = settlementsFor(assigned, roster);
       let renamed = 0;
       for (const change of settled) {
-        const saved = await saveSettlement(change, async (id, patch) =>
-          await supabase.from("employees").update(patch).eq("id", id));
+        const saved = await saveSettlement(
+          change,
+          async (id, patch) => await supabase.from("employees").update(patch).eq("id", id),
+          // Every record, inactive ones included: they keep their names on the unique index.
+          // `ilike` with the wildcards escaped is the case-insensitive equality the index uses.
+          async (name, exceptId) => {
+            const { count } = await supabase.from("employees")
+              .select("id", { count: "exact", head: true })
+              .ilike("full_name", name.trim().replace(/\s+/g, " ").replace(/[\\%_]/g, (c) => `\\${c}`))
+              .neq("id", exceptId);
+            return (count ?? 0) > 0;
+          },
+        );
         if (!saved.ok) toast.error(`Could not save the TimeMoto name for one employee: ${saved.message}`);
         else if (saved.renamed) renamed++;
       }

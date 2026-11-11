@@ -35,4 +35,27 @@ describe("saveSettlement", () => {
     expect((await saveSettlement({ employeeId: "e1", sheet_aliases: "a" }, update)).ok).toBe(false);
     expect(update).toHaveBeenCalledTimes(1);
   });
+
+  /**
+   * 10/11 22:59: with the retry live the alias was kept, but the first PATCH still went out,
+   * failed with 409 and put a "System error" in front of the office. Asking first means the
+   * request that would fail is never sent.
+   */
+  it("asks whether the name is taken before renaming, and then never sends the rename", async () => {
+    const update = vi.fn().mockResolvedValue({ error: null });
+    const isTaken = vi.fn().mockResolvedValue(true);
+    const r = await saveSettlement({ employeeId: "e1", sheet_aliases: "Jo Silva", full_name: "Jo Silva" }, update, isTaken);
+    expect(isTaken).toHaveBeenCalledWith("Jo Silva", "e1");
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith("e1", { sheet_aliases: "Jo Silva" });
+    expect(r).toEqual({ ok: true, renamed: false, nameTaken: true });
+  });
+
+  it("renames when the check says the name is free", async () => {
+    const update = vi.fn().mockResolvedValue({ error: null });
+    const r = await saveSettlement({ employeeId: "e1", sheet_aliases: "a", full_name: "Jo Silva" }, update, async () => false);
+    expect(update).toHaveBeenCalledWith("e1", { sheet_aliases: "a", full_name: "Jo Silva" });
+    expect(r.renamed).toBe(true);
+  });
 });
+
