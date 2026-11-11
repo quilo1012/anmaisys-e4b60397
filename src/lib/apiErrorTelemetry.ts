@@ -2,6 +2,7 @@ import { logSystemError } from "@/lib/telemetry";
 import { isUserCorrectable } from "@/lib/userCorrectable";
 import { isProbedColumn } from "@/lib/schemaProbes";
 import { isPendingRpc } from "@/lib/pendingRpcs";
+import { allowDegradedReport, isDegradedError } from "@/lib/backendHealth";
 
 // Automatic backend-failure capture. supabase-js issues every PostgREST / RPC /
 // edge-function call through the global fetch, so wrapping fetch once lets Root
@@ -123,6 +124,16 @@ export function installApiErrorTelemetry(): void {
           : isUserCorrectable(message)
             ? "USER_ERROR"
             : "API_ERROR";
+
+      // During a stall every failing request used to become an INSERT on the database
+      // that was already timing out, and a "System error" in the admin's bell. While the
+      // client is in degraded mode (backendHealth), one stall-class row a minute is
+      // enough to say it happened; refusals, constraints and the rest are never dropped.
+      if (
+        type === "API_ERROR" &&
+        isDegradedError({ status: res.status, code: body?.code }) &&
+        !allowDegradedReport("telemetry")
+      ) return res;
 
       logSystemError(type, message, {
         metadata: {

@@ -22,6 +22,7 @@ import { ArrowLeft, Maximize2, Pencil, Check, X, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { pollEvery } from "@/lib/backendHealth";
 
 
 
@@ -171,7 +172,9 @@ export default function LineDisplayScreen() {
     // entirely on the Realtime websocket, subscribed with no status callback and
     // no reconnect handling — when that socket dropped, the wall froze silently
     // and showed numbers from whenever it last worked.
-    refetchInterval: 20_000,
+    // Slows to 2 min while the backend is degraded (backendHealth), which the
+    // focusManager pause cannot reach on a query that polls in the background.
+    refetchInterval: pollEvery(20_000),
     refetchIntervalInBackground: true,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -189,7 +192,9 @@ export default function LineDisplayScreen() {
   const { data: itemsData, isError: itemsError } = useQuery({
     queryKey: ["prod-items-live", date, line, shift],
     enabled: !!line,
-    refetchInterval: 20_000,
+    // Slows to 2 min while the backend is degraded (backendHealth), which the
+    // focusManager pause cannot reach on a query that polls in the background.
+    refetchInterval: pollEvery(20_000),
     refetchIntervalInBackground: true,
     queryFn: async () => {
       const { data: sessions, error: e1 } = await supabase

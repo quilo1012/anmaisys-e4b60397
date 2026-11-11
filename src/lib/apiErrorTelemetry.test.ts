@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { installApiErrorTelemetry } from "@/lib/apiErrorTelemetry";
 import { logSystemError } from "@/lib/telemetry";
+import { noteBackendError, resetBackendHealth, DEGRADED_THRESHOLD } from "@/lib/backendHealth";
 
 vi.mock("@/lib/telemetry", () => ({ logSystemError: vi.fn() }));
 
@@ -159,5 +160,50 @@ describe("a read that probes for a column the code can live without", () => {
     }, 404);
     await window.fetch("https://x.supabase.co/rest/v1/rpc/uma_funcao_qualquer", { method: "POST" });
     expect(logged.mock.calls[0][0]).toBe("API_ERROR");
+  });
+});
+
+/**
+ * PERF-001: during a stall every client used to insert a telemetry row per failing
+ * request, onto the database that was already timing out — and each row rang the
+ * admin's "System error" bell. In degraded mode, one stall-class row per minute.
+ */
+describe("while the backend is degraded", () => {
+  beforeEach(() => {
+    logged.mockClear();
+    vi.useFakeTimers();
+    resetBackendHealth();
+    for (let i = 0; i < DEGRADED_THRESHOLD; i++) {
+      noteBackendError({ code: "57014", message: "canceling statement due to statement timeout" });
+    }
+  });
+  afterEach(() => {
+    resetBackendHealth();
+    vi.useRealTimers();
+  });
+
+  it("files one statement timeout a minute, not one per request", async () => {
+    serving({ code: "57014", message: "canceling statement due to statement timeout" }, 500);
+    await window.fetch("https://x.supabase.co/rest/v1/a", { method: "GET" });
+    await window.fetch("https://x.supabase.co/rest/v1/b", { method: "GET" });
+    serving({ code: "PGRST002", message: "Could not query the database for the schema cache. Retrying." }, 503);
+    await window.fetch("https://x.supabase.co/rest/v1/c", { method: "GET" });
+    expect(logged).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(60_000);
+    for (let i = 0; i < DEGRADED_THRESHOLD; i++) noteBackendError({ code: "57014" });
+    await window.fetch("https://x.supabase.co/rest/v1/d", { method: "GET" });
+    expect(logged).toHaveBeenCalledTimes(2);
+  });
+
+  it("never drops an error that is not the stall", async () => {
+    serving({ code: "57014", message: "timeout" }, 500);
+    await window.fetch("https://x.supabase.co/rest/v1/a", { method: "GET" });
+    serving({ code: "23514", message: "new row violates check constraint \"x\"" }, 400);
+    await window.fetch("https://x.supabase.co/rest/v1/b", { method: "POST" });
+    await window.fetch("https://x.supabase.co/rest/v1/c", { method: "POST" });
+    serving({ code: "42501", message: "permission denied for table x" }, 403);
+    await window.fetch("https://x.supabase.co/rest/v1/d", { method: "GET" });
+    expect(logged).toHaveBeenCalledTimes(4);
   });
 });
