@@ -26,6 +26,8 @@ export interface ScheduledJobItem {
   actual?: number | null;
   status?: string | null;
   seq?: number | null;
+  /** The product's name: the catalogue's, else iTouch's own description. */
+  description?: string | null;
 }
 
 export interface QueueRow {
@@ -35,6 +37,8 @@ export interface QueueRow {
   order_qty: number | null;
   done_qty: number | null;
   status: string | null;
+  /** iTouch's name for the product, when it gave one. Kept in memory only, never saved. */
+  description?: string | null;
 }
 
 /**
@@ -61,6 +65,7 @@ export function queueRowsFromSections(sections: { line: string; items: Scheduled
         order_qty: n(it.qty),
         done_qty: n(it.actual),
         status: it.status ?? null,
+        ...(it.description && String(it.description).trim() ? { description: String(it.description).trim() } : {}),
       });
     });
   }

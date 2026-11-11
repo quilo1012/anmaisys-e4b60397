@@ -231,7 +231,7 @@ export const LINE_RATES_CONFIG = { minHistoryShifts: 0 };
  * the same blender, fill and tub. A name with no fill size has no family.
  */
 export function familyFromName(name: string | null | undefined): string | null {
-  const clean = String(name ?? "").toUpperCase().replace(/\[.*$/, "").replace(/\b(PERU|KSA|NOT FOR EU)\b/g, " ").replace(/\s+/g, " ").trim();
+  const clean = String(name ?? "").toUpperCase().replace(/\[.*$/, "").replace(/\b(PERU|KSA|NOT FOR EU|PAKISTAN|MOROCCO)\b/g, " ").replace(/\s+/g, " ").trim();
   return /^(.*?\d+(?:\.\d+)?\s*(?:KG|G))\b/.exec(clean)?.[1] ?? null;
 }
 

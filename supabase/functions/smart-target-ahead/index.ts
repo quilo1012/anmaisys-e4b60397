@@ -21,7 +21,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { aheadShift, forecastAhead } from "../_shared/smartTarget/ahead.ts";
 import { queueRowsFromSections, type QueueRow, type ScheduledJobItem } from "../_shared/smartTarget/queue.ts";
 import { cleanCycles, lineFactors, type CycleRecord } from "../_shared/smartTarget/rates.ts";
-import { FORECAST_LINES, factorWindow, skuFamily, skuIsSample, historyFromSessions, type HistoryItem } from "../_shared/smartTarget/history.ts";
+import { FORECAST_LINES, canonicalQueue, factorWindow, familyWithQueue, skuIsSample, historyFromSessions, type HistoryItem } from "../_shared/smartTarget/history.ts";
 import { buildShiftInputs, previousShiftOf, type SmartTargetItem, type SmartTargetSession } from "../_shared/smartTarget/input.ts";
 import { buildSkuCatalogue, identifyItemSku, type SkuCatalogue } from "../_shared/production/lineSku.ts";
 import { CLEAN_HISTORY_DAYS, cleanMinutesByLine, cleaningRule, type CleaningRule } from "../_shared/smartTarget/cleaning.ts";
@@ -187,14 +187,16 @@ Deno.serve(async (req) => {
       return json({ ok: false, date, shift, final, error: `iTouch queue not read: ${queue.error}` }, 502);
     }
     if (!dryRun && queue.rows.length) {
-      const { error } = await admin.rpc("save_smart_target_queue", { p_date: date, p_shift: shift, p_rows: queue.rows });
+      const { error } = await admin.rpc("save_smart_target_queue", { p_date: date, p_shift: shift, p_rows: queue.rows.map(({ description: _d, ...r }) => r) });
       if (error) throw new Error(`Queue not saved: ${error.message}`);
     }
 
     const { cycles, factors, history, catalogue } = await factorsFor(date);
     const previousSkus = await previousSkusFor(date, shift, catalogue);
     const cleaning = await cleaningFor(catalogue);
-    const { rows } = forecastAhead({ date, shift, minutesToStart, final, queue: queue.rows, cycles, factors, history, shownLines: FORECAST_LINES, previousSkus, familyOf: skuFamily(catalogue), isSample: skuIsSample(catalogue), cleaningFor: cleaning });
+    // Codes as the product list knows them, and iTouch's descriptions for the rest (Q85).
+    const queued = canonicalQueue(queue.rows, catalogue);
+    const { rows } = forecastAhead({ date, shift, minutesToStart, final, queue: queued, cycles, factors, history, shownLines: FORECAST_LINES, previousSkus, familyOf: familyWithQueue(catalogue, queued), isSample: skuIsSample(catalogue), cleaningFor: cleaning });
     const toSave = rows
       .filter((r) => !done.has(r.line) && (r.expected_total !== null || !saidNothing.has(r.line)))
       .map((r) => ({ ...r, source: "ahead", queue_read_at: new Date().toISOString() }));
