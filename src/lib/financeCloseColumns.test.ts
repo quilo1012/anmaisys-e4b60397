@@ -109,6 +109,13 @@ describe("the values the PDF prints", () => {
     expect(String(at(closeDisplayValues(under), "shiftBalance"))).toMatch(/^-/);
   });
 
+  it("prints hours deducted as a negative, because they come off the pay", () => {
+    const r = one({ clockedBalanceMin: -150 });
+    expect(at(closeExportValues(r), "owedHours")).toBe(2.5);
+    expect(at(closeDisplayValues(r), "owedHours")).toBe("-2.50");
+    expect(at(closeTotalValues([r, r]), "owedHours")).toBe("-5.00");
+  });
+
   it("gives hours two decimals and shifts none", () => {
     const r = one({ clockedBalanceMin: 450, shiftsWorked: 3 });
     expect(at(closeDisplayValues(r), "clockedOtHours")).toBe("7.50");

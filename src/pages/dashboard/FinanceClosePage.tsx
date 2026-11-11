@@ -997,8 +997,8 @@ export default function FinanceClosePage() {
                           {num(r.overtimeHours)}
                         </TableCell>)}
                         {show("owedHours") && (<TableCell className={`text-right font-figure tabular-nums ${
-                          (r.owedHours ?? 0) > 0 ? "text-warning-strong" : "text-muted-foreground"}`}>
-                          {r.owedHours ? r.owedHours.toFixed(2) : "—"}
+                          (r.owedHours ?? 0) > 0 ? "text-destructive-strong" : "text-muted-foreground"}`}>
+                          {r.owedHours ? `-${r.owedHours.toFixed(2)}` : "—"}
                         </TableCell>)}
                         {show("payrollOtHours") && (<TableCell className="text-right font-figure tabular-nums">{num(r.payrollOtHours)}</TableCell>)}
                         {show("deltaHours") && (<TableCell className={`text-right font-figure font-semibold tabular-nums ${
@@ -1033,6 +1033,7 @@ export default function FinanceClosePage() {
                             screenColumns[i].align === "right" ? "text-right" : "",
                             i > 0 && screenColumns[i - 1].band !== screenColumns[i].band ? "border-l" : "",
                             "font-figure font-semibold tabular-nums",
+                            screenColumns[i].showNegative && v.startsWith("-") ? "text-destructive-strong" : "",
                           ].filter(Boolean).join(" ") || undefined}
                         >
                           {v}

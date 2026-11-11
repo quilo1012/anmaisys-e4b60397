@@ -22,7 +22,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import XLSX from "xlsx-js-style";
 import {
-  NAVY, INK, SUBTLE, CARD_BORDER, CARD_BG,
+  NAVY, INK, SUBTLE, CARD_BORDER, CARD_BG, RED_TX,
   REPORT_MARGIN as M, HEADER_H,
   loadLogoDataUrl,
 } from "@/lib/reportTheme";
@@ -191,6 +191,10 @@ export async function buildClosePdf(input: CloseExportInput): Promise<jsPDF> {
     margin: { left: M, right: M, top: HEADER_H + 4, bottom: 14 },
     rowPageBreak: "avoid",
     didParseCell: (d: any) => {
+      // Hours deducted print as a negative in red, as on screen.
+      if (d.section === "body" && cols[d.column.index]?.showNegative && String(d.cell.raw).startsWith("-")) {
+        d.cell.styles.textColor = RED_TX;
+      }
       if (d.section === "body" && d.row.index === input.rows.length) {
         d.cell.styles.fontStyle = "bold";
         d.cell.styles.fillColor = [255, 255, 255];
