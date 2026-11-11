@@ -3,7 +3,7 @@ import ExcelJS from "exceljs";
 import { buildClose, closeTotals, type ClosePersonInput, type ClosePerson } from "@/lib/financeClose";
 import { CLOSE_COLUMNS, pickPrintColumns } from "@/lib/financeCloseColumns";
 import {
-  buildClosePdf, buildCloseWorkbook, closeSubtitle, closeWarningText,
+  buildClosePdf, buildCloseWorkbook, closeSubtitle, closeWarningText, REGISTER_SHEET, BALANCES_SHEET,
   type CloseExportInput,
 } from "@/lib/financeCloseExports";
 
@@ -45,8 +45,8 @@ type Cell = string | number | null;
  * The workbook as Excel will open it: written to bytes and read back, so a test sees
  * what the file holds and not what the builder meant to put in it.
  */
-async function roundTrip(i: CloseExportInput): Promise<ExcelJS.Workbook> {
-  const built = await buildCloseWorkbook(i);
+async function roundTrip(i: CloseExportInput, logo?: string): Promise<ExcelJS.Workbook> {
+  const built = await buildCloseWorkbook(i, { logo });
   const back = new ExcelJS.Workbook();
   await back.xlsx.load(await built.xlsx.writeBuffer());
   return back;
@@ -71,7 +71,7 @@ function sheetAoa(wb: ExcelJS.Workbook, name: string): Cell[][] {
   return out;
 }
 
-/** The row holding the column names on the People sheet (the band row is above it). */
+/** The row holding the column names on the Overtime sheet (the band row is above it). */
 const headerRowIndex = (aoa: Cell[][]) => aoa.findIndex((r) => r[0] === "Employee");
 
 /**
@@ -206,19 +206,19 @@ describe("the PDF", () => {
 describe("the workbook", () => {
   it("carries the sheets in the order finance reads them", async () => {
     const wb = await roundTrip(input());
-    expect(wb.worksheets.map((w) => w.name)).toEqual(["Summary", "People", "By crew", "Overtime register"]);
+    expect(wb.worksheets.map((w) => w.name)).toEqual(["Summary", "Overtime", "By crew"]);
   });
 
-  it("bands the People sheet over the column names, covering every column", async () => {
+  it("bands the Overtime sheet over the column names, covering every column", async () => {
     const wb = await roundTrip(input());
-    const aoa = sheetAoa(wb, "People");
+    const aoa = sheetAoa(wb, REGISTER_SHEET);
     const h = headerRowIndex(aoa);
     expect(aoa[h]).toEqual(CLOSE_COLUMNS.map((c) => c.header));
     // The band the screen used to get wrong: Payroll OT must not sit under "Days away".
     const payrollAt = CLOSE_COLUMNS.findIndex((c) => c.key === "payrollOtHours");
     const bandStart = CLOSE_COLUMNS.findIndex((c) => c.band === "clockedHours");
     expect(aoa[h - 1][bandStart]).toBe("Hours · from the clocks");
-    const ws = wb.getWorksheet("People")!;
+    const ws = wb.getWorksheet(REGISTER_SHEET)!;
     // Merged: the payroll column's band cell is the same cell as the band's first.
     expect(ws.getCell(h, payrollAt + 1).master.address).toBe(ws.getCell(h, bandStart + 1).address);
   });
@@ -231,10 +231,10 @@ describe("the workbook", () => {
   it("carries ONLY the columns ticked in the print settings", async () => {
     const cols = pickPrintColumns(["name", "department", "overtimeHours", "owedHours", "sick"]);
     const wb = await roundTrip(input({ columns: cols }));
-    const aoa = sheetAoa(wb, "People");
+    const aoa = sheetAoa(wb, REGISTER_SHEET);
     const h = headerRowIndex(aoa);
     expect(aoa[h]).toEqual(["Employee", "Department", "Overtime", "Deducted", "Sick"]);
-    expect(wb.getWorksheet("People")!.columnCount).toBe(5);
+    expect(wb.getWorksheet(REGISTER_SHEET)!.columnCount).toBe(5);
     // The band row is counted off the chosen columns, not the full eighteen.
     expect(aoa[h - 1][2]).toBe("Hours · from the clocks");
     expect(aoa[h - 1][4]).toBe("Days away");
@@ -244,7 +244,7 @@ describe("the workbook", () => {
   });
 
   it("hands over hours as numbers, so the column can be summed", async () => {
-    const aoa = sheetAoa(await roundTrip(input()), "People");
+    const aoa = sheetAoa(await roundTrip(input()), REGISTER_SHEET);
     const at = CLOSE_COLUMNS.findIndex((c) => c.key === "clockedOtHours");
     // By name, not by position: buildClose sorts by the size of the disagreement, so
     // the sheet's row order is not the order the people were assembled in.
@@ -254,7 +254,7 @@ describe("the workbook", () => {
   });
 
   it("leaves an unreported figure an EMPTY cell, never a zero and never a dash", async () => {
-    const aoa = sheetAoa(await roundTrip(input()), "People");
+    const aoa = sheetAoa(await roundTrip(input()), REGISTER_SHEET);
     const at = CLOSE_COLUMNS.findIndex((c) => c.key === "payrollOtHours");
     // Carla reported on neither side; Ana reported a genuine zero. The sheet has to
     // tell them apart, which is the entire reason this is not a second CSV.
@@ -264,8 +264,8 @@ describe("the workbook", () => {
 
   it("closes the register with live totals that follow the autofilter", async () => {
     const wb = await roundTrip(input());
-    const ws = wb.getWorksheet("People")!;
-    const aoa = sheetAoa(wb, "People");
+    const ws = wb.getWorksheet(REGISTER_SHEET)!;
+    const aoa = sheetAoa(wb, REGISTER_SHEET);
     const totalRow = aoa.findIndex((r) => typeof r[0] === "string" && r[0].startsWith("Total"));
     expect(aoa[totalRow][0]).toBe("Total · 3 people");
     const at = CLOSE_COLUMNS.findIndex((c) => c.key === "clockedOtHours");
@@ -287,11 +287,14 @@ describe("the workbook", () => {
     expect(summary.some((r) => typeof r[0] === "string" && /hour bank/i.test(r[0]))).toBe(true);
   });
 
-  it("freezes the names, filters the header row and repeats it on every printed page", async () => {
+  it("freezes the header, filters the header row and repeats it on every printed page", async () => {
     const wb = await roundTrip(input());
-    const ws = wb.getWorksheet("People")!;
-    const h = headerRowIndex(sheetAoa(wb, "People")) + 1;
-    expect(ws.views[0]).toMatchObject({ state: "frozen", xSplit: 1, ySplit: h });
+    const ws = wb.getWorksheet(REGISTER_SHEET)!;
+    const h = headerRowIndex(sheetAoa(wb, REGISTER_SHEET)) + 1;
+    // Rows only: a frozen column clipped the letterhead and opened the sheet one
+    // column in.
+    expect(ws.views[0]).toMatchObject({ state: "frozen", ySplit: h });
+    expect((ws.views[0] as { xSplit?: number }).xSplit ?? 0).toBe(0);
     expect(String(ws.autoFilter)).toContain(`A${h}`);
     expect(ws.pageSetup.printTitlesRow).toBe(`${h - 1}:${h}`);
     expect(ws.pageSetup.fitToWidth).toBe(1);
@@ -299,13 +302,13 @@ describe("the workbook", () => {
 
   it("turns the paper the same way as the printed sheet", async () => {
     const narrow = await roundTrip(input({ columns: pickPrintColumns(["name", "overtimeHours"]) }));
-    expect(narrow.getWorksheet("People")!.pageSetup.orientation).toBe("portrait");
+    expect(narrow.getWorksheet(REGISTER_SHEET)!.pageSetup.orientation).toBe("portrait");
     const wide = await roundTrip(input());
-    expect(wide.getWorksheet("People")!.pageSetup.orientation).toBe("landscape");
+    expect(wide.getWorksheet(REGISTER_SHEET)!.pageSetup.orientation).toBe("landscape");
   });
 
   it("shows whole days as whole numbers, not with a trailing point", async () => {
-    const ws = (await roundTrip(input())).getWorksheet("People")!;
+    const ws = (await roundTrip(input())).getWorksheet(REGISTER_SHEET)!;
     const at = CLOSE_COLUMNS.findIndex((c) => c.key === "daysPresent");
     expect(ws.getCell(10, at + 1).numFmt ?? "General").toBe("General");
   });
@@ -313,20 +316,57 @@ describe("the workbook", () => {
   it("says person, not people, for a close of one", async () => {
     const rows = buildClose([person()], PERIOD.from, PERIOD.to);
     const wb = await roundTrip({ ...input(), rows, totals: closeTotals(rows) });
-    expect(sheetAoa(wb, "People").some((r) => r[0] === "Total · 1 person")).toBe(true);
+    expect(sheetAoa(wb, REGISTER_SHEET).some((r) => r[0] === "Total · 1 person")).toBe(true);
   });
 
   it("does not merge the title across a single column when only the name is ticked", async () => {
     const wb = await roundTrip(input({ columns: pickPrintColumns([]) }));
-    const ws = wb.getWorksheet("People")!;
+    const ws = wb.getWorksheet(REGISTER_SHEET)!;
     expect(ws.getCell("A1").isMerged).toBe(false);
-    expect(sheetAoa(wb, "People").some((r) => r[0] === "Employee")).toBe(true);
+    expect(sheetAoa(wb, REGISTER_SHEET).some((r) => r[0] === "Employee")).toBe(true);
+  });
+
+  it("puts the company logo on every sheet when it could be loaded", async () => {
+    // 1×1 white JPEG.
+    const jpeg = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=";
+    const wb = await roundTrip(input(), jpeg);
+    for (const ws of wb.worksheets) expect(ws.getImages()).toHaveLength(1);
+    // The title moves beside the logo rather than under it.
+    expect(wb.getWorksheet(REGISTER_SHEET)!.getCell("B1").value).toBe("Finance Close · Overtime");
+  });
+
+  it("still builds, with the title at the margin, when the logo could not be loaded", async () => {
+    const wb = await roundTrip(input());
+    expect(wb.getWorksheet(REGISTER_SHEET)!.getImages()).toHaveLength(0);
+    expect(wb.getWorksheet(REGISTER_SHEET)!.getCell("A1").value).toBe("Finance Close · Overtime");
+  });
+
+  it("does not merge the letterhead, so the title is never clipped", async () => {
+    const ws = (await roundTrip(input())).getWorksheet(REGISTER_SHEET)!;
+    expect(ws.getCell("A1").isMerged).toBe(false);
+    expect(ws.getCell("A2").isMerged).toBe(false);
+  });
+
+  it("leaves room for the filter button beside every column name", async () => {
+    // Read from the built workbook: ExcelJS folds neighbouring equal widths into one
+    // <col> range on write and loses the width of all but the first on read.
+    const ws = (await buildCloseWorkbook(input())).getWorksheet(REGISTER_SHEET)!;
+    CLOSE_COLUMNS.forEach((c, i) => expect(ws.getColumn(i + 1).width!).toBeGreaterThanOrEqual(c.header.length + 5));
+  });
+
+  it("leaves out the Payroll balances tab when nothing was keyed, and adds it when something was", async () => {
+    expect((await roundTrip(input())).getWorksheet(BALANCES_SHEET)).toBeUndefined();
+    const wb = await roundTrip(input({
+      payrollRegister: [{ name: "Ana Silva", employeeRef: "1001", department: "Production", hours: 4, note: "", importedAt: null, sourceNote: "payroll.xlsx" }],
+    }));
+    expect(wb.worksheets.map((w) => w.name)).toEqual(["Summary", "Overtime", "By crew", BALANCES_SHEET]);
+    expect(sheetAoa(wb, BALANCES_SHEET).some((r) => r[0] === "Ana Silva" && r[3] === 4)).toBe(true);
   });
 
   it("builds for an empty close rather than throwing", async () => {
     const rows: ClosePerson[] = [];
     const wb = await roundTrip({ ...input(), rows, totals: closeTotals(rows), byCrew: [] });
-    expect(wb.getWorksheet("People")).toBeDefined();
+    expect(wb.getWorksheet(REGISTER_SHEET)).toBeDefined();
   });
 });
 
