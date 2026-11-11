@@ -14,6 +14,7 @@ import { useItouchCycles } from "@/hooks/useItouchCycles";
 import { useSmartTargetHistory } from "@/hooks/useSmartTargetHistory";
 import { useSmartTargetQueue, type QueueState } from "@/hooks/useSmartTargetQueue";
 import { useCleaningBasis } from "@/hooks/useCleaningBasis";
+import { useRagPlanBaseline } from "@/hooks/useRagPlanBaseline";
 import { NextShifts } from "@/components/smartTarget/NextShifts";
 import { cleanLabel } from "@/lib/smartTargetCleaning";
 import { planFromQueue, productsOffPlan } from "@/lib/smartTargetAhead";
@@ -22,6 +23,8 @@ import { useFreezeSmartTargetForecasts, useSmartTargetForecastRows, type LineToF
 import {
   accuracyByLine,
   actualTotals,
+  versusPlan,
+  type VersusPlan,
   lineCautions,
   targetVersusLogged,
   ON_TIME_MINUTES,
@@ -30,7 +33,7 @@ import {
   type LineAccuracy,
   type StoredForecast,
 } from "@/lib/smartTargetAccuracy";
-import { FORECAST_LINES, WIDE_MARGIN_LINES, historyFromSessions, skuFamily, skuIsSample } from "@/lib/smartTargetHistory";
+import { FORECAST_LINES, WIDE_MARGIN_LINES, canonicalQueue, historyFromSessions, skuFamily, skuIsSample, unknownQueueCodes } from "@/lib/smartTargetHistory";
 import {
   cleanCycles,
   cyclesToFix,
@@ -454,7 +457,36 @@ function ShiftTotals({ rows, nowPct }: { rows: LineReport[]; nowPct: number | nu
 const pct = (n: number, of: number) => (of ? `${Math.round((n / of) * 100)}%` : "—");
 
 /** How the frozen forecasts did against what was logged, per line, over four weeks. */
-function AccuracyCard({ accuracy, installed }: { accuracy: LineAccuracy[] | null; installed: boolean }) {
+/**
+ * Codes in iTouch's queue the product list does not know (Q85). Their jobs have no history to
+ * go by, so their part of the target is an estimate: DYM750V on 10/11 was half what the line
+ * made. Adding the code on SKU Products with the product's name lets its history count.
+ */
+function UnknownCodesCard({ codes }: { codes: { line: string; code: string; description: string | null }[] }) {
+  if (!codes.length) return null;
+  return (
+    <Card data-testid="smart-target-unknown-codes" className="border-warning/50">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base">Codes in iTouch's queue missing from SKU Products</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Their target is an estimate with no history. Add each on SKU Products with the product's full name (for DYM750V: DYNAMIC MASS GAINER
+          750G VANILLA), and the line's history of that product counts from the next forecast.
+        </p>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-1 text-sm">
+          {codes.map((c) => (
+            <li key={`${c.line}${c.code}`}>
+              <span className="font-mono">{c.code}</span> <span className="text-muted-foreground">on {c.line}{c.description && c.description !== c.code ? `, iTouch calls it ${c.description}` : ""}</span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AccuracyCard({ accuracy, installed, againstPlan }: { accuracy: LineAccuracy[] | null; installed: boolean; againstPlan: VersusPlan[] | null }) {
   return (
     <Card data-testid="smart-target-accuracy">
       <CardHeader className="pb-2">
@@ -511,6 +543,38 @@ function AccuracyCard({ accuracy, installed }: { accuracy: LineAccuracy[] | null
                 ))}
               </tbody>
             </table>
+            {againstPlan && againstPlan.some((p) => p.shifts > 0) && (
+              <div className="mt-4" data-testid="smart-target-versus-plan">
+                <h4 className="text-sm font-semibold">Against the RAG plan, where the plan was written before the shift started</h4>
+                <p className="text-xs text-muted-foreground">
+                  The same shifts and the same actual for both. A plan written once the shift was running is left out: it already knows part of the answer.
+                </p>
+                <table className="mt-2 w-full text-sm">
+                  <thead className="text-left text-muted-foreground">
+                    <tr>
+                      <th className="py-1 pr-3 font-medium">Line</th>
+                      <th className="py-1 pr-3 text-right font-medium">Shifts</th>
+                      <th className="py-1 pr-3 text-right font-medium">Smart Target, median error</th>
+                      <th className="py-1 text-right font-medium">RAG plan, median error</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {againstPlan.map((p) => (
+                      <tr key={p.line} className="border-t">
+                        <td className="py-1.5 pr-3">Line {p.line}</td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">{p.shifts}</td>
+                        <td className={cn("py-1.5 pr-3 text-right tabular-nums", p.smartMedian !== null && p.planMedian !== null && p.smartMedian < p.planMedian && "font-semibold")}>
+                          {p.smartMedian === null ? "—" : `${p.smartMedian}%`}
+                        </td>
+                        <td className={cn("py-1.5 text-right tabular-nums", p.smartMedian !== null && p.planMedian !== null && p.planMedian < p.smartMedian && "font-semibold")}>
+                          {p.planMedian === null ? "—" : `${p.planMedian}%`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
@@ -611,7 +675,6 @@ export default function SmartTargetPage() {
   const cyclesQuery = useItouchCycles();
   const historyQuery = useSmartTargetHistory(date);
   const queue = useSmartTargetQueue(date, shift);
-  const skuFamilyOf = useMemo(() => skuFamily(catalogue), [catalogue]);
   const skuIsSampleOf = useMemo(() => skuIsSample(catalogue), [catalogue]);
   // Deep and drill cleans between products (Q81–Q83).
   const cleaning = useCleaningBasis(catalogue);
@@ -640,7 +703,7 @@ export default function SmartTargetPage() {
   // before half way is not scored (Q79).
   const runsFrom = forecastRows.data?.rows[0]?.session_date ?? date;
   const shiftRuns = useShiftRuns(runsFrom, date, !!forecastRows.data?.installed);
-  const accuracy = useMemo(() => {
+  const accuracyFull = useMemo(() => {
     if (!forecastRows.data?.installed || !historyQuery.data) return null;
     const history = historyFromSessions(historyQuery.data.sessions, historyQuery.data.items, catalogue);
     const actuals = actualTotals(history);
@@ -658,8 +721,15 @@ export default function SmartTargetPage() {
       });
       if (endedBeforeHalfway(o)) endedEarly.add(key);
     }
-    return accuracyByLine(forecastRows.data.rows, actuals, 5, endedEarly);
+    return { lines: accuracyByLine(forecastRows.data.rows, actuals, 5, endedEarly), actuals, endedEarly };
   }, [forecastRows.data, historyQuery.data, catalogue, shiftRuns]);
+  // The RAG plan as it stood at each shift's start, for a fair comparison (Q88).
+  const planBaseline = useRagPlanBaseline(runsFrom, date, !!forecastRows.data?.installed);
+  const againstPlan = useMemo(
+    () => (accuracyFull && planBaseline.data && forecastRows.data ? versusPlan(forecastRows.data.rows, accuracyFull.actuals, planBaseline.data, accuracyFull.endedEarly) : null),
+    [accuracyFull, planBaseline.data, forecastRows.data],
+  );
+  const accuracy = accuracyFull?.lines ?? null;
   const cautions = useMemo(() => lineCautions(accuracy, WIDE_MARGIN_LINES), [accuracy]);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
@@ -683,6 +753,8 @@ export default function SmartTargetPage() {
     },
   });
 
+  // The queue's codes as the product list knows them (Q85).
+  const queued = useMemo(() => canonicalQueue(queue.rows, catalogue), [queue.rows, catalogue]);
   const built = useMemo(() => {
     if (!data) return null;
     const inputs = buildShiftInputs(date, shift, data.sessions, data.items, catalogue);
@@ -696,10 +768,10 @@ export default function SmartTargetPage() {
           : null;
         // Plan rows with no quantity take what was left of iTouch's order for the same SKU
         // when the queue was read (Q26b).
-        const fromQueue = fillFromQueue(l.line, l.input.jobs, queue.rows);
+        const fromQueue = fillFromQueue(l.line, l.input.jobs, queued);
         // Nothing logged on this line yet: the plan is what iTouch has queued for it (Q32a).
         // Once Production Control has a plan for the line, that plan answers instead.
-        const queuePlan = l.input.jobs.length ? null : planFromQueue(l.line, queue.rows, 0, []);
+        const queuePlan = l.input.jobs.length ? null : planFromQueue(l.line, queued, 0, []);
         const usesQueuePlan = !!queuePlan?.jobs.length;
         const input = usesQueuePlan
           ? { ...l.input, jobs: queuePlan.jobs, previousSku: queuePlan.previousSku ?? l.input.previousSku }
@@ -716,7 +788,7 @@ export default function SmartTargetPage() {
         return { ...l, notes, basis, result, shown, factor };
       }),
     };
-  }, [data, date, shift, catalogue, rateBasis, queue.rows, cautions, cleaning.ruleFor]);
+  }, [data, date, shift, catalogue, rateBasis, queue.rows, queued, cautions, cleaning.ruleFor]);
 
   const toFreeze = useMemo<LineToFreeze[] | null>(
     () => built?.lines.map((l) => ({ line: l.line, shown: l.shown, forecast: l.result, factor: l.factor })) ?? null,
@@ -887,9 +959,11 @@ export default function SmartTargetPage() {
         <NextShifts
           basis={rateBasis}
           ruleFor={cleaning.ruleFor}
-          familyOf={skuFamilyOf}
+          catalogue={catalogue}
           isSample={skuIsSampleOf}
         />
+
+        <UnknownCodesCard codes={unknownQueueCodes(queue.rows, catalogue, skuIsSampleOf)} />
 
         <Card>
           <CardHeader className="pb-2">
@@ -916,7 +990,7 @@ export default function SmartTargetPage() {
           </CardContent>
         </Card>
 
-        <AccuracyCard accuracy={accuracy} installed={forecastRows.data?.installed ?? true} />
+        <AccuracyCard accuracy={accuracy} installed={forecastRows.data?.installed ?? true} againstPlan={againstPlan} />
 
         <FixInItouchCard fix={rateBasis?.fix ?? null} noCode={rateBasis?.noCode ?? []} />
 

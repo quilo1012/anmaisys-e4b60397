@@ -39,7 +39,7 @@ const upper = (s: string) => s.toUpperCase().replace(/\[.*$/, "").replace(/\s+/g
 /** The blend: the name without pack size, pack type or market. Same blend, no clean. */
 export function blendOf(name: string): string {
   return upper(name)
-    .replace(/\b(PERU|KSA|NOT FOR EU|US|AU|UK)\b/g, " ")
+    .replace(/\b(PERU|KSA|NOT FOR EU|US|AU|UK|PAKISTAN|MOROCCO)\b/g, " ")
     .replace(/\(.*?\)/g, " ")
     .replace(/\b\d+(?:\.\d+)?\s*(?:KG|G|ML|L)\b/g, " ")
     .replace(/\b(BAGS?|TUBS?|POUCH(?:ES)?|SAMPLES?|SACHETS?|BLENDED|REWORK)\b/g, " ")

@@ -120,3 +120,70 @@ export function historyFromSessions(
   }
   return out;
 }
+
+/**
+ * Markets iTouch puts on a works order's code that the product list does not always have
+ * (decided 11/11, Q85). CRE250PAKISTAN is CRE250 for a market: same powder, same fill.
+ */
+const MARKET_PREFIX = /^(PERU|NEU|NOTFOREU|US|AU|UK|KSA)(?=[A-Z0-9])/;
+const MARKET_SUFFIX = /(PAKISTAN|MOROCCO|PERU|KSA|US|AU|UK|EU)$/;
+
+/**
+ * A queued code as the product list knows it: itself when listed, else the same code without
+ * its market, when that one is listed. Otherwise unchanged, and it shows on the page's list
+ * of codes to add.
+ */
+export function canonicalQueueCode(catalogue: SkuCatalogue): (code: string) => string {
+  const listed = (c: string) => catalogue.byCode.has(c.toLowerCase());
+  return (code) => {
+    const base = String(code ?? "").replace(/\s*-\s*B\d+\s*$/i, "").trim().toUpperCase();
+    if (!base || listed(base)) return code;
+    for (const stripped of [base.replace(MARKET_SUFFIX, ""), base.replace(MARKET_PREFIX, "")]) {
+      if (stripped && stripped !== base && listed(stripped)) return stripped;
+    }
+    return code;
+  };
+}
+
+/** Queue rows with their codes as the product list knows them. */
+export function canonicalQueue<T extends { sku: string }>(rows: T[], catalogue: SkuCatalogue): T[] {
+  const canon = canonicalQueueCode(catalogue);
+  return rows.map((r) => ({ ...r, sku: canon(r.sku) }));
+}
+
+/**
+ * The family of a SKU from the product list, else from iTouch's own description of a queued
+ * job: DYM750V is not listed, but iTouch calls it DYNAMIC MASS GAINER 750G VANILLA, the
+ * family the line logged as DYNAMICMASSV, so its history counts (Q85).
+ */
+export function familyWithQueue(
+  catalogue: SkuCatalogue,
+  queue: { sku: string; description?: string | null }[],
+): (sku: string) => string | null {
+  const fromCatalogue = skuFamily(catalogue);
+  const described = new Map<string, string>();
+  for (const q of queue) {
+    const code = String(q.sku ?? "").replace(/\s*-\s*B\d+\s*$/i, "").trim().toUpperCase();
+    if (q.description && !described.has(code)) described.set(code, q.description);
+  }
+  return (sku) => fromCatalogue(sku) ?? familyFromName(described.get(String(sku).toUpperCase()) ?? null);
+}
+
+/** Queued codes the product list does not know and no description places, for the page (Q85). */
+export function unknownQueueCodes(
+  rows: { line: string; sku: string; description?: string | null }[],
+  catalogue: SkuCatalogue,
+  isSample: (sku: string) => boolean,
+): { line: string; code: string; description: string | null }[] {
+  const canon = canonicalQueueCode(catalogue);
+  const out = new Map<string, { line: string; code: string; description: string | null }>();
+  for (const r of rows) {
+    const code = canon(r.sku).replace(/\s*-\s*B\d+\s*$/i, "").trim().toUpperCase();
+    if (!code || catalogue.byCode.has(code.toLowerCase()) || isSample(code)) continue;
+    if (familyFromName(r.description ?? null)) continue;
+    const k = `${r.line}|${code}`;
+    if (!out.has(k)) out.set(k, { line: r.line, code, description: r.description ?? null });
+  }
+  return [...out.values()];
+}
+

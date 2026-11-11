@@ -7,7 +7,8 @@ import { invokeFunction } from "@/lib/invokeFunction";
 import { previewShifts, shiftAt } from "@/lib/smartTargetAhead";
 import { queueRowsFromSections, type ScheduledJobItem } from "@/lib/smartTargetQueue";
 import { cleanLabel, type CleaningRule } from "@/lib/smartTargetCleaning";
-import { FORECAST_LINES } from "@/lib/smartTargetHistory";
+import { FORECAST_LINES, canonicalQueue, familyWithQueue } from "@/lib/smartTargetHistory";
+import type { SkuCatalogue } from "@/lib/lineSku";
 import type { LineNo } from "@/lib/smartTargetEngine";
 import type { CleanCycle, HistoryShift, LineFactor } from "@/lib/smartTargetRates";
 
@@ -23,12 +24,12 @@ const dayLabel = (date: string, shift: string) =>
 export function NextShifts({
   basis,
   ruleFor,
-  familyOf,
+  catalogue,
   isSample,
 }: {
   basis: { cycles: CleanCycle[]; factors: LineFactor[]; history: HistoryShift[] } | null;
   ruleFor: ((line: LineNo) => CleaningRule) | null;
-  familyOf: (sku: string) => string | null;
+  catalogue: SkuCatalogue;
   isSample: (sku: string) => boolean;
 }) {
   // Read only when asked: each read asks iTouch for every line's schedule, and the shift's
@@ -55,17 +56,19 @@ export function NextShifts({
 
   const shifts = useMemo(() => {
     if (!basis || !live.data?.rows.length) return null;
+    // Codes as the product list knows them, iTouch's descriptions for the rest (Q85).
+    const queue = canonicalQueue(live.data.rows, catalogue);
     return previewShifts({
       nowMs: live.data.readAt,
-      queue: live.data.rows,
+      queue,
       cycles: basis.cycles,
       factors: basis.factors,
       history: basis.history,
-      familyOf,
+      familyOf: familyWithQueue(catalogue, queue),
       isSample,
       cleaningFor: ruleFor ?? undefined,
     });
-  }, [basis, live.data, ruleFor, familyOf, isSample]);
+  }, [basis, live.data, ruleFor, catalogue, isSample]);
 
   return (
     <Card data-testid="smart-target-next-shifts">
