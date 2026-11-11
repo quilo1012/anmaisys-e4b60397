@@ -697,9 +697,9 @@ export default function FinanceClosePage() {
                 <FileText className="mr-2 h-4 w-4" /> PDF · to hand over
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => {
-                try { exportCloseExcel(exportInput()); } catch (e: any) {
+                exportCloseExcel(exportInput()).catch((e) => {
                   toast.error("The workbook could not be built.", { description: String(e?.message ?? e) });
-                }
+                });
               }}>
                 <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel · to add up
               </DropdownMenuItem>
