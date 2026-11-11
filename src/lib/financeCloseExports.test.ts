@@ -1,8 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import XLSX from "xlsx-js-style";
-import type { WorkBook, Range, CellObject } from "xlsx-js-style";
+import ExcelJS from "exceljs";
 import { buildClose, closeTotals, type ClosePersonInput, type ClosePerson } from "@/lib/financeClose";
-import { CLOSE_COLUMNS } from "@/lib/financeCloseColumns";
+import { CLOSE_COLUMNS, pickPrintColumns } from "@/lib/financeCloseColumns";
 import {
   buildClosePdf, buildCloseWorkbook, closeSubtitle, closeWarningText,
   type CloseExportInput,
@@ -41,8 +40,39 @@ function input(over: Partial<CloseExportInput> = {}): CloseExportInput {
 }
 
 type Cell = string | number | null;
-const sheetAoa = (wb: WorkBook, name: string): Cell[][] =>
-  XLSX.utils.sheet_to_json<Cell[]>(wb.Sheets[name], { header: 1, defval: null });
+
+/**
+ * The workbook as Excel will open it: written to bytes and read back, so a test sees
+ * what the file holds and not what the builder meant to put in it.
+ */
+async function roundTrip(i: CloseExportInput): Promise<ExcelJS.Workbook> {
+  const built = await buildCloseWorkbook(i);
+  const back = new ExcelJS.Workbook();
+  await back.xlsx.load(await built.xlsx.writeBuffer());
+  return back;
+}
+
+/** A cell as data: a formula reads as its cached result, an empty cell as null. */
+function plain(v: ExcelJS.CellValue): Cell {
+  if (v == null) return null;
+  if (typeof v === "object" && "result" in v) return (v.result ?? null) as Cell;
+  if (typeof v === "object" && "richText" in v) return v.richText.map((t) => t.text).join("");
+  return v as Cell;
+}
+
+function sheetAoa(wb: ExcelJS.Workbook, name: string): Cell[][] {
+  const ws = wb.getWorksheet(name)!;
+  const out: Cell[][] = [];
+  for (let r = 1; r <= ws.rowCount; r++) {
+    const row: Cell[] = [];
+    for (let c = 1; c <= ws.columnCount; c++) row.push(plain(ws.getCell(r, c).value));
+    out.push(row);
+  }
+  return out;
+}
+
+/** The row holding the column names on the People sheet (the band row is above it). */
+const headerRowIndex = (aoa: Cell[][]) => aoa.findIndex((r) => r[0] === "Employee");
 
 /**
  * The sentence that must leave the building with the numbers.
@@ -97,9 +127,9 @@ describe("Payroll OT when the office has keyed nothing", () => {
     expect(closeTotals(zero).payrollEmpty).toBe(false);
   });
 
-  it("leaves the cell empty in the workbook rather than writing a nought", () => {
-    const wb = buildCloseWorkbook(input({ ...empty(), byCrew: [{ crew: "Weekend", totals: empty().totals }] }));
-    const rows = sheetAoa(wb, wb.SheetNames[0]);
+  it("leaves the cell empty in the workbook rather than writing a nought", async () => {
+    const wb = await roundTrip(input({ ...empty(), byCrew: [{ crew: "Weekend", totals: empty().totals }] }));
+    const rows = sheetAoa(wb, "Summary");
     const line = rows.find((r) => r.some((c) => c === "Payroll OT"));
     expect(line).toBeDefined();
     // null, not 0 — a spreadsheet sums a nought and ignores a blank, and this figure
@@ -174,24 +204,47 @@ describe("the PDF", () => {
  * CSV: numbers that are numbers, and empty cells where a side reported nothing.
  */
 describe("the workbook", () => {
-  it("carries the three sheets in the order finance reads them", () => {
-    expect(buildCloseWorkbook(input()).SheetNames).toEqual(["Summary", "By crew", "People"]);
+  it("carries the sheets in the order finance reads them", async () => {
+    const wb = await roundTrip(input());
+    expect(wb.worksheets.map((w) => w.name)).toEqual(["Summary", "People", "By crew", "Overtime register"]);
   });
 
-  it("bands the People sheet over the column names, covering every column", () => {
-    const wb = buildCloseWorkbook(input());
+  it("bands the People sheet over the column names, covering every column", async () => {
+    const wb = await roundTrip(input());
     const aoa = sheetAoa(wb, "People");
-    expect(aoa[0].length).toBe(CLOSE_COLUMNS.length);
-    expect(aoa[1]).toEqual(CLOSE_COLUMNS.map((c) => c.header));
+    const h = headerRowIndex(aoa);
+    expect(aoa[h]).toEqual(CLOSE_COLUMNS.map((c) => c.header));
     // The band the screen used to get wrong: Payroll OT must not sit under "Days away".
     const payrollAt = CLOSE_COLUMNS.findIndex((c) => c.key === "payrollOtHours");
-    const merges: Range[] = wb.Sheets["People"]["!merges"] ?? [];
-    const band = merges.find((m) => m.s.c <= payrollAt && m.e.c >= payrollAt);
-    expect(aoa[0][band.s.c]).toBe("Hours · from the clocks");
+    const bandStart = CLOSE_COLUMNS.findIndex((c) => c.band === "clockedHours");
+    expect(aoa[h - 1][bandStart]).toBe("Hours · from the clocks");
+    const ws = wb.getWorksheet("People")!;
+    // Merged: the payroll column's band cell is the same cell as the band's first.
+    expect(ws.getCell(h, payrollAt + 1).master.address).toBe(ws.getCell(h, bandStart + 1).address);
   });
 
-  it("hands over hours as numbers, so the column can be summed", () => {
-    const aoa = sheetAoa(buildCloseWorkbook(input()), "People");
+  /**
+   * The bug this file was changed for: the print settings narrowed the paper and the
+   * PDF, and the workbook still came out with every column. What was ticked is what the
+   * file carries — in the close's own order, with the bands counted off those columns.
+   */
+  it("carries ONLY the columns ticked in the print settings", async () => {
+    const cols = pickPrintColumns(["name", "department", "overtimeHours", "owedHours", "sick"]);
+    const wb = await roundTrip(input({ columns: cols }));
+    const aoa = sheetAoa(wb, "People");
+    const h = headerRowIndex(aoa);
+    expect(aoa[h]).toEqual(["Employee", "Department", "Overtime", "Deducted", "Sick"]);
+    expect(wb.getWorksheet("People")!.columnCount).toBe(5);
+    // The band row is counted off the chosen columns, not the full eighteen.
+    expect(aoa[h - 1][2]).toBe("Hours · from the clocks");
+    expect(aoa[h - 1][4]).toBe("Days away");
+    // And the values line up under those headers.
+    const bruno = aoa.find((r) => r[0] === "Bruno Costa")!;
+    expect(bruno[1]).toBe("Hygiene");
+  });
+
+  it("hands over hours as numbers, so the column can be summed", async () => {
+    const aoa = sheetAoa(await roundTrip(input()), "People");
     const at = CLOSE_COLUMNS.findIndex((c) => c.key === "clockedOtHours");
     // By name, not by position: buildClose sorts by the size of the disagreement, so
     // the sheet's row order is not the order the people were assembled in.
@@ -200,45 +253,80 @@ describe("the workbook", () => {
     expect(typeof bruno[at]).toBe("number");
   });
 
-  it("leaves an unreported figure an EMPTY cell, never a zero and never a dash", () => {
-    const wb = buildCloseWorkbook(input());
-    const aoa = sheetAoa(wb, "People");
+  it("leaves an unreported figure an EMPTY cell, never a zero and never a dash", async () => {
+    const aoa = sheetAoa(await roundTrip(input()), "People");
     const at = CLOSE_COLUMNS.findIndex((c) => c.key === "payrollOtHours");
     // Carla reported on neither side; Ana reported a genuine zero. The sheet has to
     // tell them apart, which is the entire reason this is not a second CSV.
-    const carlaRow = aoa.findIndex((r) => r[0] === "Carla Dias");
-    const anaRow = aoa.findIndex((r) => r[0] === "Ana Silva");
-    expect(wb.Sheets["People"][XLSX.utils.encode_cell({ r: carlaRow, c: at })]).toBeUndefined();
-    expect((wb.Sheets["People"][XLSX.utils.encode_cell({ r: anaRow, c: at })] as CellObject).v).toBe(0);
+    expect(aoa.find((r) => r[0] === "Carla Dias")![at]).toBeNull();
+    expect(aoa.find((r) => r[0] === "Ana Silva")![at]).toBe(0);
   });
 
-  it("leaves the gap blank on the summary when nothing was keyed to compare", () => {
+  it("closes the register with live totals that follow the autofilter", async () => {
+    const wb = await roundTrip(input());
+    const ws = wb.getWorksheet("People")!;
+    const aoa = sheetAoa(wb, "People");
+    const totalRow = aoa.findIndex((r) => typeof r[0] === "string" && r[0].startsWith("Total"));
+    expect(aoa[totalRow][0]).toBe("Total · 3 people");
+    const at = CLOSE_COLUMNS.findIndex((c) => c.key === "clockedOtHours");
+    const cell = ws.getCell(totalRow + 1, at + 1).value as ExcelJS.CellFormulaValue;
+    expect(cell.formula).toMatch(/^SUBTOTAL\(109,/);
+    expect(cell.result).toBe(12);
+  });
+
+  it("leaves the gap blank on the summary when nothing was keyed to compare", async () => {
     const rows = buildClose([person({ payrollOtHours: null })], PERIOD.from, PERIOD.to);
     const totals = closeTotals(rows);
-    const wb = buildCloseWorkbook({ ...input(), rows, totals, byCrew: [{ crew: "Weekend", totals }] });
-    const summary = sheetAoa(wb, "Summary");
-    const gap = summary.find((r) => r[0] === "Gap to settle");
+    const wb = await roundTrip({ ...input(), rows, totals, byCrew: [{ crew: "Weekend", totals }] });
+    const gap = sheetAoa(wb, "Summary").find((r) => r[0] === "Gap to settle");
     expect(gap![1]).toBeNull();
   });
 
-  it("prints the warning on the summary, since a workbook is forwarded more than a printout", () => {
-    const summary = sheetAoa(buildCloseWorkbook(input()), "Summary");
+  it("prints the warning on the summary, since a workbook is forwarded more than a printout", async () => {
+    const summary = sheetAoa(await roundTrip(input()), "Summary");
     expect(summary.some((r) => typeof r[0] === "string" && /hour bank/i.test(r[0]))).toBe(true);
   });
 
-  it("gives the People sheet an autofilter over the names row and the rows below it", () => {
-    const wb = buildCloseWorkbook(input());
-    const { ref } = wb.Sheets["People"]["!autofilter"] as { ref: string };
-    const range = XLSX.utils.decode_range(ref);
-    expect(range.s.r).toBe(1);
-    expect(range.e.r).toBe(1 + 3);
-    expect(range.e.c).toBe(CLOSE_COLUMNS.length - 1);
+  it("freezes the names, filters the header row and repeats it on every printed page", async () => {
+    const wb = await roundTrip(input());
+    const ws = wb.getWorksheet("People")!;
+    const h = headerRowIndex(sheetAoa(wb, "People")) + 1;
+    expect(ws.views[0]).toMatchObject({ state: "frozen", xSplit: 1, ySplit: h });
+    expect(String(ws.autoFilter)).toContain(`A${h}`);
+    expect(ws.pageSetup.printTitlesRow).toBe(`${h - 1}:${h}`);
+    expect(ws.pageSetup.fitToWidth).toBe(1);
   });
 
-  it("builds for an empty close rather than throwing", () => {
+  it("turns the paper the same way as the printed sheet", async () => {
+    const narrow = await roundTrip(input({ columns: pickPrintColumns(["name", "overtimeHours"]) }));
+    expect(narrow.getWorksheet("People")!.pageSetup.orientation).toBe("portrait");
+    const wide = await roundTrip(input());
+    expect(wide.getWorksheet("People")!.pageSetup.orientation).toBe("landscape");
+  });
+
+  it("shows whole days as whole numbers, not with a trailing point", async () => {
+    const ws = (await roundTrip(input())).getWorksheet("People")!;
+    const at = CLOSE_COLUMNS.findIndex((c) => c.key === "daysPresent");
+    expect(ws.getCell(10, at + 1).numFmt ?? "General").toBe("General");
+  });
+
+  it("says person, not people, for a close of one", async () => {
+    const rows = buildClose([person()], PERIOD.from, PERIOD.to);
+    const wb = await roundTrip({ ...input(), rows, totals: closeTotals(rows) });
+    expect(sheetAoa(wb, "People").some((r) => r[0] === "Total · 1 person")).toBe(true);
+  });
+
+  it("does not merge the title across a single column when only the name is ticked", async () => {
+    const wb = await roundTrip(input({ columns: pickPrintColumns([]) }));
+    const ws = wb.getWorksheet("People")!;
+    expect(ws.getCell("A1").isMerged).toBe(false);
+    expect(sheetAoa(wb, "People").some((r) => r[0] === "Employee")).toBe(true);
+  });
+
+  it("builds for an empty close rather than throwing", async () => {
     const rows: ClosePerson[] = [];
-    const wb = buildCloseWorkbook({ ...input(), rows, totals: closeTotals(rows), byCrew: [] });
-    expect(wb.SheetNames).toContain("People");
+    const wb = await roundTrip({ ...input(), rows, totals: closeTotals(rows), byCrew: [] });
+    expect(wb.getWorksheet("People")).toBeDefined();
   });
 });
 

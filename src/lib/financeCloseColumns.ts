@@ -69,7 +69,10 @@ export interface CloseColumn {
    * name on it cannot be paid from, and "Clear all" must not be able to produce one.
    */
   alwaysPrinted?: boolean;
-  /** Left out of the printed sheet until somebody ticks it. Still on screen and in Excel. */
+  /**
+   * Left out of the printed sheet, the PDF and the Excel workbook until somebody ticks
+   * it in the print settings. Still on screen.
+   */
   printOff?: boolean;
 }
 
