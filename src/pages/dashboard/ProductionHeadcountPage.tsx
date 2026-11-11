@@ -365,6 +365,7 @@ function SectionLabel({
       type="button"
       onClick={onToggle}
       disabled={!onToggle}
+      aria-expanded={onToggle ? open : undefined}
       // `print-keep` is load-bearing, not styling. The global print sheet hides every
       // button that does not carry it, and these headings are buttons because they
       // fold — so a printed board came out as an unbroken wall of columns with
@@ -524,7 +525,7 @@ export function Chip({
         dimmed && "opacity-20",
         arrived && "headcount-arrived",
       )}
-      title={[name, personRef, sheetName && sheetName !== name ? `on the sheet: ${sheetName}` : null].filter(Boolean).join(" — ")}
+      title={[name, personRef, sheetName && sheetName !== name ? `on the sheet: ${sheetName}` : null, overtime && !(lineLeader || leader) ? "overtime (not on their rota today)" : null].filter(Boolean).join(" — ")}
       onClick={onOpen}
       onKeyDown={(e) => { if (onOpen && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onOpen(); } }}
       role={onOpen ? "button" : undefined}
@@ -536,6 +537,7 @@ export function Chip({
       {/* As iniciais saíram: a folha não as tem, e eram o nome outra vez em duas letras.
           O LEAD fica, pequeno, porque o cinzento sozinho não se lê num ecrã ao sol. */}
       {leader && <span className="sr-only">Lead: </span>}
+      {overtime && !(lineLeader || leader) && <span className="sr-only">Overtime: </span>}
       <span className="flex max-w-full items-baseline justify-center gap-1">
         {/* Duas linhas quando a célula não leva marcas, partidas nos espaços — numa coluna
             estreita "Ezaquiel Dos Santos" cabe inteiro assim, e cortado não se lê. Com
@@ -580,12 +582,12 @@ export function Chip({
         </span>
       )}
       {startTime && (
-        <span title={`Starts ${startTime}`} className="shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-[10px] font-bold leading-tight text-foreground">
+        <span title={`Starts ${startTime}`} className="shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-2xs font-bold leading-tight text-foreground">
           {startTime}
         </span>
       )}
       {tag && !isHalfDayTag(tag) && (
-        <span title={tag} className="shrink-0 rounded-sm border border-border bg-muted px-1 py-px text-[10px] font-bold capitalize leading-tight text-muted-foreground">
+        <span title={tag} className="shrink-0 rounded-sm border border-border bg-muted px-1 py-px text-2xs font-bold capitalize leading-tight text-muted-foreground">
           {tag}
         </span>
       )}
@@ -694,7 +696,7 @@ function SortableColumn({ id, name, children }: { id: string; name: string; chil
           // 32×44 handle with the column's title moved clear of it; the global 48px
           // touch rule would have made it a 48px square sitting on top of the title, in
           // a column 116px wide. `touch-exempt` because it sizes itself here.
-          className="touch-exempt grid h-8 w-5 shrink-0 place-items-center cursor-grab touch-none rounded text-black/60 hover:bg-black/10 hover:text-black active:cursor-grabbing no-print [@media(hover:none)]:h-11 [@media(hover:none)]:w-8"
+          className="touch-exempt grid h-8 w-6 shrink-0 place-items-center cursor-grab touch-none rounded text-black/60 hover:bg-black/10 hover:text-black active:cursor-grabbing no-print [@media(hover:none)]:h-11 [@media(hover:none)]:w-8"
           title="Drag to move this column"
           onClick={(e) => e.stopPropagation()}
           {...listeners}
@@ -830,7 +832,7 @@ function KpiPill({
       <Icon className={cn("hidden h-4 w-4 shrink-0 sm:block", highlight ? "" : "text-muted-foreground")} />
       <div className="flex flex-col items-center sm:items-start">
         <span className={cn("font-figure text-lg font-bold leading-none tabular-nums sm:text-xl", valueTone)}>{value}</span>
-        <span className="mt-0.5 text-[10px] font-medium leading-tight text-muted-foreground sm:text-2xs">
+        <span className="mt-0.5 text-2xs font-medium leading-tight text-muted-foreground">
           {shortLabel ? (
             <>
               <span className="sm:hidden">{shortLabel}</span>
@@ -903,7 +905,7 @@ function ShiftBoard({
    * read for the first of those.
    */
   const [find, setFind] = useState("");
-  const { data: roster = [], byId: everyoneById, boardById, onShift = [], noCrew = [], isLoading: rosterLoading } = useShiftRoster(shift, onDate, showAll);
+  const { data: roster = [], byId: everyoneById, boardById, onShift = [], noCrew = [], isLoading: rosterLoading, isError: rosterError } = useShiftRoster(shift, onDate, showAll);
   const [picking, setPicking] = useState<{ id: string; name: string } | null>(null);
   /** Absence / Holidays / Overtime, opened the same way an area column is. */
   const [pickingAway, setPickingAway] = useState<{ status: AllocStatus; label: string } | null>(null);
@@ -951,7 +953,7 @@ function ShiftBoard({
   );
   // The column being carried, for the lifted copy that follows the pointer.
   const [liftedLine, setLiftedLine] = useState<string | null>(null);
-  const { data: savedAllocations = [], isLoading: allocLoading } = useAllocations(onDate, shift);
+  const { data: savedAllocations = [], isLoading: allocLoading, isError: allocError, refetch: refetchAllocations } = useAllocations(onDate, shift);
   // Confirmed overtime laid over each placement, so the card says the hours really worked.
   const { data: confirmedAsks } = useConfirmedOvertime(onDate, shift);
   const { data: cancelledRows } = useCancelledOvertime(onDate, shift);
@@ -1373,6 +1375,16 @@ function ShiftBoard({
   if (rosterLoading || allocLoading) {
     return <Skeleton className="h-64 w-full" />;
   }
+  // A failed read must not draw an empty board: the "not imported" banner would then
+  // offer to copy or sync over a day that is already planned.
+  if (allocError || rosterError) {
+    return (
+      <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive-strong">
+        <span>Could not load this board. Nothing has been changed.</span>
+        <Button size="sm" variant="outline" onClick={() => { void refetchAllocations(); }}>Try again</Button>
+      </div>
+    );
+  }
 
   // What "copy" can copy from: the matrices, then the days that have anybody on them.
   // One list, shown by the split button beside "Copy from the last day" on a wide
@@ -1705,7 +1717,7 @@ function ShiftBoard({
           <ul aria-label="Key" className="ml-auto hidden flex-wrap items-center gap-x-3 gap-y-1 text-2xs text-muted-foreground lg:flex">
             <li className="flex items-center gap-1.5"><span className={cn("h-3 w-4 border", SHEET_RULE, SHEET_FILL.leader)} />Leader</li>
             <li className="flex items-center gap-1.5"><span className={cn("h-3 w-4 border bg-[#92D050]/25", SHEET_RULE)} />Overtime on a line</li>
-            <li className="flex items-center gap-1.5"><span className="rounded-sm border border-muted-foreground/40 bg-muted px-1 text-[9px] font-bold leading-tight">FRI–MON</span>Crew</li>
+            <li className="flex items-center gap-1.5"><span className="rounded-sm border border-muted-foreground/40 bg-muted px-1 text-2xs font-bold leading-tight">FRI–MON</span>Crew</li>
             <li className="flex items-center gap-1.5"><span className="italic">Grey italic</span>Planned, not saved</li>
           </ul>
         </div>
@@ -2550,14 +2562,15 @@ function SheetDayTabs({ date, today, onPick }: { date: string; today: string; on
               type="button"
               onClick={() => onPick(d)}
               aria-current={active ? "date" : undefined}
-              title={formatLong(d) + (d === today ? " (today)" : "")}
+              title={formatLong(d) + (weekend ? " (weekend)" : "") + (d === today ? " (today)" : "")}
+              aria-label={formatLong(d) + (weekend ? ", weekend" : "") + (d === today ? ", today" : "")}
               className={cn(
                 "shrink-0 border-r border-neutral-400 px-3 py-3 font-figure text-xs tabular-nums sm:py-2",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                 // O separador aberto é branco e sobe sobre a linha, como no Excel.
                 active
                   ? "-mt-px border-t-2 border-t-[#217346] bg-card font-bold text-[#217346] dark:text-[#5fd08d]"
-                  : cn("text-muted-foreground hover:bg-card/60 hover:text-foreground", weekend && "text-muted-foreground/60"),
+                  : cn("text-muted-foreground hover:bg-card/60 hover:text-foreground", weekend && "italic"),
                 d === today && !active && "underline decoration-2 underline-offset-4",
               )}
             >
@@ -2601,7 +2614,7 @@ export default function ProductionHeadcountPage() {
   const setDate = (d: string) => setBoard({ date: d });
   const setView = (v: ViewKey) => setBoard({ view: v });
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const { data: areas = [], isLoading } = useHeadcountAreas();
+  const { data: areas = [], isLoading, isError: areasError, refetch: refetchAreas } = useHeadcountAreas();
 
   // Split shows two boards at once, so the sheet takes the Day one — a workbook has
   // to be one shift per file for the import to know what it is reading back.
@@ -2775,7 +2788,7 @@ export default function ProductionHeadcountPage() {
             {/* A board showing yesterday is right at 03:00 and baffling unsaid. Drops
                 away the moment the reader moves off it, so it never becomes furniture. */}
             {opened.carriedOver && date === opened.operationalDate && view === opened.shift && (
-              <Badge className="border-primary/30/50 bg-primary/25 text-primary-foreground print:hidden">
+              <Badge className="border-primary/40 bg-primary/25 text-primary-foreground print:hidden">
                 Night still running — filed under {formatLong(date)}
               </Badge>
             )}
@@ -2822,6 +2835,11 @@ export default function ProductionHeadcountPage() {
 
       {isLoading ? (
         <Skeleton className="h-64 w-full" />
+      ) : areasError ? (
+        <div role="alert" className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive-strong">
+          <span>Could not load the board's columns. Nothing has been changed.</span>
+          <Button size="sm" variant="outline" onClick={() => { void refetchAreas(); }}>Try again</Button>
+        </div>
       ) : view === "Split" ? (
         <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
           <ShiftBoard onDate={date} shift="Day" areas={areas} canManage={canManage} onSync={openSync} />

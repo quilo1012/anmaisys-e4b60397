@@ -729,6 +729,7 @@ export default function ProductionPerformancePage() {
           o que se lê a três metros é a barra, e o que se lê a trinta centímetros são os
           números, que continuam sobre o mesmo fundo de sempre. */}
       <div className={cn("-m-3 space-y-6 p-3 transition-colors duration-500 sm:-m-4 sm:p-4 md:-m-6 md:p-6", ANDON_FIELD[factory.state])}>
+        <h1 className="sr-only">Production performance</h1>
         {/* O mastro: a lâmpada e a régua, num instrumento só.
             Eram três bandas empilhadas — a barra de andon, o título do ecrã e um cartão
             "Overall performance" — e as três diziam a mesma coisa por ordem: 65%,
@@ -741,10 +742,10 @@ export default function ProductionPerformancePage() {
         <div className="overflow-hidden rounded-lg border bg-card">
           <AndonBar
             state={factory.state}
-            verdict={factory.verdict}
-            value={factory.value}
-            basis={factory.basis}
-            detail={factory.detail}
+            verdict={perfStatus === "success" ? factory.verdict : perfStatus === "error" ? "Could not read" : "Loading…"}
+            value={perfStatus === "success" ? factory.value : null}
+            basis={perfStatus === "success" ? factory.basis : perfStatus === "error" ? "production figures failed to load" : "reading production figures"}
+            detail={perfStatus === "success" ? factory.detail : undefined}
             scale={factory.value ? { attainedPct: factory.pct, elapsedPct: isCurrentShiftView ? elapsedPct : null } : undefined}
             className="rounded-none"
           />
@@ -757,19 +758,22 @@ export default function ProductionPerformancePage() {
             const totalActual = scored.reduce((a, l) => a + l.actual, 0);
             const excludedCount = byLine.length - scored.length;
             const variance = totalActual - totalTarget;
+            // Until the figures are in, the ruler has nothing to say — a 0 here reads
+            // as a measured zero.
+            const ready = perfStatus === "success";
             return (
               <div className="grid grid-cols-2 divide-x divide-y sm:grid-cols-4 sm:divide-y-0">
                 <ConsoleCell
                   label="Variance"
-                  value={`${variance >= 0 ? "+" : ""}${variance.toLocaleString("en-US")}`}
+                  value={ready && scored.length > 0 ? `${variance >= 0 ? "+" : ""}${variance.toLocaleString("en-US")}` : "—"}
                   hint="units against plan"
                   tone={variance > 0 ? "text-success-strong" : "text-foreground"}
                 />
-                <ConsoleCell label="Lines scored" value={String(scored.length)} hint={`of ${byLine.length} with activity`} />
-                <ConsoleCell label="Sessions" value={String(sessions.length)} hint="logged in the period" />
+                <ConsoleCell label="Lines scored" value={ready ? String(scored.length) : "—"} hint={`of ${byLine.length} with activity`} />
+                <ConsoleCell label="Sessions" value={ready ? String(sessions.length) : "—"} hint="logged in the period" />
                 <ConsoleCell
                   label="No RAG target"
-                  value={String(excludedCount)}
+                  value={ready ? String(excludedCount) : "—"}
                   hint={excludedCount > 0 ? "excluded from the score" : "every line has a plan"}
                   tone={excludedCount > 0 ? "text-warning-strong" : "text-muted-foreground"}
                 />
@@ -854,7 +858,7 @@ export default function ProductionPerformancePage() {
             >
             <ControlField label="Period" className="min-w-[8.5rem] flex-1 sm:flex-none">
               <Select value={period} onValueChange={(v) => setFilters(withPeriod(filters, v as Period))}>
-                <SelectTrigger className="w-full sm:w-32"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Period" className="w-full sm:w-32"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="day">Day</SelectItem>
                   <SelectItem value="week">Week</SelectItem>
@@ -867,13 +871,13 @@ export default function ProductionPerformancePage() {
             </ControlField>
             <ControlField label="Shift" className="min-w-[8.5rem] flex-1 sm:flex-none">
               <Select value={shift} onValueChange={(v) => setShift(v as "all" | "DAY" | "NIGHT")}>
-                <SelectTrigger className="w-full sm:w-28"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Shift" className="w-full sm:w-28"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="all">All</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
               </Select>
             </ControlField>
             <ControlField label="Line" className="min-w-[8.5rem] flex-1 sm:flex-none">
               <Select value={lineFilter} onValueChange={setLineFilter}>
-                <SelectTrigger className="w-full sm:w-36"><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Line" className="w-full sm:w-36"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">All lines</SelectItem>
                   {sortedLines.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
@@ -882,7 +886,7 @@ export default function ProductionPerformancePage() {
             </ControlField>
             <ControlField label="Leader" className="min-w-[8.5rem] flex-1 sm:flex-none">
               <Select value={leaderFilter} onValueChange={setLeaderFilter}>
-                <SelectTrigger className="w-full sm:w-40"><SelectValue placeholder="All leaders" /></SelectTrigger>
+                <SelectTrigger aria-label="Leader" className="w-full sm:w-40"><SelectValue placeholder="All leaders" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">All leaders</SelectItem>
                   {shiftLeaders.map((l) => <SelectItem key={l.name} value={l.name}>{l.name}</SelectItem>)}
@@ -942,7 +946,18 @@ export default function ProductionPerformancePage() {
             already reachable only by roles that hold production.performance.view,
             and a second password on top of the login asked the same question twice
             — while locking out the admin who set it. */}
-        {sortedByLine.length === 0 ? (
+        {perfStatus === "pending" ? (
+          <Card>
+            <CardContent className="p-6 text-center text-sm text-muted-foreground" role="status">Loading production figures…</CardContent>
+          </Card>
+        ) : perfStatus === "error" ? (
+          <Card>
+            <CardContent role="alert" className="flex flex-col items-center gap-2 p-6 text-center text-sm text-destructive-strong">
+              <span>Could not load production figures. This is not an empty period.</span>
+              <Button variant="outline" size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["oee"] })}>Retry</Button>
+            </CardContent>
+          </Card>
+        ) : sortedByLine.length === 0 ? (
           <Card>
             <CardContent className="p-0">
               <EmptyState
@@ -1001,12 +1016,12 @@ export default function ProductionPerformancePage() {
                deixaram de dizer 110% e passaram a dizer 10%. Os degraus são os mesmos
                — cumprir o plano, quinze pontos abaixo, mais do que isso —, contados a
                partir do zero em vez de a partir dos cem. */
-            : [["bg-success", "≥0%", "on target"], ["bg-warning", `−1 a −${BEHIND_TOLERANCE_PTS}%`, "behind"], ["bg-destructive", `<−${BEHIND_TOLERANCE_PTS}%`, "critical"]];
+            : [["bg-success", "≥0%", "on target"], ["bg-warning", `−1 to −${BEHIND_TOLERANCE_PTS}%`, "behind"], ["bg-destructive", `<−${BEHIND_TOLERANCE_PTS}%`, "critical"]];
           return (
             <div className="flex flex-wrap items-baseline gap-x-5 gap-y-2 border-b pb-2.5">
-              <span className="font-display text-2xs font-bold uppercase leading-none tracking-[0.13em] text-foreground">
+              <h2 className="font-display text-2xs font-bold uppercase leading-none tracking-[0.13em] text-foreground">
                 Lines
-              </span>
+              </h2>
               <span className="font-figure text-2xs font-bold leading-none text-muted-foreground">
                 {sortedByLine.length}
               </span>
@@ -1112,7 +1127,7 @@ export default function ProductionPerformancePage() {
                     centímetros e essa leitura deixe de existir. */}
                 <div className="flex items-baseline justify-between gap-2">
                   <div className="min-w-0">
-                    <div className="truncate font-display text-xl font-bold uppercase leading-none tracking-[0.02em] text-foreground">{l.line}</div>
+                    <h3 className="truncate font-display text-xl font-bold uppercase leading-none tracking-[0.02em] text-foreground">{l.line}</h3>
                     {/* O nome da máquina no iTouching, que é como a manutenção lhe
                         chama. Duas casas para a mesma linha só é confusão enquanto
                         uma delas estiver escondida. */}
@@ -1252,7 +1267,7 @@ export default function ProductionPerformancePage() {
                             <span className="shrink-0 font-figure text-2xs font-bold text-foreground">{sku.code}</span>
                             <span className="truncate text-2xs text-muted-foreground">{sku.name}</span>
                             {sku.others > 0 && (
-                              <span className="shrink-0 text-2xs text-muted-foreground/70" title={`${sku.others} other SKU${sku.others === 1 ? "" : "s"} ran on this line in the period`}>
+                              <span className="shrink-0 text-2xs text-muted-foreground" title={`${sku.others} other SKU${sku.others === 1 ? "" : "s"} ran on this line in the period`}>
                                 +{sku.others}
                               </span>
                             )}
@@ -1266,7 +1281,7 @@ export default function ProductionPerformancePage() {
                                 que é o caso da Line 2 em Line Preparation. */}
                             {sku.source === "itouch" && (
                               <span
-                                className="shrink-0 font-display text-2xs uppercase tracking-[0.1em] text-muted-foreground/70"
+                                className="shrink-0 font-display text-2xs uppercase tracking-[0.1em] text-muted-foreground"
                                 title={sku.liveState === "next"
                                   ? "iTouching has this job next in the queue on this machine — the line is not making it yet, and no order for it is logged here"
                                   : "iTouching reports this job as running on this machine. Nothing is logged against it here, so there is no quantity to measure"}
@@ -1287,7 +1302,7 @@ export default function ProductionPerformancePage() {
                             {l.actual.toLocaleString("en-US")}
                           </div>
                           <div className="mt-1.5 font-figure text-xs text-muted-foreground">
-                            {l.target.toLocaleString("en-US")} target
+                            {l.target > 0 ? l.target.toLocaleString("en-US") : "—"} target
                           </div>
                         </div>
                         <div className="text-right">
@@ -1352,7 +1367,7 @@ export default function ProductionPerformancePage() {
                             número que está ao lado dele, e aqui fica só a distância —
                             que é o que esta linha existe para dizer. */}
                         <div className="mt-2 font-figure text-2xs text-muted-foreground">
-                          {gap >= 0 ? "+" : ""}{gap.toLocaleString("en-US")} vs target
+                          {l.target > 0 ? `${gap >= 0 ? "+" : ""}${gap.toLocaleString("en-US")}` : "—"} vs target
                         </div>
                       </div>
 
@@ -1446,7 +1461,7 @@ export default function ProductionPerformancePage() {
                         }
                       }}
                     >
-                      <SelectTrigger className="h-8 flex-1 border-transparent bg-muted/60 text-xs hover:border-border focus:border-border">
+                      <SelectTrigger aria-label={`Leader for ${l.line}`} className="h-8 flex-1 border-transparent bg-muted/60 text-xs hover:border-border focus:border-border">
                         <SelectValue placeholder="— Assign —" />
                       </SelectTrigger>
                       <SelectContent>
@@ -1457,7 +1472,7 @@ export default function ProductionPerformancePage() {
                         )}
                         {/* Active, but works the other shift — still the one assigned here. */}
                         {l.leader && leaders.some((ld) => ld.name === l.leader) && !shiftLeaders.some((ld) => ld.name === l.leader) && (
-                          <SelectItem value={l.leader}>{l.leader} (outro turno)</SelectItem>
+                          <SelectItem value={l.leader}>{l.leader} (other shift)</SelectItem>
                         )}
                         {shiftLeaders.map((ld) => (
                           <SelectItem key={ld.name} value={ld.name}>{ld.name}</SelectItem>
@@ -1470,6 +1485,7 @@ export default function ProductionPerformancePage() {
                     <div className="mt-2 flex items-center gap-1.5">
                       <Input
                         autoFocus
+                        aria-label={`New leader name for ${l.line}`}
                         value={newLeaderName}
                         onChange={(e) => setNewLeaderName(e.target.value)}
                         onKeyDown={(e) => {
