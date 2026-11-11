@@ -312,7 +312,7 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
   const { data: patterns } = useShiftPatterns();
   const { data: history } = useShiftHistory();
 
-  const { data: everyone, isLoading } = useQuery({
+  const { data: everyone, isLoading, isError } = useQuery({
     queryKey: ["headcount-roster-all"],
     queryFn: async (): Promise<HeadcountEmployee[]> => {
       const { data, error } = await supabase
@@ -395,7 +395,7 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
   /** Everybody whose saved allocation the board draws on this date. See `boardPeopleOn`. */
   const boardById = useMemo(() => boardPeopleOn(byId, leavers ?? [], onDate), [byId, leavers, onDate]);
 
-  return { data, byId, boardById, onShift, noCrew, isLoading };
+  return { data, byId, boardById, onShift, noCrew, isLoading, isError };
 }
 
 /**

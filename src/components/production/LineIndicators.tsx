@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { selectOptionalDomain } from "@/lib/optionalDomain";
 import { leaderNamePattern } from "@/lib/leaderNameMatch";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { BEHIND_TOLERANCE_PTS } from "@/lib/linePerformance";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- columns newer than the generated types
 const db = supabase as any;
@@ -249,11 +250,11 @@ export function LineIndicators({
               {rows.map((r) => (
                 <tr key={r.line} className="transition-colors hover:bg-muted/40">
                   <td className="py-2.5 pr-2 font-display font-bold uppercase tracking-[0.02em] text-foreground">{r.line}</td>
-                  <td className="px-2 py-2.5 text-right font-figure text-muted-foreground">{r.target.toLocaleString()}</td>
+                  <td className="px-2 py-2.5 text-right font-figure text-muted-foreground">{r.target > 0 ? r.target.toLocaleString() : "—"}</td>
                   <td className="px-2 py-2.5 text-right font-figure font-bold text-foreground">{r.actual.toLocaleString()}</td>
                   <td className={cn("px-2 py-2.5 text-right font-figure font-bold",
                     r.target === 0 ? "text-muted-foreground"
-                      : r.eff >= 100 ? "text-success-strong" : r.eff >= 80 ? "text-warning-strong" : "text-destructive-strong")}>
+                      : r.eff >= 100 ? "text-success-strong" : r.eff >= 100 - BEHIND_TOLERANCE_PTS ? "text-warning-strong" : "text-destructive-strong")}>
                     {r.target > 0 ? `${Math.round(r.eff)}%` : "—"}
                   </td>
                   <td className="px-2 py-2.5 text-right font-figure">

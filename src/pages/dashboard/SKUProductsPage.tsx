@@ -188,7 +188,7 @@ export default function SKUProductsPage() {
     }
   };
 
-  const { data: all = [], isLoading } = useQuery({
+  const { data: all = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["sku_products_all"],
     queryFn: async () => {
       // Paginate: PostgREST caps each response at ~1000 rows, so fetch pages
@@ -342,7 +342,7 @@ export default function SKUProductsPage() {
     const ws = wb.addWorksheet("SKUs");
     ws.addRow(["SKU", "Description", "Category", "TargetPerHour", "Weight", "Active"]);
     for (const p of all) {
-      ws.addRow([p.code, p.name, p.category ?? "", p.target_per_hour ?? 0, p.weight ?? "", p.active ? "Yes" : "No"]);
+      ws.addRow([p.code, p.name, p.category ?? "", p.target_per_hour || "", p.weight ?? "", p.active ? "Yes" : "No"]);
     }
     ws.getRow(1).font = { bold: true };
     ws.columns = [{ width: 18 }, { width: 60 }, { width: 24 }, { width: 16 }, { width: 12 }, { width: 10 }];
@@ -458,16 +458,16 @@ export default function SKUProductsPage() {
                 <DialogHeader><DialogTitle>{editing?.id ? "Edit SKU" : "New SKU"}</DialogTitle></DialogHeader>
                 <div className="space-y-3">
                   <div>
-                    <Label>SKU</Label>
-                    <Input value={editing?.code ?? ""} onChange={(e) => setEditing({ ...editing, code: e.target.value })} />
+                    <Label htmlFor="sku-code">SKU</Label>
+                    <Input id="sku-code" value={editing?.code ?? ""} onChange={(e) => setEditing({ ...editing, code: e.target.value })} />
                     {clash && (
                       <p className="mt-1 text-xs font-medium text-destructive-strong">
                         Already on the list — {clash.name}. Close this and search for {clash.code} to edit it.
                       </p>
                     )}
                   </div>
-                  <div><Label>Product</Label><Input value={editing?.name ?? ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></div>
-                  <div><Label>Weight</Label><Input type="number" inputMode="decimal" step="0.001" value={editing?.weight ?? ""} onChange={(e) => setEditing({ ...editing, weight: e.target.value ? +e.target.value : null })} /></div>
+                  <div><Label htmlFor="sku-name">Product</Label><Input id="sku-name" value={editing?.name ?? ""} onChange={(e) => setEditing({ ...editing, name: e.target.value })} /></div>
+                  <div><Label htmlFor="sku-weight">Weight</Label><Input id="sku-weight" type="number" inputMode="decimal" step="0.001" value={editing?.weight ?? ""} onChange={(e) => setEditing({ ...editing, weight: e.target.value ? +e.target.value : null })} /></div>
                   {hasAllergens && (
                     <div>
                       <Label htmlFor="sku-allergens">Allergens</Label>
@@ -492,7 +492,7 @@ export default function SKUProductsPage() {
                     <Switch id="sku-active" checked={editing?.active ?? true} onCheckedChange={(active) => setEditing({ ...editing, active })} />
                   </div>
                 </div>
-                <DialogFooter><Button onClick={() => editing && save.mutate(hasAllergens && (allergenText !== null || editing.allergens != null) ? { ...editing, allergens: parseAllergens(allergenText ?? (editing.allergens ?? []).join(", ")) } : { ...editing, allergens: undefined })} disabled={save.isPending || !editing?.code?.trim() || !editing?.name || !!clash}>Save</Button></DialogFooter>
+                <DialogFooter><Button onClick={() => editing && save.mutate(hasAllergens && (allergenText !== null || editing.allergens != null) ? { ...editing, allergens: parseAllergens(allergenText ?? (editing.allergens ?? []).join(", ")) } : { ...editing, allergens: undefined })} disabled={save.isPending || !editing?.code?.trim() || !editing?.name || !!clash}>{save.isPending ? "Saving…" : "Save"}</Button></DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
@@ -502,21 +502,22 @@ export default function SKUProductsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2"><Search className="h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search by code or name" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} />
-              <Badge variant="outline">{filtered.length}</Badge>
+              <Input placeholder="Search by code or name" aria-label="Search SKUs by code or name" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} />
+              <Badge variant="outline" className="tabular-nums" aria-label={`${filtered.length} SKUs shown`}>{filtered.length}</Badge>
             </div>
           </CardHeader>
           <CardContent>
             <Table>
-              <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Product</TableHead><TableHead>Weight</TableHead>{hasAllergens && <TableHead>Allergens</TableHead>}<TableHead>Active</TableHead><TableHead /></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>SKU</TableHead><TableHead>Product</TableHead><TableHead className="text-right">Weight</TableHead>{hasAllergens && <TableHead>Allergens</TableHead>}<TableHead>Active</TableHead><TableHead /></TableRow></TableHeader>
               <TableBody>
                 {isLoading && <TableRow><TableCell colSpan={hasAllergens ? 6 : 5} className="text-center">Loading...</TableCell></TableRow>}
-                {!isLoading && pageRows.length === 0 && <TableRow><TableCell colSpan={hasAllergens ? 6 : 5} className="text-center text-muted-foreground">No SKUs</TableCell></TableRow>}
+                {isError && <TableRow><TableCell colSpan={hasAllergens ? 6 : 5} className="text-center text-destructive-strong" role="alert">Could not load SKUs — this is not an empty list. <Button variant="link" className="h-auto p-0" onClick={() => refetch()}>Try again</Button></TableCell></TableRow>}
+                {!isLoading && !isError && pageRows.length === 0 && <TableRow><TableCell colSpan={hasAllergens ? 6 : 5} className="text-center text-muted-foreground">{search ? `No SKU matches “${search}”` : "No SKUs"}</TableCell></TableRow>}
                 {pageRows.map((p) => (
                   <TableRow key={p.id}>
                     <TableCell className="font-figure">{p.code}</TableCell>
                     <TableCell>{p.name}</TableCell>
-                    <TableCell>{p.weight ?? "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums">{p.weight ?? "—"}</TableCell>
                     {hasAllergens && (
                       <TableCell>
                         {p.allergens == null ? (
@@ -529,7 +530,7 @@ export default function SKUProductsPage() {
                     <TableCell>{p.active ? <Badge className="bg-success hover:bg-success/90 text-success-foreground border-transparent">Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon" aria-label="Edit this SKU" title="Edit" onClick={() => { setEditing(p); setOpen(true); }}><Pencil className="h-4 w-4" /></Button>
-                      <Button variant="ghost" size="icon" aria-label="Delete this SKU" title="Delete" className="ml-2" onClick={() => { void confirm({ title: "Delete SKU?", destructive: true, confirmText: "Delete" }).then((ok) => { if (ok) del.mutate(p.id); }); }}><Trash2 className="h-4 w-4" /></Button>
+                      <Button variant="ghost" size="icon" aria-label="Delete this SKU" title="Delete" className="ml-2" disabled={del.isPending} onClick={() => { void confirm({ title: `Delete ${p.code}?`, description: p.name, destructive: true, confirmText: "Delete" }).then((ok) => { if (ok) del.mutate(p.id); }); }}><Trash2 className="h-4 w-4" /></Button>
                     </TableCell>
                   </TableRow>
                 ))}

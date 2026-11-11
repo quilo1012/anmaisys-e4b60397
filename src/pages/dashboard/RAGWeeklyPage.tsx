@@ -413,7 +413,7 @@ export default function RAGWeeklyPage() {
   const [bumpShift, setBumpShift] = useState<Shift>("DAY");
   useEffect(() => { setBumpDate(weekStartStr); }, [weekStartStr]);
 
-  const { data: lines = [] } = useQuery({
+  const { data: lines = [], error: linesError } = useQuery({
     queryKey: ["rag-lines"],
     queryFn: async () => {
       const { data, error } = await supabase.from("lines").select("name,active").order("name");
@@ -422,7 +422,7 @@ export default function RAGWeeklyPage() {
     },
   });
 
-  const { data: entries = [] } = useQuery({
+  const { data: entries = [], error: entriesError } = useQuery({
     queryKey: ["rag-week", weekStartStr],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -1020,7 +1020,7 @@ export default function RAGWeeklyPage() {
                     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
                   }}
                 >
-                  <SelectTrigger className="h-8 w-[150px]">
+                  <SelectTrigger aria-label="Jump to line" className="h-8 w-[150px]">
                     <SelectValue placeholder="Jump to line" />
                   </SelectTrigger>
                   <SelectContent className="bg-popover z-50">
@@ -1278,7 +1278,7 @@ export default function RAGWeeklyPage() {
                         "TARGE / T". Um rótulo de seis letras nunca se parte. */}
                     <span className="whitespace-nowrap break-normal pl-1 font-display text-2xs font-bold uppercase tracking-[0.1em] text-muted-foreground">Target</span>
                     <Select value={bumpDate} onValueChange={setBumpDate}>
-                      <SelectTrigger className="h-7 w-[110px] text-xs"><SelectValue placeholder="Date" /></SelectTrigger>
+                      <SelectTrigger aria-label="Target date" className="h-7 w-[110px] text-xs"><SelectValue placeholder="Date" /></SelectTrigger>
                       <SelectContent>
                         {weekDates.map((d) => {
                           const ds = format(d, "yyyy-MM-dd");
@@ -1287,7 +1287,7 @@ export default function RAGWeeklyPage() {
                       </SelectContent>
                     </Select>
                     <Select value={bumpShift} onValueChange={(v) => setBumpShift(v as Shift)}>
-                      <SelectTrigger className="h-7 w-[78px] text-xs"><SelectValue /></SelectTrigger>
+                      <SelectTrigger aria-label="Target shift" className="h-7 w-[78px] text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="DAY">Day</SelectItem>
                         <SelectItem value="NIGHT">Night</SelectItem>
@@ -1298,12 +1298,14 @@ export default function RAGWeeklyPage() {
                       disabled={bumpMutation.isPending}
                       onClick={() => bumpMutation.mutate({ date: bumpDate, shift: bumpShift, dir: -1 })}
                       title="Decrease targets for this date & shift by 1%"
+                      aria-label="Decrease targets for this date and shift by 1%"
                     >−1%</Button>
                     <Button
                       variant="outline" size="sm" className="h-7 px-2 font-figure text-xs font-bold"
                       disabled={bumpMutation.isPending}
                       onClick={() => bumpMutation.mutate({ date: bumpDate, shift: bumpShift, dir: 1 })}
                       title="Increase targets for this date & shift by 1%"
+                      aria-label="Increase targets for this date and shift by 1%"
                     >+1%</Button>
                   </div>
                 )}
@@ -1311,6 +1313,24 @@ export default function RAGWeeklyPage() {
           </ControlRow>
         </ControlPlate>
 
+        {/* A failed read leaves every cell at "—", which on this board means "nothing
+            recorded". Say it failed, so an empty week and a broken one never look alike. */}
+        {(linesError || entriesError || lineStopsError) && (
+          <div role="alert" className="flex flex-wrap items-center gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive-strong">
+            <span>
+              Could not load {[linesError && "the lines", entriesError && "the plan and actuals", lineStopsError && "the downtime"].filter(Boolean).join(", ")}.
+              The figures below are incomplete.
+            </span>
+            <Button
+              size="sm" variant="outline"
+              onClick={() => {
+                qc.invalidateQueries({ queryKey: ["rag-lines"] });
+                qc.invalidateQueries({ queryKey: ["rag-week", weekStartStr] });
+                qc.invalidateQueries({ queryKey: ["rag-week-line-stops", weekStartStr] });
+              }}
+            >Retry</Button>
+          </div>
+        )}
 
         <DayNightTotalSummary
           lines={lines}
@@ -2124,7 +2144,7 @@ function DayNightTotalSummary({
                     <span className="block text-2xs">Not run</span>
                   </span>
                 ) : (
-                  <span className="text-muted-foreground/40">—</span>
+                  <span className="text-muted-foreground/70">—</span>
                 ),
             },
             {
@@ -2133,7 +2153,7 @@ function DayNightTotalSummary({
               render: (c: Cell) => {
                 const v = smartVariancePct(c.smart);
                 return v === null ? (
-                  <span className="text-muted-foreground/40">—</span>
+                  <span className="text-muted-foreground/70">—</span>
                 ) : (
                   <span className={pctClass(c.smart.actual, c.smart.comparedSmart)}>{v}%</span>
                 );
@@ -2141,14 +2161,14 @@ function DayNightTotalSummary({
             },
           ]
         : []),
-      { key: "plan", label: "Plan", render: (c) => c.plan ? c.plan.toLocaleString("en-GB") : <span className="text-muted-foreground/40">—</span> },
-      { key: "actual", label: "Actual", render: (c) => c.actual ? c.actual.toLocaleString("en-GB") : <span className="text-muted-foreground/40">—</span>, bold: true },
+      { key: "plan", label: "Plan", render: (c) => c.plan ? c.plan.toLocaleString("en-GB") : <span className="text-muted-foreground/70">—</span> },
+      { key: "actual", label: "Actual", render: (c) => c.actual ? c.actual.toLocaleString("en-GB") : <span className="text-muted-foreground/70">—</span>, bold: true },
       {
         key: "var",
         label: "Variance %",
         render: (c) => <span className={pctClass(c.actual, c.planDue)}>{pct(c.actual, c.planDue)}</span>,
       },
-      { key: "upm", label: "UPM", render: (c) => (c.upm ? c.upm.toFixed(2) : <span className="text-muted-foreground/40">—</span>) },
+      { key: "upm", label: "UPM", render: (c) => (c.upm ? c.upm.toFixed(2) : <span className="text-muted-foreground/70">—</span>) },
       // Downtime, always. The rows below it are the breakdown by bucket and each one
       // only appears when that bucket has minutes somewhere in the week — so a line
       // that ran clean showed no downtime row at all, and a line that stopped for two
@@ -2159,7 +2179,7 @@ function DayNightTotalSummary({
         label: "Downtime",
         bold: true,
         render: (c: Cell) => (
-          <span className={c.dt > 0 ? "text-warning-strong" : "text-muted-foreground/40"}>{fmtHm(c.dt)}</span>
+          <span className={c.dt > 0 ? "text-warning-strong" : "text-muted-foreground/70"}>{fmtHm(c.dt)}</span>
         ),
       },
       ...visibleBuckets.map((b) => ({
@@ -2174,7 +2194,7 @@ function DayNightTotalSummary({
 
         render: (c: Cell) => {
           const v = c.dtBuckets[b] ?? 0;
-          return <span className={v > 0 ? bucketClass(b) : "text-muted-foreground/40"}>{fmtHm(v)}</span>;
+          return <span className={v > 0 ? bucketClass(b) : "text-muted-foreground/70"}>{fmtHm(v)}</span>;
         },
       })),
     ];
@@ -2445,6 +2465,7 @@ function DayNightTotalSummary({
                         value={current}
                         onCommit={(v) => commitValue(ds, shift, v)}
                         onOpen={() => onOpenFull?.(ds, lineName, shift)}
+                        ariaLabel={`${isPlan ? "Plan" : "Downtime minutes"}, ${displayLineLabel(lineName)}, ${formatIsoDay(ds)}, ${shift === "DAY" ? "day" : "night"} shift`}
                       />
                     );
                     // The cell stays typeable — the history marker floats over the
@@ -2854,7 +2875,7 @@ function LineCommentBox({
     <div className="border rounded-md bg-card p-2">
       <div className="flex items-center justify-between mb-1">
         <div className="text-2xs uppercase tracking-wider text-muted-foreground font-semibold">{dayLabel}</div>
-        {saving && <div className="text-2xs text-muted-foreground">…</div>}
+        {saving && <div role="status" className="text-2xs text-muted-foreground">Saving…</div>}
       </div>
       <DailyIssueSummary
         issues={issues}
@@ -2874,6 +2895,7 @@ function LineCommentBox({
         onBlur={commit}
         disabled={!canEdit}
         placeholder="Notes…"
+        aria-label={`Comment, ${displayLineLabel(line)}, ${dayLabel}`}
         rows={2}
         className="min-h-[44px] resize-y text-xs bg-background text-foreground"
       />
@@ -2887,10 +2909,12 @@ function SummaryInlineInput({
   value,
   onCommit,
   onOpen,
+  ariaLabel,
 }: {
   value: number;
   onCommit: (v: number) => void;
   onOpen?: () => void;
+  ariaLabel?: string;
 }) {
   const [v, setV] = useState<string>(value ? String(value) : "");
   const focusedRef = useRef(false);
@@ -2905,7 +2929,9 @@ function SummaryInlineInput({
   const commit = () => {
     focusedRef.current = false;
     const n = Number(v.replace(/[, ]/g, ""));
-    const next = isNaN(n) ? 0 : n;
+    // A typo is not a zero. Emptying the box still clears the cell on purpose.
+    if (isNaN(n)) { toast.error("That is not a number — nothing was saved."); setV(value ? String(value) : ""); return; }
+    const next = n;
     if (next !== value) onCommit(next);
   };
   return (
@@ -2920,10 +2946,14 @@ function SummaryInlineInput({
       onKeyDown={(e) => {
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
         if (e.key === "Escape") { focusedRef.current = false; setV(value ? String(value) : ""); }
+        // Double-click is the only other way in, and a keyboard has none.
+        if (e.key === "F2" && onOpen) { e.preventDefault(); onOpen(); }
       }}
       onDoubleClick={() => onOpen?.()}
+      aria-label={ariaLabel}
+      aria-keyshortcuts={onOpen ? "F2" : undefined}
       className="w-full bg-transparent text-right tabular-nums focus:outline-none focus:ring-1 focus:ring-primary/50 rounded px-1"
-      title="Double-click to open full editor"
+      title="Double-click (or F2) to open full editor"
     />
   );
 }

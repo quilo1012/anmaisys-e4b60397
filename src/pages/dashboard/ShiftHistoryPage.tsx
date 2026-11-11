@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ControlPlate, ControlRow, ControlField, ControlDivider, ControlReadout, ControlDisclosure } from "@/components/ui/ControlPlate";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -63,10 +63,11 @@ function skuLabel(name: string | null | undefined): string {
 
 /** Searchable SKU picker — the same standard as the operator's Log Production,
  *  instead of a native select listing ~1,500 SKUs with the HS code inline. */
-function SkuCombobox({ skus, value, onChange, placeholder = "Pick a SKU", allowAll = false, allLabel = "All SKUs", triggerCodeOnly = false, triggerClassName }: {
+function SkuCombobox({ skus, value, onChange, placeholder = "Pick a SKU", allowAll = false, allLabel = "All SKUs", triggerCodeOnly = false, triggerClassName, ariaLabel }: {
   skus: { id: string; code: string; name: string }[];
   value: string; onChange: (id: string) => void; placeholder?: string;
   allowAll?: boolean; allLabel?: string; triggerCodeOnly?: boolean; triggerClassName?: string;
+  ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -83,7 +84,7 @@ function SkuCombobox({ skus, value, onChange, placeholder = "Pick a SKU", allowA
   return (
     <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setQ(""); }}>
       <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" className={cn("w-full justify-between font-normal", triggerClassName)}>
+        <Button variant="outline" role="combobox" aria-label={ariaLabel} className={cn("w-full justify-between font-normal", triggerClassName)}>
           <span className={cn("truncate", triggerCodeOnly && "font-figure text-xs")}>{triggerText}</span>
           <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -173,6 +174,7 @@ function InlineSkuCell({ itemId, skuId, codeText, displayCode, skus, editable, o
         onChange={save}
         triggerCodeOnly
         triggerClassName="h-7"
+        ariaLabel="SKU"
         placeholder={codeText ? `⚠ ${codeText}` : "Pick SKU"}
       />
     </div>
@@ -209,7 +211,7 @@ function InlineLeaderCell({
   return (
     <div className="flex items-center gap-1">
       <Select value={leaderId ?? ""} onValueChange={save} disabled={disabled || saving}>
-        <SelectTrigger className={cn("h-8 w-[140px] text-xs", !leaderId && !leaderName && "text-muted-foreground")}>
+        <SelectTrigger aria-label="Leader" className={cn("h-8 w-[140px] text-xs", !leaderId && !leaderName && "text-muted-foreground")}>
           <SelectValue placeholder={leaderName || "-- Select --"} />
         </SelectTrigger>
         <SelectContent>{options.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}</SelectContent>
@@ -288,6 +290,7 @@ function InlineTimeCell({ itemId, sessionDate, shift, field, value, disabled, on
   };
   return (
     <input type="time" disabled={disabled} value={val}
+      aria-label={field === "started_at" ? "Start time" : "Finish time"}
       onChange={(e) => setVal(e.target.value)} onBlur={commit}
       className="h-7 w-[92px] rounded border bg-background px-1 text-xs tabular-nums disabled:opacity-60" />
   );
@@ -353,7 +356,10 @@ function InlineUnitQtyInput({
   useEffect(() => { setVal(initial); }, [initial]);
   const commit = async () => {
     if (val === initial) return;
-    const n = val === "" ? 0 : Number(val);
+    // Clearing the box is not "made nothing". An empty field goes back to what was
+    // there, so a blank never reaches the table as a 0.
+    if (val === "") { setVal(initial); return; }
+    const n = Number(val);
     if (!Number.isFinite(n) || n < 0) { setVal(initial); return; }
     if (isPlaceholderRow(itemId)) { toast.error("Pick a SKU for this shift first, then this field can be set."); return; }
     setSaving(true);
@@ -375,7 +381,8 @@ function InlineUnitQtyInput({
     <div className="flex items-center justify-end gap-1.5">
       <Input
         type="number" inputMode="numeric" disabled={disabled || saving} value={val}
-        placeholder="0"
+        placeholder="—"
+        aria-label="Quantity"
         onChange={(e) => setVal(e.target.value)} onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
@@ -1049,7 +1056,7 @@ export default function ShiftHistoryPage() {
   });
 
 
-  const { data: sessions = [] } = useQuery({
+  const { data: sessions = [], isLoading: sessionsLoading, isError: sessionsFailed, error: sessionsError, refetch: refetchSessions } = useQuery({
     queryKey: ["shift_history", from, to],
     queryFn: async () => {
       // Paged. The history is the one screen with no narrow default — pick a year and
@@ -1556,13 +1563,13 @@ export default function ShiftHistoryPage() {
             >
             <ControlField label="Shift" className="min-w-0 sm:w-[8.5rem]">
               <Select value={fShift} onValueChange={setFShift}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Shift"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="__all__">All shifts</SelectItem><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
               </Select>
             </ControlField>
             <ControlField label="Filler line" className="min-w-0 sm:w-[12rem]">
               <Select value={fLine} onValueChange={setFLine}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Filler line"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__all__">All lines</SelectItem>
                   {/* O quadrado é a mesma cor da faixa da baía, três palmos abaixo.
@@ -1581,12 +1588,12 @@ export default function ShiftHistoryPage() {
             </ControlField>
             <ControlField label="Leader" className="min-w-0 sm:w-[11rem]">
               <Select value={fLeader} onValueChange={setFLeader}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger aria-label="Leader"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="__all__">All leaders</SelectItem>{leaders.map((l) => <SelectItem key={l.id} value={l.name}>{l.name}</SelectItem>)}</SelectContent>
               </Select>
             </ControlField>
             <ControlField label="SKU" className="col-span-2 min-w-0 sm:min-w-[14rem] sm:flex-1">
-              <SkuCombobox skus={skus} value={fSku} onChange={setFSku} allowAll placeholder="All SKUs" />
+              <SkuCombobox skus={skus} value={fSku} onChange={setFSku} allowAll placeholder="All SKUs" ariaLabel="SKU" />
             </ControlField>
             {hasFilter && (
               <Button
@@ -1603,7 +1610,7 @@ export default function ShiftHistoryPage() {
               <ControlDivider />
               <ControlReadout
                 label="Produced"
-                value={Math.round(summary.actual).toLocaleString()}
+                value={sessionsLoading || sessionsFailed ? "—" : Math.round(summary.actual).toLocaleString()}
                 against={summary.target > 0 ? Math.round(summary.target).toLocaleString() : undefined}
               />
               {/* Quanto do que se vê é que tem hora. Uma folha com metade das corridas
@@ -1654,7 +1661,15 @@ export default function ShiftHistoryPage() {
 
         <Card>
           <CardContent className="p-0">
-            {filtered.length === 0 ? (
+            {/* A history that failed to load must not read as a shift never run. */}
+            {sessionsLoading ? (
+              <div className="p-6 text-muted-foreground text-center" role="status">Loading production…</div>
+            ) : sessionsFailed ? (
+              <div role="alert" className="flex flex-col items-center gap-2 p-6 text-center text-destructive-strong">
+                <span>Could not load production: {(sessionsError as Error)?.message ?? "unknown error"}</span>
+                <Button variant="outline" size="sm" onClick={() => refetchSessions()}>Retry</Button>
+              </div>
+            ) : filtered.length === 0 ? (
               <div className="p-6 text-muted-foreground text-center">No sessions</div>
             ) : (
               <TooltipProvider delayDuration={200}>
@@ -1964,6 +1979,7 @@ export default function ShiftHistoryPage() {
                                       type="text"
                                       defaultValue={i.batch_code ?? ""}
                                       placeholder="B#"
+                                      aria-label="Batch code"
                                       className="w-[80px] h-7 px-1 text-xs font-figure rounded border bg-background"
                                       onBlur={async (e) => {
                                         const v = e.target.value.trim() || null;
@@ -2047,6 +2063,7 @@ export default function ShiftHistoryPage() {
                                       <UITooltip>
                                         <TooltipTrigger asChild>
                                           <Button size="icon" variant="ghost" className="h-8 w-8" disabled={s.locked && !isAdmin}
+ aria-label={`Delete ${skuMap.get(i.sku_id)?.code ?? i.sku_code_text ?? "this SKU"} from this shift`}
                                             onClick={() => setDeletingItem({ id: i.id, code: skuMap.get(i.sku_id)?.code ?? i.sku_code_text ?? "this SKU" })}>
                                             <Trash2 className="h-4 w-4 text-destructive-strong" />
                                           </Button>
@@ -2112,11 +2129,15 @@ export default function ShiftHistoryPage() {
                           }
                           right={
                             <div className="flex items-center gap-1">
-                              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}>
+                              <Button size="icon" variant="ghost" className="h-8 w-8"
+                                aria-label={s.locked ? "Unlock this shift row" : "Lock this shift row"}
+                                disabled={lockMut.isPending}
+                                onClick={() => lockMut.mutate({ id: s.id, lock: !s.locked })}>
                                 {s.locked ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                               </Button>
                               {(i.sku_id || i.sku_code_text) && (
                                 <Button size="icon" variant="ghost" className="h-8 w-8" disabled={s.locked && !isAdmin}
+ aria-label={`Delete ${skuMap.get(i.sku_id)?.code ?? i.sku_code_text ?? "this SKU"} from this shift`}
                                   onClick={() => setDeletingItem({ id: i.id, code: skuMap.get(i.sku_id)?.code ?? i.sku_code_text ?? "this SKU" })}>
                                   <Trash2 className="h-4 w-4 text-destructive-strong" />
                                 </Button>
@@ -2157,6 +2178,7 @@ export default function ShiftHistoryPage() {
                                 type="text"
                                 defaultValue={i.batch_code ?? ""}
                                 placeholder="B#"
+                                      aria-label="Batch code"
                                 className="w-full h-8 px-2 text-xs font-figure rounded border bg-background"
                                 onBlur={async (e) => {
                                   const v = e.target.value.trim() || null;
@@ -2199,7 +2221,7 @@ export default function ShiftHistoryPage() {
                           <TableCardField
                             label={blenders.length > 0 && !isAdmin ? "Qty (from blenders)" : "Qty"}
                             value={blenders.length > 0 && !isAdmin ? (
-                              <span className="tabular-nums">{Number(i.actual_qty ?? 0).toLocaleString()}</span>
+                              <span className="tabular-nums">{i.actual_qty == null ? "—" : Number(i.actual_qty).toLocaleString()}</span>
                             ) : i.id && (i.sku_id || i.sku_code_text) ? (
                               <InlineUnitQtyInput
                                 itemId={i.id}
@@ -2233,7 +2255,7 @@ export default function ShiftHistoryPage() {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={() => deletingItem && delItemMut.mutate(deletingItem.id)} className="bg-destructive">Delete</AlertDialogAction>
+              <AlertDialogAction onClick={() => deletingItem && delItemMut.mutate(deletingItem.id)} className={buttonVariants({ variant: "destructive" })}>Delete</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
@@ -2285,29 +2307,29 @@ export default function ShiftHistoryPage() {
                   spill out of the dialog. Date takes half the row and every cell is
                   allowed to shrink (min-w-0), which keeps the grid inside the box. */}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <div className="col-span-2 min-w-0"><Label className="text-xs">Date</Label><Input type="date" className="w-full min-w-0" value={addDate} onChange={(e) => setAddDate(e.target.value)} /></div>
-                <div className="min-w-0"><Label className="text-xs">Line</Label>
+                <div className="col-span-2 min-w-0"><Label htmlFor="add-date" className="text-xs">Date</Label><Input id="add-date" type="date" className="w-full min-w-0" value={addDate} onChange={(e) => setAddDate(e.target.value)} /></div>
+                <div className="min-w-0"><Label htmlFor="add-line" className="text-xs">Line</Label>
                   <Select value={addLine} onValueChange={setAddLine}>
-                    <SelectTrigger><SelectValue placeholder="Line" /></SelectTrigger>
+                    <SelectTrigger id="add-line"><SelectValue placeholder="Line" /></SelectTrigger>
                     <SelectContent>{sortedLines.map((l) => <SelectItem key={l.id} value={l.name}>{lineLabel(l.name)}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <div className="min-w-0"><Label className="text-xs">Shift</Label>
+                <div className="min-w-0"><Label htmlFor="add-shift" className="text-xs">Shift</Label>
                   <Select value={addShift} onValueChange={(v) => setAddShift(v as "DAY" | "NIGHT")}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="add-shift"><SelectValue /></SelectTrigger>
                     <SelectContent><SelectItem value="DAY">Day</SelectItem><SelectItem value="NIGHT">Night</SelectItem></SelectContent>
                   </Select>
                 </div>
               </div>
               <div className="min-w-0"><Label className="text-xs">SKU</Label>
-                <SkuCombobox skus={skus} value={addSkuId} onChange={setAddSkuId} />
+                <SkuCombobox skus={skus} value={addSkuId} onChange={setAddSkuId} ariaLabel="SKU" />
               </div>
-              <div className="min-w-0"><Label className="text-xs">Produced (actual)</Label><Input type="number" inputMode="numeric" value={addActual} onChange={(e) => setAddActual(e.target.value)} placeholder="0" autoFocus /></div>
+              <div className="min-w-0"><Label htmlFor="add-actual" className="text-xs">Produced (actual)</Label><Input id="add-actual" type="number" inputMode="numeric" value={addActual} onChange={(e) => setAddActual(e.target.value)} placeholder="—" autoFocus /></div>
               <p className="text-2xs text-muted-foreground">Adds this SKU to the shift. If it's already there, the produced quantity is added on top. The target comes from the RAG Weekly plan.</p>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setAddOpen(false)}>Cancel</Button>
-              <Button onClick={() => addProduction.mutate()} disabled={addProduction.isPending || !addLine || !addSkuId}>Add</Button>
+              <Button onClick={() => addProduction.mutate()} disabled={addProduction.isPending || !addLine || !addSkuId || addActual.trim() === ""}>Add</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
