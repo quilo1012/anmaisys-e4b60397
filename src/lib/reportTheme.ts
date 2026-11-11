@@ -33,15 +33,30 @@ export const tableStyles = {
   alternateRowStyles: { fillColor: CARD_BG },
 };
 
+let logoCache: string | null = null;
+
+/**
+ * The logo as a data URL, or null when it cannot be had.
+ *
+ * Always settles: a failed response or a FileReader error resolves to null instead of
+ * leaving the export that awaits it hanging with no file and no error. The first
+ * success is kept, so a second export does not fetch and encode the same asset again.
+ */
 export async function loadLogoDataUrl(): Promise<string | null> {
+  if (logoCache) return logoCache;
   try {
     const res = await fetch(logoUrl);
+    if (!res.ok) return null;
     const blob = await res.blob();
-    return await new Promise<string>((resolve) => {
+    const url = await new Promise<string | null>((resolve) => {
       const r = new FileReader();
-      r.onload = () => resolve(r.result as string);
+      r.onload = () => resolve(typeof r.result === "string" ? r.result : null);
+      r.onerror = () => resolve(null);
+      r.onabort = () => resolve(null);
       r.readAsDataURL(blob);
     });
+    if (url) logoCache = url;
+    return url;
   } catch {
     return null;
   }

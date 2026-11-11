@@ -3,7 +3,7 @@ import ExcelJS from "exceljs";
 import { buildClose, closeTotals, type ClosePersonInput, type ClosePerson } from "@/lib/financeClose";
 import { CLOSE_COLUMNS, pickPrintColumns } from "@/lib/financeCloseColumns";
 import {
-  buildClosePdf, buildCloseWorkbook, closeSubtitle, closeWarningText, REGISTER_SHEET,
+  buildClosePdf, buildCloseWorkbook, closeSubtitle, closeWarningText, REGISTER_SHEET, BALANCES_SHEET,
   type CloseExportInput,
 } from "@/lib/financeCloseExports";
 
@@ -352,6 +352,15 @@ describe("the workbook", () => {
     // <col> range on write and loses the width of all but the first on read.
     const ws = (await buildCloseWorkbook(input())).getWorksheet(REGISTER_SHEET)!;
     CLOSE_COLUMNS.forEach((c, i) => expect(ws.getColumn(i + 1).width!).toBeGreaterThanOrEqual(c.header.length + 5));
+  });
+
+  it("leaves out the Payroll balances tab when nothing was keyed, and adds it when something was", async () => {
+    expect((await roundTrip(input())).getWorksheet(BALANCES_SHEET)).toBeUndefined();
+    const wb = await roundTrip(input({
+      payrollRegister: [{ name: "Ana Silva", employeeRef: "1001", department: "Production", hours: 4, note: "", importedAt: null, sourceNote: "payroll.xlsx" }],
+    }));
+    expect(wb.worksheets.map((w) => w.name)).toEqual(["Summary", "Overtime", "By crew", BALANCES_SHEET]);
+    expect(sheetAoa(wb, BALANCES_SHEET).some((r) => r[0] === "Ana Silva" && r[3] === 4)).toBe(true);
   });
 
   it("builds for an empty close rather than throwing", async () => {
