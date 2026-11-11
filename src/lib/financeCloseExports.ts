@@ -60,7 +60,7 @@ export interface CloseExportInput {
   fileBase: string;
   /**
    * The columns the print settings ticked. The printed sheet, the PDF and the workbook's
-   * People sheet all carry exactly these, so the three documents handed over for one
+   * Overtime sheet all carry exactly these, so the three documents handed over for one
    * close are the same document. All of them when omitted.
    */
   columns?: CloseColumn[];
@@ -256,6 +256,9 @@ export async function exportClosePdf(input: CloseExportInput) {
 // Excel
 // ============================================================
 
+/** The register's tab. Named for what payroll opens the file for. */
+export const REGISTER_SHEET = "Overtime";
+
 /*
  * Built with ExcelJS rather than xlsx-js-style.
  *
@@ -295,18 +298,6 @@ export function closeColumnNumFmt(c: CloseColumn): string | undefined {
   return "General";
 }
 
-/**
- * A timestamp as the wall-clock time it was here.
- *
- * Excel dates have no time zone and ExcelJS writes a Date from its UTC value, so an
- * import at 09:30 BST would read 08:30. Shifted by the local offset, it reads as the
- * app shows it.
- */
-function excelLocalDate(iso: string): Date {
-  const d = new Date(iso);
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000);
-}
-
 /** The 1-based Excel column letter for a 1-based index. */
 function colLetter(n: number): string {
   let s = "";
@@ -314,28 +305,48 @@ function colLetter(n: number): string {
   return s;
 }
 
-/** Title, subtitle and provenance across the top of a sheet. Returns the next free row. */
-function titleBlock(ws: ExcelJS.Worksheet, width: number, title: string, lines: string[]): number {
+/**
+ * The letterhead across the top of a sheet: the logo, then the title, the period and
+ * who generated it. Returns the first free row.
+ *
+ * Nothing here is merged. A merged title is clipped at the edge of the merge and at a
+ * frozen pane, which is how "Finance Close · Register" came out as "Registe"; an
+ * unmerged cell lets the text run over the empty cells beside it at any column width.
+ */
+function titleBlock(
+  ws: ExcelJS.Worksheet,
+  width: number,
+  title: string,
+  lines: string[],
+  logoId?: number,
+): number {
   const span = Math.max(width, 1);
-  // No merge across one column: Excel flags an A1:A1 merge as needing repair, and an
-  // unmerged cell lets the title spill into the empty cells beside it instead.
-  if (span > 1) ws.mergeCells(1, 1, 1, span);
-  const t = ws.getCell(1, 1);
+  // The logo sits in column A, so the text starts beside it; without a logo it starts
+  // at the margin.
+  const textCol = logoId === undefined ? 1 : 2;
+  if (logoId !== undefined) {
+    // 248×100 px source, drawn at half size so it reads as a letterhead, not a banner.
+    ws.addImage(logoId, { tl: { col: 0.08, row: 0.15 }, ext: { width: 124, height: 50 }, editAs: "absolute" });
+  }
+  const t = ws.getCell(1, textCol);
   t.value = title;
   t.font = { name: FONT, size: 16, bold: true, color: { argb: XL.navy } };
   t.alignment = { vertical: "middle" };
   ws.getRow(1).height = 26;
   lines.forEach((text, i) => {
-    const r = 2 + i;
-    if (span > 1) ws.mergeCells(r, 1, r, span);
-    const c = ws.getCell(r, 1);
+    const c = ws.getCell(2 + i, textCol);
     c.value = text;
     c.font = { name: FONT, size: 10, color: { argb: XL.subtle } };
+    c.alignment = { vertical: "middle" };
+    ws.getRow(2 + i).height = 16;
   });
-  // A navy rule under the block, the way the PDF's header bar closes.
-  const rule = 2 + lines.length;
-  for (let c = 1; c <= span; c++) ws.getCell(rule - 1, c).border = { bottom: { style: "medium", color: { argb: XL.navy } } };
-  return rule + 1;
+  // A navy rule under the letterhead, the way the PDF's header bar closes it.
+  const ruleRow = 1 + lines.length;
+  for (let c = 1; c <= Math.max(span, textCol + 3); c++) {
+    ws.getCell(ruleRow, c).border = { bottom: { style: "medium", color: { argb: XL.navy } } };
+  }
+  ws.getRow(ruleRow + 1).height = 8;
+  return ruleRow + 2;
 }
 
 /** Paper set-up shared by every sheet: A4, fitted to the width, numbered, confidential. */
@@ -401,10 +412,19 @@ function subtotal(col: number, firstRow: number, lastRow: number, values: (numbe
   return { formula: `SUBTOTAL(109,${L}${firstRow}:${L}${lastRow})`, result };
 }
 
-/** Width in characters: the column's own, widened for a long header or long text. */
-function widthFor(header: string, base: number, texts: (string | number | null)[] = []) {
+/**
+ * Width in characters: the column's own, widened for its header, its text, and the
+ * band above it when the band covers this column alone.
+ *
+ * The header gets five characters on top of its own length because the autofilter
+ * button sits over the right of the cell — at the old +3, "Overtime" read "Overt",
+ * "Holiday" read "Holi", and "Payroll OT" disappeared behind the arrow altogether.
+ */
+function widthFor(header: string, base: number, texts: (string | number | null)[] = [], soloBand = "") {
   const longest = texts.reduce<number>((m, v) => Math.max(m, typeof v === "string" ? v.length : 0), 0);
-  return Math.min(Math.max(base, header.length + 3, longest + 2), 42);
+  // A band over this column alone wraps onto two lines (the band row is tall enough),
+  // so the column needs only half its length.
+  return Math.min(Math.max(base, header.length + 5, longest + 2, Math.ceil(soloBand.length / 2) + 3), 42);
 }
 
 /**
@@ -415,10 +435,15 @@ function widthFor(header: string, base: number, texts: (string | number | null)[
  * close are the same document. Everything else is the same rule as before: numbers are
  * numbers, an unreported figure is an empty cell, never a zero and never a dash.
  *
- * Sheets: Summary (the figures and the warning that must travel with them), People
- * (the register), By crew, and the Overtime register keyed by the office.
+ * Sheets: Summary (the figures and the warning that must travel with them), Overtime
+ * (the register, which the file opens on) and By crew. The office's keyed balances
+ * stay in the PDF; as a sheet of their own they were an empty tab in every close so
+ * far, and a tab that is always empty reads as a broken export.
  */
-export async function buildCloseWorkbook(input: CloseExportInput): Promise<ExcelJS.Workbook> {
+export async function buildCloseWorkbook(
+  input: CloseExportInput,
+  opts: { logo?: string | null } = {},
+): Promise<ExcelJS.Workbook> {
   const cols = input.columns?.length ? input.columns : CLOSE_COLUMNS;
   const t = input.totals;
   const generated = `Generated ${new Date().toLocaleString("en-GB")}${input.generatedBy ? ` by ${input.generatedBy}` : ""}`;
@@ -435,11 +460,21 @@ export async function buildCloseWorkbook(input: CloseExportInput): Promise<Excel
   wb.subject = subtitle;
   wb.created = new Date();
 
+  // The company logo, as a data URL (the PDF's loader). Left out rather than failing
+  // the export when it could not be fetched.
+  const logoMatch = opts.logo?.match(/^data:image\/(png|jpe?g|gif);base64,(.+)$/i);
+  const logoId = logoMatch
+    ? wb.addImage({
+      base64: logoMatch[2],
+      extension: (logoMatch[1].toLowerCase() === "jpg" ? "jpeg" : logoMatch[1].toLowerCase()) as "png" | "jpeg" | "gif",
+    })
+    : undefined;
+
   // ── Summary ────────────────────────────────────────────────────────────
   {
     const ws = wb.addWorksheet("Summary", { properties: { tabColor: { argb: XL.navy } }, views: [{ showGridLines: false }] });
     ws.columns = [{ width: 30 }, { width: 16 }, { width: 10 }, { width: 40 }];
-    let r = titleBlock(ws, 4, "Finance Close", [subtitle, generated]);
+    let r = titleBlock(ws, 4, "Finance Close · Summary", [subtitle, generated], logoId);
     const heads = ["Figure", "Value", "Unit"];
     heads.forEach((h, i) => headerCell(ws.getCell(r, i + 1), h, i === 0 ? "left" : i === 1 ? "right" : "left"));
     ws.getRow(r).height = 20;
@@ -487,7 +522,7 @@ export async function buildCloseWorkbook(input: CloseExportInput): Promise<Excel
       "Shifts come from the board; hours come from the clocks. Part day is hours from the board, not days away.",
       "Payroll balances are not hours worked and are not added to clock overtime.",
       ...(t.onUnplannedBoard > 0 ? [`${t.onUnplannedBoard} people have a rota but no board in this period; their shifts cannot be measured.`] : []),
-      `The People sheet carries the ${cols.length} of ${CLOSE_COLUMNS.length} columns chosen in the print settings.`,
+      `The Overtime sheet carries the ${cols.length} of ${CLOSE_COLUMNS.length} columns chosen in the print settings.`,
     ];
     for (const n of notes) {
       ws.mergeCells(r, 1, r, 4);
@@ -511,11 +546,11 @@ export async function buildCloseWorkbook(input: CloseExportInput): Promise<Excel
     pageSetup(ws, "portrait", footerTitle);
   }
 
-  // ── People: the register, in the chosen columns ────────────────────────
+  // ── Overtime: the register, in the chosen columns ──────────────────────
   {
-    const ws = wb.addWorksheet("People", { properties: { tabColor: { argb: XL.navy } } });
+    const ws = wb.addWorksheet(REGISTER_SHEET, { properties: { tabColor: { argb: XL.navy } } });
     const n = cols.length;
-    const top = titleBlock(ws, n, "Finance Close · Register", [subtitle, `${generated} · ${input.rows.length} ${input.rows.length === 1 ? "person" : "people"}`]);
+    const top = titleBlock(ws, n, "Finance Close · Overtime", [subtitle, `${generated} · ${input.rows.length} ${input.rows.length === 1 ? "person" : "people"}`], logoId);
     const bandRow = top;
     const headRow = top + 1;
     const first = headRow + 1;
@@ -529,7 +564,9 @@ export async function buildCloseWorkbook(input: CloseExportInput): Promise<Excel
       for (let k = 0; k < b.span; k++) headerCell(ws.getCell(bandRow, c + k), k === 0 ? b.label ?? "" : undefined, "center");
       c += b.span;
     }
-    ws.getRow(bandRow).height = 18;
+    // Room for two lines: a band over one narrow column ("Hours · from the board")
+    // wraps rather than being cut.
+    ws.getRow(bandRow).height = 30;
     cols.forEach((col, i) => {
       const cell = ws.getCell(headRow, i + 1);
       headerCell(cell, col.header, col.align);
@@ -574,12 +611,22 @@ export async function buildCloseWorkbook(input: CloseExportInput): Promise<Excel
     });
     ws.getRow(totalRow).height = 20;
 
+    const solo = new Map<number, string>();
+    {
+      let at = 0;
+      for (const b of closeBandSpans(cols)) {
+        if (b.span === 1 && b.label) solo.set(at, b.label);
+        at += b.span;
+      }
+    }
     ws.columns = cols.map((col, i) => ({
       key: col.key,
-      width: widthFor(col.header, col.wch, values.map((row) => row[i])),
+      width: widthFor(col.header, col.wch, values.map((row) => row[i]), solo.get(i)),
     }));
-    // Name and header stay on screen while scrolling either way.
-    ws.views = [{ state: "frozen", xSplit: 1, ySplit: headRow, topLeftCell: colLetter(2) + first, activeCell: colLetter(2) + first, showGridLines: false }];
+    // The header rows stay on screen while scrolling down. Rows only: a frozen column
+    // clipped the letterhead at the split and opened the sheet scrolled one column in,
+    // with "Day" showing as "ay".
+    ws.views = [{ state: "frozen", ySplit: headRow, topLeftCell: `A${first}`, activeCell: `A${first}`, showGridLines: false }];
     ws.autoFilter = { from: { row: headRow, column: 1 }, to: { row: Math.max(last, headRow), column: n } };
     pageSetup(ws, printOrientation(cols), footerTitle, `${bandRow}:${headRow}`);
   }
@@ -595,7 +642,7 @@ export async function buildCloseWorkbook(input: CloseExportInput): Promise<Excel
       { h: "Payroll OT (h)", w: 16, fmt: "#,##0.00" },
       { h: "Gap to settle (h)", w: 18, fmt: "+#,##0.00;-#,##0.00;0.00" },
     ];
-    const headRow = titleBlock(ws, heads.length, "Finance Close · By crew", [subtitle, generated]);
+    const headRow = titleBlock(ws, heads.length, "Finance Close · By crew", [subtitle, generated], logoId);
     heads.forEach((h, i) => headerCell(ws.getCell(headRow, i + 1), h.h, i === 0 ? "left" : "right"));
     ws.getRow(headRow).height = 22;
     const rows: (string | number | null)[][] = input.byCrew.map(({ crew, totals }) => [
@@ -625,67 +672,13 @@ export async function buildCloseWorkbook(input: CloseExportInput): Promise<Excel
     pageSetup(ws, "portrait", footerTitle, `${headRow}:${headRow}`);
   }
 
-  // ── Overtime register: what the office keyed ───────────────────────────
-  {
-    const ws = wb.addWorksheet("Overtime register");
-    const heads: { h: string; w: number; align: "left" | "right"; fmt?: string }[] = [
-      { h: "Employee", w: 28, align: "left" },
-      { h: "Emp. no.", w: 11, align: "left" },
-      { h: "Department", w: 18, align: "left" },
-      { h: "Balance (h)", w: 13, align: "right", fmt: "+#,##0.00;-#,##0.00;0.00" },
-      { h: "Note", w: 34, align: "left" },
-      { h: "Import source", w: 26, align: "left" },
-      { h: "Imported", w: 18, align: "left" },
-    ];
-    const headRow = titleBlock(ws, heads.length, "Finance Close · Overtime register", [
-      "Payroll balances keyed by the office. Not hours worked, and never added to clock overtime.",
-      subtitle,
-    ]);
-    heads.forEach((h, i) => headerCell(ws.getCell(headRow, i + 1), h.h, h.align));
-    ws.getRow(headRow).height = 22;
-    const reg = input.payrollRegister ?? [];
-    const first = headRow + 1;
-    if (reg.length === 0) {
-      ws.mergeCells(first, 1, first, heads.length);
-      const c = ws.getCell(first, 1);
-      c.value = "No overtime recorded for this period";
-      c.font = { name: FONT, size: 10, italic: true, color: { argb: XL.subtle } };
-      c.alignment = { horizontal: "center" };
-    } else {
-      reg.forEach((e, ri) => {
-        const row: (string | number | Date | null)[] = [
-          e.name, e.employeeRef, e.department || "to confirm", e.hours,
-          e.note || (e.hours < 0 ? "Sickness against banked hours" : ""),
-          e.sourceNote, e.importedAt ? excelLocalDate(e.importedAt) : null,
-        ];
-        row.forEach((v, ci) => {
-          const cell = ws.getCell(first + ri, ci + 1);
-          if (v !== null && v !== "") cell.value = v;
-          bodyCell(cell, ri % 2 === 1, heads[ci].align, ci === 6 ? "dd/mm/yyyy hh:mm" : heads[ci].fmt);
-        });
-      });
-      const last = first + reg.length - 1;
-      const totalRow = last + 1;
-      heads.forEach((h, ci) => {
-        const cell = ws.getCell(totalRow, ci + 1);
-        if (ci === 0) cell.value = "Total";
-        if (ci === 3) cell.value = subtotal(4, first, last, reg.map((e) => e.hours));
-        totalCell(cell, h.align, h.fmt);
-      });
-      ws.autoFilter = { from: { row: headRow, column: 1 }, to: { row: last, column: heads.length } };
-    }
-    ws.columns = heads.map((h) => ({ width: h.w }));
-    ws.views = [{ state: "frozen", ySplit: headRow, showGridLines: false }];
-    pageSetup(ws, "landscape", footerTitle, `${headRow}:${headRow}`);
-  }
-
   // The register is what this file is for; open on it.
   wb.views = [{ x: 0, y: 0, width: 20000, height: 12000, firstSheet: 0, activeTab: 1, visibility: "visible" }];
   return wb;
 }
 
 export async function exportCloseExcel(input: CloseExportInput) {
-  const wb = await buildCloseWorkbook(input);
+  const wb = await buildCloseWorkbook(input, { logo: await loadLogoDataUrl() });
   const buf = await wb.xlsx.writeBuffer();
   const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const a = document.createElement("a");
