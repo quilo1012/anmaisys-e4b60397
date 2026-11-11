@@ -14,6 +14,7 @@ import { PayslipDraftSheet, printPayslipDrafts } from "@/components/workforce/Pa
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { PayslipDraft } from "@/lib/payslipDraft";
 import { Button } from "@/components/ui/button";
+import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { areaText, fmtDay } from "@/lib/myShiftText";
 import { cn } from "@/lib/utils";
 import { ShiftTag } from "@/components/ShiftTag";
@@ -64,7 +65,7 @@ export default function MyAttendancePage() {
   // moves to the pay period running today as soon as it knows it.
   const [range, setRange] = useState(() => defaultRange([], today));
   const [picked, setPicked] = useState<string | null>(null);
-  const { data: result, isPending: isLoading, isError, refetch } = useMyAttendance(range.from, range.to);
+  const { data: result, isPending: isLoading, isError, isPlaceholderData, refetch } = useMyAttendance(range.from, range.to);
   const periods = result?.state === "ready" ? result.data.periods : null;
 
   useEffect(() => {
@@ -110,7 +111,7 @@ export default function MyAttendancePage() {
         ) : result?.state === "ready" ? (
           <>
           <Attendance
-            data={result.data} today={today} range={range}
+            data={result.data} today={today} range={range} refreshing={!!isPlaceholderData}
             onRange={(r, key) => { setPicked(key); setRange(r); }}
             pickedKey={picked}
           />
@@ -121,8 +122,10 @@ export default function MyAttendancePage() {
   );
 }
 
-function Attendance({ data, today, range, onRange, pickedKey }: {
+function Attendance({ data, today, range, onRange, pickedKey, refreshing = false }: {
   data: MyAttendanceData; today: string; range: { from: string; to: string };
+  /** The figures on screen are still the previous range's, while this one loads. */
+  refreshing?: boolean;
   onRange: (r: { from: string; to: string }, key: string) => void; pickedKey: string | null;
 }) {
   const days = useMemo(() => buildMyDays(data, range.from, range.to, today), [data, range, today]);
@@ -130,11 +133,13 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
   // records the exception — and on a day the clock has no hours for yet it goes into the
   // period's overtime, so the figure is not 0 h for overtime that was worked and simply
   // not imported (30/10/2026).
-  const { data: otRecords } = useMyOvertimeShifts(data.me.id, range.from, range.to);
+  const otQuery = useMyOvertimeShifts(data.me.id, range.from, range.to);
+  const otRecords = otQuery.data;
   // The hours are the Headcount Board's: an ask laid over the person's row, and overtime
   // the office placed with no ask behind it (07/11/2026). Without `my_board_marks` the
   // asks keep their own hours.
-  const { data: boardMarks } = useMyBoardMarks(range.from, range.to);
+  const marksQuery = useMyBoardMarks(range.from, range.to);
+  const boardMarks = marksQuery.data;
   const ot = useMemo(
     () => (otRecords
       ? summariseOvertimeShifts(otRecords, data.clocks, new Date(), boardPlacements(data.board, boardMarks ?? null))
@@ -149,7 +154,47 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
   const [selected, setSelected] = useState<MyDay | null>(null);
   const [printing, setPrinting] = useState(false);
   /** The draft on screen, with when it was built. Null while closed. */
-  const [draft, setDraft] = useState<{ draft: PayslipDraft; at: Date } | null>(null);
+  const [draft, setDraft] = useState<{ draft: PayslipDraft; at: Date; overtimeMissing: boolean } | null>(null);
+  /**
+   * Tapped, waiting for what the draft is built from. The button used to be hidden on any
+   * range that was not a pay period, and grey for good when the overtime read failed —
+   * either way "the employee cannot open the payslip draft" (11/11/2026). Now a tap moves
+   * to the pay period if it has to, waits for the reads, and opens.
+   */
+  const [wantDraft, setWantDraft] = useState(false);
+  // The pay period the draft is for: the range itself, else the one it sits in, else today's.
+  const draftPeriod = s.settled?.period
+    ?? periodAround(data.periods, range, today).period
+    ?? data.periods.find((p) => p.start_date <= today && p.end_date >= today)
+    ?? null;
+  const otSettled = otRecords !== undefined || !!otQuery.isError;
+  const marksSettled = marksQuery.isPending !== true;
+  useEffect(() => {
+    if (!wantDraft || refreshing || !s.settled || !otSettled || !marksSettled) return;
+    setWantDraft(false);
+    try {
+      const at = new Date();
+      setDraft({
+        at,
+        overtimeMissing: otRecords === undefined,
+        draft: myPayslipDraft({
+          data, period: s.settled.period, today, now: at,
+          overtime: otRecords ?? [], marks: boardMarks ?? null,
+        }),
+      });
+    } catch (e) {
+      toast.error("The payslip draft could not be built.", { description: String((e as Error)?.message ?? e) });
+    }
+  }, [wantDraft, refreshing, s.settled, otSettled, marksSettled, otRecords, boardMarks, data, today]);
+  // Never "Opening…" for ever: a read that never answers gives up and says so.
+  useEffect(() => {
+    if (!wantDraft) return;
+    const t = window.setTimeout(() => {
+      setWantDraft(false);
+      toast.error("The payslip draft could not be opened.", { description: "Your hours took too long to load. Check your connection and try again." });
+    }, 20_000);
+    return () => window.clearTimeout(t);
+  }, [wantDraft]);
   const currentKey = choices.find((c) => c.from === range.from && c.to === range.to)?.key ?? "custom";
   const todayDay = days.find((d) => d.date === today) ?? null;
   // Overtime the office placed on the Headcount by hand, from today to the end of the range.
@@ -231,28 +276,18 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
         <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 pb-2">
           <CardTitle className="text-base">Hours and overtime</CardTitle>
           {/* The office's payslip draft, for this person: hours only, no money (07/11/2026). */}
-          {s.settled && (
+          {draftPeriod && (
             <Button
               type="button" size="sm" variant="outline" className="h-8"
-              disabled={!otRecords || printing}
+              disabled={wantDraft || printing}
               onClick={() => {
                 // Opened on screen, not sent to print: the home-screen app on an iPhone
                 // ignores a print request, so the button did nothing there (10/11/2026).
-                try {
-                  const at = new Date();
-                  setDraft({
-                    at,
-                    draft: myPayslipDraft({
-                      data, period: s.settled!.period, today, now: at,
-                      overtime: otRecords ?? [], marks: boardMarks ?? null,
-                    }),
-                  });
-                } catch (e) {
-                  toast.error("The payslip draft could not be built.", { description: String((e as Error)?.message ?? e) });
-                }
+                if (!s.settled) onRange({ from: draftPeriod.start_date, to: draftPeriod.end_date }, `period:${draftPeriod.id}`);
+                setWantDraft(true);
               }}
             >
-              <ReceiptText className="mr-1.5 h-4 w-4" /> Payslip draft
+              <ReceiptText className="mr-1.5 h-4 w-4" /> {wantDraft ? "Opening…" : "Payslip draft"}
             </Button>
           )}
           <Dialog open={!!draft} onOpenChange={(o) => { if (!o) setDraft(null); }}>
@@ -263,7 +298,14 @@ function Attendance({ data, today, range, onRange, pickedKey }: {
               </DialogHeader>
               {/* The sheet is laid out for paper: white, black ink, in either theme. */}
               <div className="min-h-0 overflow-auto rounded border bg-white p-3 text-black">
-                {draft && <PayslipDraftSheet draft={draft.draft} generatedAt={draft.at} />}
+                {draft?.overtimeMissing && (
+                  <p role="note" className="mb-2 rounded border border-amber-400 bg-amber-50 p-2 text-xs">
+                    Your booked overtime shifts could not be loaded, so this draft shows the clock only. Close it and try again.
+                  </p>
+                )}
+                <SectionErrorBoundary title="Payslip draft">
+                  {draft && <PayslipDraftSheet draft={draft.draft} generatedAt={draft.at} />}
+                </SectionErrorBoundary>
               </div>
               <DialogFooter className="flex-row justify-end gap-2">
                 <Button type="button" variant="outline" onClick={() => setDraft(null)}>Close</Button>

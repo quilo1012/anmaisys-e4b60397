@@ -19,10 +19,14 @@ const env = vi.hoisted(() => ({
   shifts: vi.fn(),
   marks: null as unknown,
   print: vi.fn(async () => {}),
+  sheetThrows: false,
 }));
 vi.mock("@/components/workforce/PayslipDraftSheet", () => ({
   printPayslipDrafts: env.print,
-  PayslipDraftSheet: ({ draft }: { draft: { header: { name: string } } }) => <article data-testid="payslip-draft">{draft.header.name}</article>,
+  PayslipDraftSheet: ({ draft }: { draft: { header: { name: string } } }) => {
+    if (env.sheetThrows) throw new Error("sheet broke");
+    return <article data-testid="payslip-draft">{draft.header.name}</article>;
+  },
 }));
 vi.mock("@/hooks/useMyAttendance", () => ({ useMyAttendance: env.attendance }));
 vi.mock("@/hooks/useMyOvertimeShifts", () => ({ useMyOvertimeShifts: env.shifts }));
@@ -69,6 +73,7 @@ describe("overtime shifts beside the clock's figure", () => {
     env.attendance.mockReset().mockReturnValue({ data: { state: "ready", data: DATA }, isPending: false, isError: false });
     env.shifts.mockReset();
     env.marks = null;
+    env.sheetThrows = false;
   });
 
   it("07/11: 20/10 and 21/10 booked 06:00–14:00 on rows the office placed read as the board's 12 h each", () => {
@@ -159,5 +164,52 @@ describe("overtime shifts beside the clock's figure", () => {
     expect(drafts[0].header.name).toBe("Ailton Junior");
     // The same 20 h the card above says.
     expect(drafts[0].overtime.periodHours).toBe(20);
+  });
+  // 11/11/2026: "the employee still cannot open the payslip draft" after it moved on screen.
+  // Each of these left the button missing, grey for good, or the page blank.
+  it("still offers the draft when the range is not a pay period, for the period it sits in", async () => {
+    // No period runs today, so the page opens on this month — and the button was hidden.
+    const SEPT = { id: "s", name: "September 2026", start_date: "2026-09-14", end_date: "2026-10-11" };
+    env.attendance.mockReturnValue({ data: { state: "ready", data: { ...DATA, periods: [SEPT] } }, isPending: false, isError: false });
+    env.shifts.mockReturnValue({ data: SHIFTS });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /Payslip draft/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/Payslip draft · September 2026/)).toBeInTheDocument();
+    expect(within(dialog).getByTestId("payslip-draft")).toHaveTextContent("Ailton Junior");
+  });
+
+  it("opens the draft when the booked overtime could not be read, instead of a grey button for good", async () => {
+    env.shifts.mockReturnValue({ data: undefined, isError: true });
+    renderPage();
+    const button = screen.getByRole("button", { name: /Payslip draft/ });
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByTestId("payslip-draft")).toBeInTheDocument();
+    expect(within(dialog).getByText(/overtime shifts could not be loaded/i)).toBeInTheDocument();
+  });
+
+  it("waits for the overtime still loading, then opens", async () => {
+    env.shifts.mockReturnValue({ data: undefined });
+    const view = renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /Payslip draft/ }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Opening/ })).toBeInTheDocument();
+    env.shifts.mockReturnValue({ data: SHIFTS });
+    const client = new QueryClient();
+    view.rerender(<QueryClientProvider client={client}><MemoryRouter><MyAttendancePage /></MemoryRouter></QueryClientProvider>);
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("says the sheet could not be shown instead of blanking the page", async () => {
+    env.shifts.mockReturnValue({ data: SHIFTS });
+    env.sheetThrows = true;
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: /Payslip draft/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(/could not be shown/);
+    expect(screen.getByText("Hours and overtime")).toBeInTheDocument();
   });
 });
