@@ -56,6 +56,26 @@ describe("the cleaning rule from the plan sheet", () => {
   });
 });
 
+describe("corrections from Production, 12/11", () => {
+  const more: Record<string, string> = {
+    BEEFGAINER3BM: "BEEF GAINER 3KG BLUEBERRY MUFFIN",
+    BFBP500BR: "BODY FUEL BEEF PROTEIN 500G BLUE RASPBERRY",
+    NEUMMWPV: "NOT FOR EU MUSCLE MOOSE WHEY PROTEIN 900G - VANILLA",
+    MMWPS: "MUSCLE MOOSE WHEY PROTEIN 900G - STRAWBERRY",
+  };
+  const productOf = (sku: string): CleanProduct | null => (more[sku] ? { name: more[sku], allergens: null } : null);
+
+  it("Line 5: Beef Gainer to Beef Protein is a drill clean, as neither has milk", () => {
+    expect(suggestAllergens(more.BEEFGAINER3BM)).toEqual([]);
+    expect(cleaningRule(5, productOf, noHistory)("BEEFGAINER3BM", "BFBP500BR")).toMatchObject({ kind: "drill" });
+  });
+
+  it("Line 6 does not drill clean: a flavour change there is an ordinary changeover", () => {
+    expect(cleaningRule(6, productOf, noHistory)("NEUMMWPV", "MMWPS")).toBeNull();
+    expect(cleaningRule(5, productOf, noHistory)("NEUMMWPV", "MMWPS")).toMatchObject({ kind: "drill" });
+  });
+});
+
 describe("how long each line's cleans take", () => {
   const row = (line: string, date: string, reason: string, duration_minutes: number, shift = "DAY") => ({ line, date, shift, reason, duration_minutes });
   it("takes the median per clean, adding a clean's rows in one shift, leaving out overruns", () => {

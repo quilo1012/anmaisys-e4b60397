@@ -27,6 +27,11 @@ export const PLAN_SHEET_MINUTES: Record<CleanKind, number> = { drill: 120, full:
 /** Fewer logged cleans than this and the line's own time is not trusted. */
 export const MIN_LOGGED_CLEANS = 3;
 export const CLEAN_HISTORY_DAYS = 56;
+/**
+ * Lines that do not drill clean between flavours (Production, 12/11): a flavour change there
+ * is an ordinary changeover. A deep clean still applies.
+ */
+export const LINES_WITHOUT_DRILL_CLEAN: ReadonlySet<number> = new Set([6]);
 
 export interface CleanProduct {
   name: string;
@@ -62,8 +67,10 @@ export function isPlainProduct(name: string): boolean {
 export function suggestAllergens(name: string): string[] {
   const n = upper(name);
   const out: string[] = [];
+  // Beef, plant, pea and collagen proteins carry no milk, gainers included: BEEF GAINER is a
+  // drill clean from Body Fuel Beef Protein, not a deep one (Production, 12/11).
   const noMilkProtein = /BEEF|PLANT|\bPEA\b|COLLAGEN|EGG WHITE/.test(n);
-  if (/WHEY|CASEIN|\bMASS\b|GAINER|ISO.?XP|MILK|MUSCLE MOOSE|COOKIE DOUGH/.test(n) || (/PROTEIN/.test(n) && !noMilkProtein)) out.push("Milk");
+  if (!noMilkProtein && (/WHEY|CASEIN|\bMASS\b|GAINER|ISO.?XP|MILK|MUSCLE MOOSE|COOKIE DOUGH|PROTEIN/.test(n))) out.push("Milk");
   if (/\bOATS?\b/.test(n)) out.push("Gluten");
   return out;
 }
@@ -144,7 +151,7 @@ export function cleaningRule(
       const sure = had.confirmed && has.confirmed ? "" : " (allergens not confirmed)";
       return timed("full", `from ${lost.join(" and ").toLowerCase()} to a product without it${sure}`);
     }
-    return timed("drill", "flavour or product change");
+    return LINES_WITHOUT_DRILL_CLEAN.has(line) ? null : timed("drill", "flavour or product change");
   };
 }
 
