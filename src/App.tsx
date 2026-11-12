@@ -5,7 +5,8 @@ import { useAppUpdater } from "@/hooks/useAppUpdater";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache, focusManager } from "@tanstack/react-query";
+import { shouldRetry, retryDelay, noteBackendError, isBackendDegraded, onDegradedChange } from "@/lib/backendHealth";
 import { reportQueryError, type QueryErrorMeta } from "@/lib/queryErrors";
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -202,10 +203,14 @@ const queryClient = new QueryClient({
   // and reads the "no" itself — see QueryErrorMeta. Same courtesy the mutation cache
   // below extends to a mutation with its own onError.
   queryCache: new QueryCache({
-    onError: (error, query) => { reportQueryError(error, undefined, query.meta as QueryErrorMeta | undefined); },
+    onError: (error, query) => {
+      noteBackendError(error);
+      reportQueryError(error, undefined, query.meta as QueryErrorMeta | undefined);
+    },
   }),
   mutationCache: new MutationCache({
     onError: (error, _vars, _ctx, mutation) => {
+      noteBackendError(error);
       // A mutation with its own onError is already telling the user in its own words.
       if (mutation.options.onError) return;
       reportQueryError(error);
@@ -219,20 +224,22 @@ const queryClient = new QueryClient({
       // don't sit on stale data until a manual refresh.
       refetchOnWindowFocus: true,
       refetchOnReconnect: true,
-      retry: (failureCount, error: unknown) => {
-        const status = (error as { status?: number; statusCode?: number } | null)?.status
-          ?? (error as { statusCode?: number } | null)?.statusCode;
-        // Don't retry auth / permission / not-found errors
-        if (status === 401 || status === 403 || status === 404) return false;
-        return failureCount < 2;
-      },
-      retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+      // Decided by the PostgREST `code` (the thrown error has no `status`): refusals
+      // and client errors never, a stall at most once with jitter — and not at all
+      // while the backend is degraded. See backendHealth.ts (PERF-001 / API-017).
+      retry: (failureCount, error: unknown) => !isBackendDegraded() && shouldRetry(failureCount, error),
+      retryDelay,
     },
     mutations: {
       retry: 0,
     },
   },
 });
+
+// Degraded backend: stop polling for the hold window. An unfocused focusManager is the
+// switch `refetchInterval` already obeys; mutations and queries a person opens still run.
+// Handing focus back to the browser (undefined) refetches stale screens once.
+onDegradedChange((degraded) => focusManager.setFocused(degraded ? false : undefined));
 
 const PageLoader = () => (
   <div className="p-8 space-y-4">

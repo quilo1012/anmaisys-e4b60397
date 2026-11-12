@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { describeError, reportQueryError, resetErrorDedupe } from "./queryErrors";
+import { noteBackendError, resetBackendHealth, DEGRADED_THRESHOLD } from "./backendHealth";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
@@ -87,5 +88,32 @@ describe("a query that answers the missing-schema question itself", () => {
 
   it("says so for a missing table on any query that has not claimed to handle it", () => {
     expect(reportQueryError({ code: "PGRST205" }, 1_000)).toBe(true);
+  });
+});
+
+describe("toasts while the backend is degraded", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    resetErrorDedupe();
+    resetBackendHealth();
+    for (let i = 0; i < DEGRADED_THRESHOLD; i++) noteBackendError({ code: "57014" });
+  });
+  afterEach(() => {
+    resetBackendHealth();
+    vi.useRealTimers();
+  });
+
+  it("says the stall once a minute, however many screens hit it", () => {
+    const t = Date.now();
+    expect(reportQueryError({ code: "57014", message: "canceling statement due to statement timeout" }, t)).toBe(true);
+    expect(reportQueryError({ code: "PGRST002", message: "Could not query the database for the schema cache" }, t + 1)).toBe(false);
+    expect(reportQueryError({ message: "TypeError: Failed to fetch", code: "" }, t + 30_000)).toBe(false);
+    expect(reportQueryError({ code: "57014", message: "canceling statement due to statement timeout" }, t + 60_000)).toBe(true);
+  });
+
+  it("still says a refusal straight away", () => {
+    const t = Date.now();
+    expect(reportQueryError({ code: "57014", message: "timeout" }, t)).toBe(true);
+    expect(reportQueryError({ code: "42501", message: "permission denied" }, t + 1)).toBe(true);
   });
 });

@@ -1,5 +1,6 @@
 import { toast } from "sonner";
 import { isMissingColumn, isMissingTable } from "@/lib/postgrestErrors";
+import { allowDegradedReport, isDegradedError } from "@/lib/backendHealth";
 
 /**
  * What a query can declare about itself before this file decides to speak.
@@ -71,6 +72,9 @@ export function reportQueryError(
   // like a repeat whenever `now` was small, and swallowed it.
   const last = recent.get(key);
   if (last !== undefined && now - last < 8000) return false;
+  // While the backend is degraded (backendHealth) one stall toast a minute: a dozen
+  // screens timing out together is one problem, already said. Never a refusal.
+  if (isDegradedError(error) && !allowDegradedReport("toast", now)) return false;
   recent.set(key, now);
   toast.error(described.title, { description: described.description });
   return true;
