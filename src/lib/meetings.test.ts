@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  addMonths, answerSummary, audiences, dayKeyOf, expandOccurrences, formProblems, layoutDay, londonInstant,
+  addMonths, answerSummary, audiences, firstMeetingAfter, gridStartMinutes, nextMeetingLabel, dayKeyOf, expandOccurrences, formProblems, layoutDay, londonInstant,
   meetingsOnDay, safeVideoLink, stepAnchor, timeOf, toneOf, viewDays, viewRange, waitingForMyAnswer, type MeetingForm,
 } from "./meetings";
 
@@ -133,5 +133,53 @@ describe("answers", () => {
       { ...base, id: "over", cancelled_at: null, my_response: "pending" as const, ends_at: "2026-11-11T11:00:00Z" },
     ];
     expect(waitingForMyAnswer(list, now).map((m) => m.id)).toEqual(["pending"]);
+  });
+});
+
+describe("the next meeting", () => {
+  const at = (day: string, time: string) => londonInstant(day, time).toISOString();
+  const now = londonInstant("2026-11-12", "09:50");
+  const m = (sd: string, st: string, et: string) => ({ starts_at: at(sd, st), ends_at: at(sd, et) });
+
+  it("counts down the last hour and turns urgent 15 minutes before", () => {
+    expect(nextMeetingLabel(m("2026-11-12", "10:30", "11:00"), now)).toEqual({ text: "Starts in 40 min", soon: false });
+    expect(nextMeetingLabel(m("2026-11-12", "10:05", "10:30"), now)).toEqual({ text: "Starts in 15 min", soon: true });
+  });
+
+  it("says it is happening until it ends, then says nothing", () => {
+    expect(nextMeetingLabel(m("2026-11-12", "09:30", "10:00"), now)).toEqual({ text: "Happening now, until 10:00", soon: true });
+    expect(nextMeetingLabel(m("2026-11-12", "09:00", "09:30"), now)).toBeNull();
+  });
+
+  it("names today and tomorrow, and leaves later days to the calendar", () => {
+    expect(nextMeetingLabel(m("2026-11-12", "14:00", "15:00"), now)?.text).toBe("Today at 14:00");
+    expect(nextMeetingLabel(m("2026-11-13", "09:00", "10:00"), now)?.text).toBe("Tomorrow at 09:00");
+    expect(nextMeetingLabel(m("2026-11-14", "09:00", "10:00"), now)).toBeNull();
+  });
+});
+
+describe("where the grid opens", () => {
+  const at = (day: string, time: string) => londonInstant(day, time).toISOString();
+  it("an hour before now when today is on screen", () => {
+    expect(gridStartMinutes(["2026-11-12"], [], "2026-11-12", 9 * 60 + 50)).toBe(8 * 60 + 50);
+  });
+  it("half an hour before the first meeting on another day, else 07:00", () => {
+    const list = [{ starts_at: at("2026-11-13", "14:00"), ends_at: at("2026-11-13", "15:00") },
+                  { starts_at: at("2026-11-13", "06:00"), ends_at: at("2026-11-13", "06:30") }];
+    expect(gridStartMinutes(["2026-11-13"], list, "2026-11-12", 0)).toBe(5 * 60 + 30);
+    expect(gridStartMinutes(["2026-11-14"], list, "2026-11-12", 0)).toBe(7 * 60);
+  });
+});
+
+describe("an empty day's hint", () => {
+  const at = (day: string, time: string) => londonInstant(day, time).toISOString();
+  it("finds the first meeting on a later day, skipping cancelled ones", () => {
+    const list = [
+      { id: "c", starts_at: at("2026-11-13", "09:00"), cancelled_at: "x" },
+      { id: "b", starts_at: at("2026-11-14", "09:00"), cancelled_at: null },
+      { id: "a", starts_at: at("2026-11-12", "09:00"), cancelled_at: null },
+    ];
+    expect(firstMeetingAfter(list, "2026-11-12")?.id).toBe("b");
+    expect(firstMeetingAfter(list, "2026-11-14")).toBeNull();
   });
 });
