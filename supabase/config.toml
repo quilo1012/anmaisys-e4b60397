@@ -32,3 +32,29 @@ verify_jwt = false
 
 [functions.smart-target-ahead]
 verify_jwt = false
+
+# Machine callers (pg_cron, iTouching, SafetyCulture, the bell trigger) hold no session.
+# Each of these checks its own shared secret in code, and production runs them with
+# verify_jwt = false (list_edge_functions, 11/11/2026). Without these lines the next
+# deploy from the repo flips them to true and every scheduled call answers 401.
+# Guarded by src/__tests__/asFuncoesDeCronNaoPedemLogin.test.ts.
+[functions.calculate-shift-targets]
+verify_jwt = false
+
+[functions.intouch-poll]
+verify_jwt = false
+
+[functions.intouch-sync-production]
+verify_jwt = false
+
+[functions.intouch-webhook]
+verify_jwt = false
+
+[functions.send-push]
+verify_jwt = false
+
+[functions.safetyculture-sync]
+verify_jwt = false
+
+[functions.safetyculture-webhook]
+verify_jwt = false
