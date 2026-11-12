@@ -650,8 +650,9 @@ async function pollAfterAuth(req: Request): Promise<Response> {
 
     for (const s of statuses) {
      try {
-      const m = mapped.find((x) => x.intouch_machine_id === s.MachineID);
-      if (!m) continue;
+      const m0 = mapped.find((x) => x.intouch_machine_id === s.MachineID);
+      if (!m0) continue;
+      const m = m0;
 
 
       const currentStatus = parseStatus(s.Status);
@@ -775,7 +776,7 @@ async function pollAfterAuth(req: Request): Promise<Response> {
           occurred_date,
           shift,
           line: lineLbl,
-          category: prevMappedCode?.category || "Other",
+          category: (prevMappedCode as { category?: string } | null | undefined)?.category || "Other",
           reason: reasonLbl,
           duration_minutes: mins,
           started_at: m.prod_dt_started_at,

@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
   if (mode === "test") {
     try {
       const res = await testConnection();
-      return json({ ok: true, ...res, organization_id: orgId() || null });
+      return json({ ...res, organization_id: orgId() || null });
     } catch (e) {
       const status = e instanceof ScAuthError ? 401 : 502;
       await log(db, e instanceof ScAuthError ? "auth_error" : "api_error", {
