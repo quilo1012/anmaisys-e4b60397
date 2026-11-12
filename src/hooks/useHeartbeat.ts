@@ -21,6 +21,15 @@ import { useAuth } from "@/contexts/AuthContext";
  * consegue e diz que nao ha nenhuma quando nao consegue. O `logAuditEvent` ja se
  * protege assim, pela mesma razao.
  */
+/**
+ * 3 minutos, e so com o ecra visivel (auditoria 11/11, P0-3 / PERF-005). Eram 30 s, mesmo
+ * com o separador escondido, e cada batida e um UPDATE em `profiles`, que esta na
+ * publicacao do realtime. Nenhum leitor de `last_seen_at` usa um limiar: o Manage Users e
+ * o AuthContext so leem a coluna, e o painel "engineers online" vem da Presence do
+ * realtime, nao daqui.
+ */
+export const LAST_SEEN_HEARTBEAT_MS = 180_000;
+
 export function useHeartbeat() {
   const { user, role } = useAuth();
 
@@ -28,17 +37,24 @@ export function useHeartbeat() {
     if (!user || role !== "engineer") return;
 
     const beat = async () => {
+      if (document.visibilityState === "hidden") return;
       const { data } = await supabase.auth.getSession();
       const session = data?.session;
       if (!session?.access_token) return;
       // Uma sessao devolvida ja expirada e uma que o refresh ainda nao alcancou.
       // Enviar essa token e pedir o 401 de propósito.
       if (session.expires_at && session.expires_at * 1000 <= Date.now()) return;
-      await (supabase as any).rpc("touch_last_seen");
+      await supabase.rpc("touch_last_seen");
     };
 
+    const wake = () => { if (document.visibilityState === "visible") void beat(); };
+
     void beat(); // immediate
-    const interval = setInterval(() => void beat(), 30_000);
-    return () => clearInterval(interval);
+    const interval = setInterval(() => void beat(), LAST_SEEN_HEARTBEAT_MS);
+    document.addEventListener("visibilitychange", wake);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", wake);
+    };
   }, [user, role]);
 }

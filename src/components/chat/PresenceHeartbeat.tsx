@@ -42,7 +42,9 @@ export async function endMyPresence(): Promise<void> {
 
 /**
  * Mounted once, at the top of the app (not in the page layout, which remounts on every
- * navigation): says "this tab is open" every 60 seconds and listens for changes.
+ * navigation): says "this tab is open" every 60 seconds WHILE THE TAB IS VISIBLE, and
+ * listens for changes. A hidden tab does not beat (a backgrounded phone is not someone
+ * online, and each beat is a write on a 1 GB database); it beats at once on coming back.
  *
  *  - A beat renews a 180-second lease on the SERVER's clock, so a missed beat or two does
  *    not flip anybody, and a closed laptop reads Offline within three minutes without
@@ -70,6 +72,10 @@ export function PresenceHeartbeat() {
     let pending: ReturnType<typeof setTimeout> | undefined;
 
     const beat = async () => {
+      // Escondido nao se bate (auditoria 11/11, P0-3): um telemovel com a app em segundo
+      // plano ou um separador esquecido nao e alguem online. A concessao de 180 s expira e
+      // a pessoa passa a Offline; ao voltar a visivel, `wake` bate logo.
+      if (document.visibilityState === "hidden") return;
       try {
         // Sem token nao se bate. A concessao de 180 s cobre o intervalo, e a batida
         // seguinte passa assim que o refresh chegar — saltar nao e um erro e nao se
