@@ -687,7 +687,7 @@ export default function RAGWeeklyPage() {
     mutationFn: async (payload: Omit<Entry, "id">) => {
       const { error } = await supabase
         .from("rag_weekly_entries")
-        .upsert(payload, { onConflict: "entry_date,line,shift" });
+        .upsert(payload as never, { onConflict: "entry_date,line,shift" });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -827,7 +827,7 @@ export default function RAGWeeklyPage() {
         if (!slice.length) continue;
         const { error } = await supabase
           .from("rag_weekly_entries")
-          .upsert(slice, { onConflict: "entry_date,line,shift" });
+          .upsert(slice as never, { onConflict: "entry_date,line,shift" });
         if (error) throw error;
         count += slice.length;
       }
@@ -941,7 +941,7 @@ export default function RAGWeeklyPage() {
       if (!rows.length) return 0;
       const { error } = await supabase
         .from("rag_weekly_entries")
-        .upsert(rows, { onConflict: "entry_date,line,shift" });
+        .upsert(rows as never, { onConflict: "entry_date,line,shift" });
       if (error) throw error;
       return rows.length;
     },
@@ -2427,7 +2427,7 @@ function DayNightTotalSummary({
                       // sibling values (actual, downtime, notes, etc.).
                       const { error } = await supabase
                         .from("rag_weekly_entries")
-                        .update(patch)
+                        .update(patch as never)
                         .eq("id", existing.id);
                       if (error) { toast.error(error.message); return; }
                       toast.success("Saved");
