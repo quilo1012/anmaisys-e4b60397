@@ -8,12 +8,13 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { can } from "@/lib/permissions";
-import { dayKeyOf, stepAnchor, viewDays, viewRange, type CalendarView, type MyMeeting } from "@/lib/meetings";
-import { isNotInstalled, useMeeting, useMeetingsInRange } from "@/hooks/useMeetings";
-import { MeetingCalendar, MeetingDayList, ToneLegend } from "@/components/meetings/MeetingCalendar";
+import { dayKeyOf, firstMeetingAfter, stepAnchor, viewDays, viewRange, type CalendarView, type MyMeeting } from "@/lib/meetings";
+import { isNotInstalled, useMeeting, useMeetingsInRange, useUpcomingMeetings } from "@/hooks/useMeetings";
+import { MeetingCalendar, MeetingDayList, ToneLegend, WeekStrip } from "@/components/meetings/MeetingCalendar";
 import { MeetingDetails } from "@/components/meetings/MeetingDetails";
 import { MeetingFormDialog } from "@/components/meetings/MeetingFormDialog";
 import { MeetingsToAnswer } from "@/components/meetings/MeetingsToAnswer";
+import { NextMeetingBanner } from "@/components/meetings/NextMeetingBanner";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -40,7 +41,9 @@ export default function MeetingsPage() {
   const [chosenView, setView] = useState<CalendarView>("week");
   const view: CalendarView = isMobile ? "day" : chosenView;
   const [anchor, setAnchor] = useState(today);
-  const range = useMemo(() => viewRange(view, anchor), [view, anchor]);
+  // The phone shows one day but reads its week, so the day strip can mark busy days.
+  const range = useMemo(() => viewRange(isMobile ? "week" : view, anchor), [isMobile, view, anchor]);
+  const upcoming = useUpcomingMeetings(20);
   const meetings = useMeetingsInRange(range.from, range.to);
 
   // ?meeting=<id> — where a bell row lands. The meeting is read on its own, so it opens
@@ -91,7 +94,12 @@ export default function MeetingsPage() {
           </p>
         ) : (
           <>
-            <MeetingsToAnswer onOpen={pick} />
+            {/* Side by side on a desk so the grid keeps its height; auto-fit lets one of
+                them take the whole row when the other has nothing to say. */}
+            <div className="grid gap-3 empty:hidden lg:grid-cols-[repeat(auto-fit,minmax(24rem,1fr))]">
+              <NextMeetingBanner onOpen={pick} />
+              <MeetingsToAnswer onOpen={pick} />
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-1">
                 <Button variant="outline" size="icon" aria-label="Previous" onClick={() => setAnchor(stepAnchor(view, anchor, -1))}><ChevronLeft className="h-4 w-4" /></Button>
@@ -111,7 +119,15 @@ export default function MeetingsPage() {
             {meetings.error && <p className="text-sm text-destructive">Could not load the meetings. They will retry on their own.</p>}
 
             {isMobile ? (
-              <MeetingDayList meetings={meetings.data ?? []} day={anchor} onOpen={pick} />
+              <>
+                <WeekStrip anchor={anchor} today={today} meetings={meetings.data ?? []} onPick={setAnchor} />
+                <MeetingDayList
+                  meetings={meetings.data ?? []}
+                  day={anchor}
+                  next={firstMeetingAfter(upcoming.data ?? [], anchor)}
+                  onOpen={pick}
+                />
+              </>
             ) : (
               <div className={view === "month" ? "" : "flex h-[calc(100dvh-16rem)] min-h-[420px] flex-col"}>
                 <MeetingCalendar

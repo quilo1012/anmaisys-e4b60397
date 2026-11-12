@@ -19,10 +19,12 @@ vi.mock("@/components/meetings/MeetingDetails", () => ({
     (meeting ? <div data-testid="details" data-response={meeting.my_response ?? ""}>{meeting.title}</div> : null),
 }));
 vi.mock("@/components/meetings/MeetingsToAnswer", () => ({ MeetingsToAnswer: () => null }));
+vi.mock("@/components/meetings/NextMeetingBanner", () => ({ NextMeetingBanner: () => null }));
 vi.mock("@/hooks/useMeetings", () => ({
   isNotInstalled: () => false,
   useMeetingsInRange: () => ({ data: meetings, error: null }),
   useMeeting: () => ({ data: null }),
+  useUpcomingMeetings: () => ({ data: [] }),
 }));
 
 import MeetingsPage from "./MeetingsPage";
@@ -80,11 +82,38 @@ describe("MeetingsPage", () => {
     expect(screen.getByTestId("form").textContent).toBe(`${today} 09:00`);
   });
 
+  it("a slot is a real button: the keyboard opens the form at 09:00, a click at the hour clicked", () => {
+    mount();
+    const slots = screen.getAllByRole("button", { name: /^New meeting on / });
+    expect(slots.length).toBe(7);
+    const slot = slots.find((b) => b.getAttribute("aria-label")?.endsWith(`${today.slice(8)}/${today.slice(5, 7)}`))!;
+    fireEvent.click(slot, { detail: 0 });
+    expect(screen.getByTestId("form").textContent).toBe(`${today} 09:00`);
+  });
+
+  it("a mouse click on a slot opens the form at that half hour", () => {
+    mount();
+    const slot = screen.getAllByRole("button", { name: /^New meeting on / })[0];
+    fireEvent.click(slot, { detail: 1, clientY: 14.5 * 48 });
+    expect(screen.getByTestId("form").textContent).toMatch(/ 14:30$/);
+  });
+
   it("anybody else sees no New meeting and cannot click a slot", () => {
     role = "employee";
     mount();
     expect(screen.queryByRole("button", { name: "New meeting" })).toBeNull();
     expect(screen.queryByRole("button", { name: /New meeting on/ })).toBeNull();
+  });
+
+  it("on a phone, the week strip marks busy days and moves the list to the day tapped", () => {
+    mobile = true;
+    mount();
+    const days = screen.getAllByRole("button", { pressed: true });
+    expect(days).toHaveLength(1);
+    expect(days[0].getAttribute("aria-label")).toMatch(/1 meeting$/);
+    const other = screen.getAllByRole("button", { pressed: false }).find((b) => /no meetings$/.test(b.getAttribute("aria-label") ?? ""))!;
+    fireEvent.click(other);
+    expect(screen.getByText(/^No meetings on /)).toBeTruthy();
   });
 
   it("on a phone shows the day as a list, not the grid", () => {

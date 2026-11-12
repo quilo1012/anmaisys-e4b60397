@@ -318,3 +318,51 @@ export const DECLINE_REASON_MAX = 200;
 export function waitingForMyAnswer(list: MyMeeting[], now: Date = new Date()): MyMeeting[] {
   return list.filter((m) => m.my_response === "pending" && !m.cancelled_at && new Date(m.ends_at).getTime() > now.getTime());
 }
+
+/**
+ * What the "next meeting" strip says, or null when the next one is further than
+ * tomorrow (the calendar already shows those). `soon` is true from 15 minutes before
+ * the start until the end: that is when Join is the thing to press.
+ */
+export function nextMeetingLabel(
+  m: Pick<MeetingRow, "starts_at" | "ends_at">,
+  now: Date = new Date(),
+): { text: string; soon: boolean } | null {
+  const start = new Date(m.starts_at).getTime();
+  const end = new Date(m.ends_at).getTime();
+  const t = now.getTime();
+  if (t >= end) return null;
+  if (t >= start) return { text: `Happening now, until ${timeOf(m.ends_at)}`, soon: true };
+  const mins = Math.ceil((start - t) / 60_000);
+  if (mins <= 60) return { text: `Starts in ${mins} min`, soon: mins <= 15 };
+  const today = dayKeyOf(now);
+  const day = dayKeyOf(m.starts_at);
+  if (day === today) return { text: `Today at ${timeOf(m.starts_at)}`, soon: false };
+  if (day === addDays(today, 1)) return { text: `Tomorrow at ${timeOf(m.starts_at)}`, soon: false };
+  return null;
+}
+
+/**
+ * Where the day/week grid opens, in minutes since midnight: an hour before now when
+ * today is on screen, else half an hour before the first meeting shown, else 07:00.
+ */
+export function gridStartMinutes(
+  days: string[],
+  meetings: Pick<MeetingRow, "starts_at" | "ends_at">[],
+  today: string,
+  nowMinutes: number,
+): number {
+  if (days.includes(today)) return Math.max(0, nowMinutes - 60);
+  const starts = meetings
+    .filter((m) => days.includes(dayKeyOf(m.starts_at)))
+    .map((m) => minutesOfDay(m.starts_at));
+  if (starts.length) return Math.max(0, Math.min(...starts) - 30);
+  return 7 * 60;
+}
+
+/** The first meeting that starts on a later day than `day`, for an empty day's hint. */
+export function firstMeetingAfter<T extends Pick<MeetingRow, "starts_at" | "cancelled_at">>(list: T[], day: string): T | null {
+  return [...list]
+    .filter((m) => !m.cancelled_at && dayKeyOf(m.starts_at) > day)
+    .sort((a, b) => a.starts_at.localeCompare(b.starts_at))[0] ?? null;
+}

@@ -31,7 +31,7 @@ export function MeetingsToAnswer({ onOpen }: { onOpen: (m: MyMeeting) => void })
       <ul className="divide-y">
         {list.map((m) => (
           <li key={m.id} className="flex flex-wrap items-center gap-2 py-1.5">
-            <button type="button" onClick={() => onOpen(m)} className="min-w-0 flex-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <button type="button" onClick={() => onOpen(m)} className="min-w-[12rem] flex-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
               <span className="block truncate text-sm font-medium">{m.title}</span>
               <span className="block truncate text-xs tabular-nums text-muted-foreground">{whenLabel(m)}{m.location ? ` · ${m.location}` : ""}</span>
             </button>
