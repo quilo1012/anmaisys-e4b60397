@@ -7,6 +7,8 @@ import { readStop, HEALTHY_STATUS } from "./stopReading.ts";
 import { pickRunningJob } from "./liveJob.ts";
 import { checkMachineLine } from "./mappingIntegrity.ts";
 import { decideWarehouseStop, warehouseStopMinutes } from "./warehouseStop.ts";
+import { tryStartPoll, finishPoll, type Rpc } from "./pollLease.ts";
+import { readingChanged } from "./machineSnapshot.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -377,6 +379,28 @@ Deno.serve(async (req) => {
     });
   }
 
+  // One run at a time — the reason and the fallback are in `pollLease.ts`. A run
+  // that finds the lease held answers at once and touches nothing.
+  const rpc: Rpc = (fn, args) => admin.rpc(fn, args);
+  const lease = await tryStartPoll(rpc);
+  if (!lease.run) {
+    console.log("[intouch-poll] skipped: previous poll still running");
+    return new Response(JSON.stringify({ ok: true, skipped: true, reason: lease.reason, polled: 0 }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  if (!lease.guarded) {
+    console.warn("[intouch-poll] running without the overlap guard:", lease.reason, lease.detail ?? "");
+  }
+  try {
+    return await pollAfterAuth(req);
+  } finally {
+    await finishPoll(rpc, lease);
+  }
+});
+
+async function pollAfterAuth(req: Request): Promise<Response> {
   // ⏸️ Toggle controlled by Settings → iTouching (system_settings.intouch_auto_wo_enabled).
   //
   // It governs whether an order is OPENED, and nothing else. The comment above this
@@ -620,6 +644,9 @@ Deno.serve(async (req) => {
 
 
     const now = new Date().toISOString();
+    // Machines whose reading did not change: only `last_seen_at` moves, in one
+    // statement after the loop. See `machineSnapshot.ts`.
+    const unchangedIds: string[] = [];
 
     for (const s of statuses) {
      try {
@@ -678,13 +705,20 @@ Deno.serve(async (req) => {
       // is not null — so that guard put a stop clock on every running machine in the
       // factory. Harmless on screen, because the view refuses to time a line with no
       // code, and wrong in the table, which is where the next reader looks.
-      await admin.from("intouch_machine_map").update({
-        last_status: currentStatus,
-        last_downtime_code: currentDowntimeCode,
-        last_seen_at: now,
-        stop_since_at: stopSinceAt,
-        updated_at: now,
-      }).eq("intouch_machine_id", s.MachineID);
+      //
+      // Written only when it changed. The UPDATE names `last_downtime_code`, which
+      // fires `trg_intouch_machine_state_moves_the_order` whether the value moved
+      // or not; an unchanged machine only needs its `last_seen_at`, batched below.
+      const next = { last_status: currentStatus, last_downtime_code: currentDowntimeCode, stop_since_at: stopSinceAt };
+      if (readingChanged(m, next)) {
+        await admin.from("intouch_machine_map").update({
+          ...next,
+          last_seen_at: now,
+          updated_at: now,
+        }).eq("intouch_machine_id", s.MachineID);
+      } else {
+        unchangedIds.push(s.MachineID);
+      }
 
       // The status is written above whatever the toggle says, so the screens stay
       // honest.
@@ -1248,6 +1282,15 @@ Deno.serve(async (req) => {
      }
     }
 
+    // Every machine that answered and did not change: still seen, now. One
+    // statement, and it does not name `last_downtime_code`, so no trigger fires.
+    if (unchangedIds.length) {
+      const { error: seenErr } = await admin.from("intouch_machine_map")
+        .update({ last_seen_at: now })
+        .in("intouch_machine_id", unchangedIds);
+      if (seenErr) results.errors.push(`last_seen_at: ${seenErr.message}`);
+    }
+
     // ── What each machine is MAKING ────────────────────────────────────────────
     //
     // Runs after the status loop and can never disturb it: a failure here is
@@ -1369,4 +1412,4 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}
