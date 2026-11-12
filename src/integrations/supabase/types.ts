@@ -5385,7 +5385,6 @@ export type Database = {
           line: string
           notes: string | null
           plan_qty: number
-          plan_source: string | null
           shift: string
           updated_at: string
           upm_actual: number
@@ -5403,7 +5402,6 @@ export type Database = {
           line: string
           notes?: string | null
           plan_qty?: number
-          plan_source?: string | null
           shift: string
           updated_at?: string
           upm_actual?: number
@@ -5421,7 +5419,6 @@ export type Database = {
           line?: string
           notes?: string | null
           plan_qty?: number
-          plan_source?: string | null
           shift?: string
           updated_at?: string
           upm_actual?: number
@@ -8653,6 +8650,16 @@ export type Database = {
         Returns: undefined
       }
       my_attendance: { Args: { p_from: string; p_to: string }; Returns: Json }
+      my_board_marks: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          arrived_late_at: string
+          left_early_at: string
+          on_date: string
+          overtime_request_id: string
+          shift: string
+        }[]
+      }
       my_employee_id: { Args: never; Returns: string }
       my_overtime_block: {
         Args: never
