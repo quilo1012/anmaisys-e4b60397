@@ -75,6 +75,16 @@ Deno.serve(async (req) => {
     }
     const { recipient } = parsed.data;
 
+    // Only deliver to an active staff account, never an arbitrary outside address.
+    const { data: staff } = await supabase
+      .from("profiles").select("id").ilike("email", recipient).eq("active", true).limit(1);
+    if (!staff || staff.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "recipient_not_allowed", message: "The report can only be sent to an active staff account." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
 
 
 
