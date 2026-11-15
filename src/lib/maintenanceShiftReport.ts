@@ -32,7 +32,6 @@ import { fetchAllRows } from "@/lib/fetchAllRows";
 import { isNoPlannedShift } from "@/lib/downtimeBuckets";
 import { fetchRowsByIds } from "@/lib/fetchRowsByIds";
 import { formatMinutes } from "@/lib/formatDuration";
-import { invokeFunction } from "@/lib/invokeFunction";
 
 /** At most this many open orders are written out; the rest are counted. */
 export const OPEN_MAX_LISTED = 20;
@@ -571,24 +570,6 @@ export function buildMaintenanceShiftReport(input: ShiftReportData): ShiftReport
 /** English for `text` (unchanged when it already is), or null when translation is unavailable. */
 export type Translate = (text: string) => Promise<string | null>;
 
-// One note, one call per session: regenerating a report, or the same shift in another
-// format, does not spend the translation allowance again.
-const englishOf = new Map<string, string>();
-
-const translateToEnglish: Translate = async (text) => {
-  const known = englishOf.get(text);
-  if (known !== undefined) return known;
-  try {
-    const { data, error } = await invokeFunction<{ translated?: string }>("translate-message", { text });
-    if (error) return null;
-    const out = clean(data?.translated) || text;
-    englishOf.set(text, out);
-    return out;
-  } catch {
-    return null;
-  }
-};
-
 /**
  * The report goes out in English, but an engineer's repair notes are stored as written
  * — and while the Finish step could not translate (its AI key was missing) many
@@ -687,7 +668,12 @@ export async function fetchMaintenanceShiftReport(
     })),
   ]);
 
-  const translation = await translateNotes(completedRows, opts.translate ?? translateToEnglish);
+  // No default translator since 15/11/2026: the AI translation was removed (no Anthropic
+  // credits, owner's decision), so notes print as the engineer wrote them and nothing is
+  // counted as "not translated". `opts.translate` stays as the seam the tests use.
+  const translation = opts.translate
+    ? await translateNotes(completedRows, opts.translate)
+    : { notes: {}, failed: 0 };
 
   return buildMaintenanceShiftReport({
     window,

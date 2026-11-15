@@ -50,9 +50,12 @@ const GATEWAY_DE_IA = [
  */
 const PODEM_USAR_O_GATEWAY = ["transcribe-audio"];
 
-/** As que já falam com a Anthropic e não devem regredir. */
+/**
+ * As que já falam com a Anthropic e não devem regredir. A `translate-message` saiu daqui
+ * a 15/11/2026 porque foi apagada (sem créditos na Anthropic, decisão do dono) — não
+ * porque voltou ao gateway. Ver `aTraducaoFoiRemovida.test.ts`.
+ */
 const FALAM_COM_A_ANTHROPIC = [
-  "translate-message",
   "identify-part",
   "analyze-sku-performance",
 ];

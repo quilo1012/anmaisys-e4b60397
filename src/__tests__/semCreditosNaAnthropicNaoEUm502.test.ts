@@ -65,8 +65,9 @@ describe("anthropicFailure", () => {
   });
 });
 
-describe("as três funções que falam com a Anthropic", () => {
-  const FUNCTIONS = ["translate-message", "identify-part", "analyze-sku-performance"];
+describe("as funções que falam com a Anthropic", () => {
+  // A translate-message foi apagada a 15/11/2026 (ver aTraducaoFoiRemovida.test.ts).
+  const FUNCTIONS = ["identify-part", "analyze-sku-performance"];
 
   it.each(FUNCTIONS)("%s responde às recusas pelo anthropicFailure, sem ramo próprio", (name) => {
     const src = readFileSync(resolve(__dirname, "../../supabase/functions", name, "index.ts"), "utf8");
