@@ -268,16 +268,10 @@ export default function DirectMessagesPage() {
     }
   };
 
-  // ── Translate / convert to text, on private messages (as before) ──
-  type Extra = { tr?: string; showTr?: boolean; trBusy?: boolean; trFail?: boolean; tx?: string; txBusy?: boolean; txFail?: string };
+  // ── Convert to text, on private messages. "Translate" was removed on 15/11/2026 with
+  // the translate-message function (no Anthropic credits, owner's decision). ──
+  type Extra = { tx?: string; txBusy?: boolean; txFail?: string };
   const [extras, setExtras] = useState<Record<string, Extra>>({});
-  const translate = async (m: UIMessage) => {
-    const x = extras[m.id];
-    if (x?.tr) { setExtras((s) => ({ ...s, [m.id]: { ...x, showTr: !x.showTr } })); return; }
-    setExtras((s) => ({ ...s, [m.id]: { ...x, trBusy: true, trFail: false } }));
-    const { data, error } = await invokeFunction<{ translated: string }>("translate-message", { text: m.body });
-    setExtras((s) => ({ ...s, [m.id]: { ...s[m.id], trBusy: false, ...(error || !data?.translated ? { trFail: true } : { tr: data.translated, showTr: true }) } }));
-  };
   const transcribe = async (m: UIMessage) => {
     if (!m.audio_path) return;
     setExtras((s) => ({ ...s, [m.id]: { ...s[m.id], txBusy: true, txFail: undefined } }));
@@ -293,13 +287,6 @@ export default function DirectMessagesPage() {
     const x = extras[m.id] ?? {};
     return (
       <>
-        {m.sender_id !== me && m.body && (
-          x.trBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : (
-            <button type="button" onClick={() => translate(m)} className={cn("hover:text-foreground hover:underline", x.trFail && "text-destructive-strong")}>
-              {x.trFail ? "Translation failed · Retry" : x.tr ? (x.showTr ? "Show original" : "Show translation") : "Translate"}
-            </button>
-          )
-        )}
         {m.audio_path && !x.tx && (
           x.txBusy ? <span className="flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Converting…</span> : (
             <button type="button" onClick={() => transcribe(m)} className={cn("hover:text-foreground hover:underline", x.txFail && "text-destructive-strong")} title={x.txFail}>
@@ -313,7 +300,7 @@ export default function DirectMessagesPage() {
   const shownMessages = useMemo(() => messages.map((m) => {
     const x = extras[m.id];
     if (!x) return m;
-    const extra = [x.showTr && x.tr ? `\n— ${x.tr}` : "", x.tx ? `\n🎤 ${x.tx}` : ""].join("");
+    const extra = x.tx ? `\n🎤 ${x.tx}` : "";
     return extra ? { ...m, body: m.body + extra } : m;
   }), [messages, extras]);
 

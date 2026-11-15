@@ -34,7 +34,6 @@ import { LineStatusBanner } from "@/components/LineStatusBanner";
 import { RecurrenceBadge } from "@/components/RecurrenceBadge";
 import { LineDowntimeControl } from "@/components/LineDowntimeControl";
 import { useToast } from "@/hooks/use-toast";
-import { invokeFunction } from "@/lib/invokeFunction";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePredictiveAlerts } from "@/hooks/usePredictiveAlerts";
 import { useOnlineEngineers } from "@/hooks/useOnlineEngineers";
@@ -370,12 +369,11 @@ function EngineerDashboardContent() {
   const [signDialogWO, setSignDialogWO] = useState<string | null>(null);
   const [signName, setSignName] = useState("");
   const [resolutionNotes, setResolutionNotes] = useState("");
-  const [polishing, setPolishing] = useState(false);
   const [pauseDialogWO, setPauseDialogWO] = useState<string | null>(null);
   const [rejectDialogWO, setRejectDialogWO] = useState<{ id: string; number: number | null; description: string | null } | null>(null);
 
   // BUG 4: state for "line still stopped" modal when trying to finish
-  const [stoppedFinishCtx, setStoppedFinishCtx] = useState<{ woId: string; signature: string; notes: string; untranslated: boolean } | null>(null);
+  const [stoppedFinishCtx, setStoppedFinishCtx] = useState<{ woId: string; signature: string; notes: string } | null>(null);
   const [resumingThenFinish, setResumingThenFinish] = useState(false);
   const [pauseReason, setPauseReason] = useState("");
 
@@ -613,65 +611,13 @@ function EngineerDashboardContent() {
     setSignDialogWO(woId);
   };
 
-  /**
-   * The report has to read as English for everyone downstream, but the engineer on the
-   * floor writes in whatever language is fastest for him. The AI turns it into English
-   * (and tidies the grammar when it is already English) before it is stored. If the AI
-   * is unreachable, the engineer's own words are saved rather than losing the report.
-   */
-  const polishToEnglish = async (text: string): Promise<string | null> => {
-    try {
-      const { data, error } = await invokeFunction<{ translated?: string }>("translate-message", {
-        text,
-        mode: "polish",
-      });
-      if (error) return null;
-      const out = (data?.translated ?? "").trim();
-      return out || text;
-    } catch {
-      return null;
-    }
-  };
-
-  const handleReviewEnglish = async () => {
-    const text = resolutionNotes.trim();
-    if (!text) return;
-    setPolishing(true);
-    const fixed = await polishToEnglish(text);
-    setPolishing(false);
-    if (fixed === null) {
-      toast({ title: "Couldn't review the English right now", description: "Your report is unchanged." });
-      return;
-    }
-    setResolutionNotes(fixed);
-    if (fixed === text) toast({ title: "Report already reads well in English" });
-    else toast({ title: "Report rewritten in English" });
-  };
-
-  /**
-   * When the AI could not translate, the engineer's own words were saved — and the engineer
-   * is told, in a message that stays until closed, so it does not reach the shift report
-   * unnoticed. (One toast at a time here, so the warning rides on the success toast.)
-   */
-  const finishedToast = (title: string, untranslated: boolean) => {
-    if (!untranslated) { toast({ title }); return; }
-    toast({
-      title,
-      description: "⚠ Report saved but not translated — please check it is in English.",
-      duration: Infinity,
-    });
-  };
-
   const handleFinishConfirm = async () => {
     if (!signDialogWO) return;
     const woId = signDialogWO;
-    const raw = resolutionNotes.trim();
-    if (!raw) return;
-    setPolishing(true);
-    const english = await polishToEnglish(raw);
-    const notes = english ?? raw;
-    const untranslated = english === null;
-    setPolishing(false);
+    // Saved exactly as written. The AI translation was removed on 15/11/2026 (no
+    // Anthropic credits, owner's decision): the engineer writes the report in English.
+    const notes = resolutionNotes.trim();
+    if (!notes) return;
 
     const engineer: EngineerIdentity = currentEngineer
       ?? { id: user!.id, name: profile?.name || user!.email || "Engineer" };
@@ -688,10 +634,10 @@ function EngineerDashboardContent() {
       });
       setCurrentEngineer(null);
       sessionStorage.removeItem("currentEngineer");
-      finishedToast("✅ Maintenance order finished", untranslated);
+      toast({ title: "✅ Maintenance order finished" });
     } catch (err: any) {
       if (err instanceof LineStillStoppedError || err?.code === "line_still_stopped") {
-        setStoppedFinishCtx({ woId, signature: engineer.name, notes, untranslated });
+        setStoppedFinishCtx({ woId, signature: engineer.name, notes });
         return;
       }
       toast({ title: "Error finishing WO", description: err.message, variant: "destructive" });
@@ -701,7 +647,7 @@ function EngineerDashboardContent() {
   // BUG 4: resume the line, then retry finishing the WO (no PIN)
   const handleResumeThenFinish = async () => {
     if (!stoppedFinishCtx) return;
-    const { woId, signature, notes, untranslated } = stoppedFinishCtx;
+    const { woId, signature, notes } = stoppedFinishCtx;
     setResumingThenFinish(true);
     try {
       try {
@@ -723,7 +669,7 @@ function EngineerDashboardContent() {
         });
         setCurrentEngineer(null);
         sessionStorage.removeItem("currentEngineer");
-        finishedToast("✅ Line resumed and maintenance order finished", untranslated);
+        toast({ title: "✅ Line resumed and maintenance order finished" });
       } catch (err: any) {
         toast({ title: "Error finishing WO", description: err.message, variant: "destructive" });
       }
@@ -1362,29 +1308,15 @@ function EngineerDashboardContent() {
                 autoFocus
               />
               <div className="flex items-center justify-between gap-2">
-                {/* Write in any language — the report is stored in English either way. */}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleReviewEnglish}
-                  disabled={!resolutionNotes.trim() || polishing}
-                >
-                  {polishing && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Check English
-                </Button>
+                <p className="text-xs text-muted-foreground">Write the report in English — it is saved exactly as written.</p>
                 <p className="text-xs text-muted-foreground text-right">{resolutionNotes.length}/1000</p>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Write in your own language if you prefer — the report is saved in English and any
-                spelling is corrected automatically when you finish.
-              </p>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setSignDialogWO(null); setSignName(""); setResolutionNotes(""); }}>Cancel</Button>
-            <Button onClick={handleFinishConfirm} disabled={!resolutionNotes.trim() || finishWO.isPending || polishing}>
-              {(finishWO.isPending || polishing) && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            <Button onClick={handleFinishConfirm} disabled={!resolutionNotes.trim() || finishWO.isPending}>
+              {finishWO.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Confirm & Finish
             </Button>
           </DialogFooter>
