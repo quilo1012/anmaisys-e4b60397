@@ -1,5 +1,5 @@
 import { lazy, type ComponentType } from "react";
-import { chunkUrlFrom, isChunkLoadError, RELOAD_KEY } from "@/lib/chunkCrashEvidence";
+import { chunkUrlFrom, chunkUrlFromFactory, isChunkLoadError, RELOAD_KEY } from "@/lib/chunkCrashEvidence";
 
 /**
  * Wraps React.lazy so that when a dynamic-import chunk fails to load
@@ -36,8 +36,10 @@ import { chunkUrlFrom, isChunkLoadError, RELOAD_KEY } from "@/lib/chunkCrashEvid
  * different module-map entry and therefore a real request. The host serves the same
  * file (static hosts ignore the query), the chunk's own static imports carry no
  * query and stay shared, and the CSS `<link>`s Vite's preload helper injected on
- * the first attempt are already in the document. When the message carries no URL to
- * re-ask for, we fall back to calling `factory` again, which is no worse than before.
+ * the first attempt are already in the document. When the message carries no URL —
+ * Safari's never does — the address is read from the factory's own source
+ * (`chunkUrlFromFactory`, 15/11). Only when neither has one do we fall back to calling
+ * `factory` again, which is no worse than before.
  *
  * `isChunkLoadError`, `chunkUrlFrom` and `RELOAD_KEY` live in `chunkCrashEvidence`,
  * which is where the ErrorBoundary asks what a failed chunk answers now — one
@@ -59,6 +61,8 @@ function bustedUrl(url: string, attempt: number): string {
 export interface LazyWithReloadOptions {
   /** Seam for the tests: how a chunk is re-requested by address. */
   importUrl?: (url: string) => Promise<unknown>;
+  /** Seam for the tests: the module URL a factory's relative specifier resolves against. */
+  moduleUrl?: string;
 }
 
 const importByUrl = (url: string): Promise<unknown> =>
@@ -69,6 +73,7 @@ export function lazyWithReload<T extends ComponentType<any>>(
   options?: LazyWithReloadOptions,
 ) {
   const importUrl = options?.importUrl ?? importByUrl;
+  const moduleUrl = options?.moduleUrl ?? import.meta.url;
 
   return lazy(async () => {
     let lastErr: unknown;
@@ -87,7 +92,7 @@ export function lazyWithReload<T extends ComponentType<any>>(
       } catch (err) {
         lastErr = err;
         if (!isChunkLoadError(err)) throw err;
-        if (attempt === 0) chunkUrl = chunkUrlFrom(err);
+        if (attempt === 0) chunkUrl = chunkUrlFrom(err) ?? chunkUrlFromFactory(factory, moduleUrl);
         if (attempt < RETRY_DELAYS_MS.length) await sleep(RETRY_DELAYS_MS[attempt]);
       }
     }
@@ -106,6 +111,14 @@ export function lazyWithReload<T extends ComponentType<any>>(
       /* sessionStorage unavailable — fall through and rethrow */
     }
 
+    // Hand the address to the ErrorBoundary's evidence, which reads it through
+    // `chunkUrlFrom`: a Safari message has none of its own.
+    if (chunkUrl && lastErr && typeof lastErr === "object") {
+      try {
+        const e = lastErr as { chunkUrl?: string };
+        if (!e.chunkUrl) e.chunkUrl = chunkUrl;
+      } catch { /* a frozen error keeps its message, which is all it had before */ }
+    }
     throw lastErr;
   });
 }
