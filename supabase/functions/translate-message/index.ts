@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { validateBody, MISSING_KEY_ERROR } from "./validate.ts";
+import { anthropicFailure } from "../_shared/anthropicFailure.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -81,12 +82,11 @@ Deno.serve(async (req) => {
     });
 
     if (!resp.ok) {
-      const txt = await resp.text();
-      if (resp.status === 429) return json({ error: "AI rate limit exceeded" }, 429);
-      if (resp.status === 401 || resp.status === 403) {
-        return json({ error: "AI key rejected — check ANTHROPIC_API_KEY and billing" }, 502);
-      }
-      return json({ error: `AI error: ${txt.slice(0, 300)}` }, 502);
+      const failure = anthropicFailure(resp.status, await resp.text(), {
+        rateLimited: "AI rate limit exceeded",
+        keyRejected: "AI key rejected — check ANTHROPIC_API_KEY and billing",
+      });
+      return json({ error: failure.error, code: failure.code }, failure.status);
     }
 
     const aiJson = await resp.json();

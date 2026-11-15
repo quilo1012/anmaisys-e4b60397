@@ -87,8 +87,50 @@ const PROBE_TIMEOUT_MS = 4000;
  * reader, so the retry and the evidence can never disagree about which file failed.
  */
 export function chunkUrlFrom(err: unknown): string | null {
+  // `lazyWithReload` pins the address it worked out on the error it finally throws,
+  // so a message that never had one (Safari) still reaches the ErrorBoundary with it.
+  const carried = (err as { chunkUrl?: unknown })?.chunkUrl;
+  if (typeof carried === "string" && carried) return carried;
   const msg = String((err as { message?: string })?.message || err || "");
   return /(https?:\/\/[^\s"')]+)/.exec(msg)?.[1] ?? null;
+}
+
+/**
+ * The chunk a lazy factory was built to fetch, read from the factory's own source.
+ *
+ * WHY. Safari and every iOS browser word a failed dynamic import as "Importing a module
+ * script failed." — and stop there. No address. So on the devices this factory mostly
+ * runs on (the line iPads, the employees' iPhones) `chunkUrlFrom` had nothing to read:
+ * the two retries in `lazyWithReload` fell back to calling `factory` again, which the
+ * module map answers with the same cached rejection and no request, and the crash
+ * evidence went out with `chunkUrl: null, chunkStatus: null`. 15/11 08:47 on
+ * /dashboard/my-attendance is one: current build (`entryIsStale: false`), online,
+ * reload already spent, and no way to say whether the file was there.
+ *
+ * HOW. Vite compiles `() => import("./pages/dashboard/MyAttendancePage")` into
+ * `()=>Z(()=>import("./MyAttendancePage-BHr2_L2-.js"),__vite__mapDeps([…]))` — checked
+ * against a real build. The specifier is relative to the bundle holding the factory,
+ * which sits in /assets/ beside every other chunk, so `moduleUrl` is any module URL
+ * from that folder (`lazyWithReload` passes its own `import.meta.url`). On the dev
+ * server the specifier is an absolute `/src/...` path and resolves just as well.
+ *
+ * Anything else — no import, a template with `${}` — is null, and the caller behaves
+ * exactly as it did before this existed.
+ */
+export function chunkUrlFromFactory(factory: unknown, moduleUrl: string): string | null {
+  let src: string;
+  try {
+    src = String(factory);
+  } catch {
+    return null;
+  }
+  const spec = /\bimport\(\s*(["'`])([^"'`$]+?)\1\s*\)/.exec(src)?.[2];
+  if (!spec) return null;
+  try {
+    return new URL(spec, moduleUrl).href;
+  } catch {
+    return null;
+  }
 }
 
 function pathOf(src: string | null | undefined): string | null {
