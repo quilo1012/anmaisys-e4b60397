@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/SectionHeading";
 import { useRole } from "@/hooks/useRole";
 import {
-  Shield, Radar, Radio, Settings as SettingsIcon, Users, Activity, ChevronRight, Link2,
+  Shield, Radar, Radio, Settings as SettingsIcon, Users, Activity, ChevronRight, Link2, BellRing,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Action } from "@/lib/permissions";
@@ -76,6 +76,11 @@ export const SYSTEM_TOOLS: Tool[] = [
     title: "Root Diagnostics",
     description: "Health checks and raw system state, for when something is wrong and nobody knows why yet.",
     url: "/dashboard/root-diagnostics", icon: Activity, category: "System",
+  },
+  {
+    title: "Phone Notifications",
+    description: "Whose phone the server can reach, and for the rest what the person still has to do.",
+    url: "/dashboard/phone-notifications", icon: BellRing, action: "system.diagnostics", category: "System",
   },
 ];
 

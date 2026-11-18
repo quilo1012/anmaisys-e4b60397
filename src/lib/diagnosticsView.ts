@@ -1,9 +1,9 @@
 import { pushVerdict, type PushVerdict } from "@/lib/pushDiagnostics";
 
 /**
- * What Root Diagnostics lists, worked out from the rows it loaded.
+ * What Root Diagnostics and Phone Notifications list, worked out from the rows they load.
  *
- * Kept apart from the page so the rules can be tested without rendering it.
+ * Kept apart from the pages so the rules can be tested without rendering them.
  */
 export interface DiagnosticsRow {
   id: string;
@@ -14,11 +14,14 @@ export interface DiagnosticsRow {
 }
 
 /**
- * Readings, not errors, written on purpose: kept, one click away on their own chip, never
- * in "All", which is the list of things that went wrong.
+ * Readings, not errors, written on purpose. Root Diagnostics does not list them: it is the
+ * list of things that went wrong, and on 18/11/2026 a chip of readings beside it was read,
+ * twice in one day, as "more errors".
  *  - PUSH_STATE: each device saying, once a day, how push stands on it (`pushDiagnostics`).
- *    The ones that ARE faults come back into "All" through `pushVerdict`.
+ *    Listed on Phone Notifications. The ones that ARE faults still come back into Root
+ *    Diagnostics through `pushVerdict`.
  *  - NO_SESSION: a request that went out before the token was there (`requestAuth`).
+ *    Counted in one muted line under the list, never a chip.
  */
 export const INFO_TYPES = new Set(["PUSH_STATE", "NO_SESSION"]);
 
@@ -31,7 +34,7 @@ function deviceKey(row: DiagnosticsRow): string {
 /**
  * The newest PUSH_STATE row of each device. A phone writes one a day, so a week of the
  * same healthy phone used to fill the list with seven copies of "working". `rows` must be
- * newest first, as the page loads them.
+ * newest first, as the pages load them.
  */
 export function latestPushPerDevice<T extends DiagnosticsRow>(rows: T[]): T[] {
   const seen = new Set<string>();
@@ -48,40 +51,51 @@ export function latestPushPerDevice<T extends DiagnosticsRow>(rows: T[]): T[] {
 
 export interface PushSummary { ok: number; person: number; fault: number }
 
-export interface DiagnosticsView<T> {
-  /** Chips in the order the types first appear, each with its count. */
-  chips: { type: string; count: number }[];
-  /** Everything that went wrong: non-reading rows, plus devices whose push is broken. */
-  problems: T[];
-  shown: T[];
-  push: PushSummary;
+export interface PushDevicesView<T> {
+  /** One row per device: faults first, then what waits on the person, then working. */
+  devices: (T & { verdict: PushVerdict })[];
+  summary: PushSummary;
 }
 
-export function diagnosticsView<T extends DiagnosticsRow>(logs: T[], filter: string): DiagnosticsView<T> {
-  const devices = latestPushPerDevice(logs);
-  const verdicts = new Map<string, PushVerdict>(devices.map((d) => [d.id, pushVerdict(d.metadata)]));
-  const push: PushSummary = { ok: 0, person: 0, fault: 0 };
-  for (const v of verdicts.values()) push[v]++;
+/** What Phone Notifications shows. `rows` are PUSH_STATE rows, newest first. */
+export function pushDevicesView<T extends DiagnosticsRow>(rows: T[]): PushDevicesView<T> {
+  const summary: PushSummary = { ok: 0, person: 0, fault: 0 };
+  const rank: Record<PushVerdict, number> = { fault: 0, person: 1, ok: 2 };
+  const devices = latestPushPerDevice(rows).map((d) => {
+    const verdict = pushVerdict(d.metadata);
+    summary[verdict]++;
+    return { ...d, verdict };
+  });
+  // Stable sort: newest first inside each verdict, the order they were loaded in.
+  devices.sort((a, b) => rank[a.verdict] - rank[b.verdict]);
+  return { devices, summary };
+}
 
-  const problems = logs.filter((l) =>
-    !INFO_TYPES.has(l.error_type) || verdicts.get(l.id) === "fault",
-  );
+export interface DiagnosticsView<T> {
+  /** One chip per type of error present, with its count. Never a chip for a reading. */
+  chips: { type: string; count: number }[];
+  /** Everything that went wrong: error rows, newest first, plus devices whose push is broken. */
+  problems: T[];
+  shown: T[];
+  /** NO_SESSION rows: recorded, not errors, counted once under the list. */
+  readings: number;
+}
+
+/**
+ * What Root Diagnostics shows. `errors` are the non-PUSH_STATE rows, `pushRows` the
+ * PUSH_STATE rows — loaded apart, so a busy day of phones cannot push a crash out of the
+ * newest 200. Both newest first.
+ */
+export function diagnosticsView<T extends DiagnosticsRow>(errors: T[], pushRows: T[], filter: string): DiagnosticsView<T> {
+  const pushFaults = latestPushPerDevice(pushRows).filter((d) => pushVerdict(d.metadata) === "fault");
+  const problems = [...errors.filter((l) => !INFO_TYPES.has(l.error_type)), ...pushFaults]
+    .sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
 
   const order: string[] = [];
-  for (const l of logs) if (!order.includes(l.error_type)) order.push(l.error_type);
-  const chips = order.map((type) => ({
-    type,
-    count: type === "PUSH_STATE" ? devices.length : logs.filter((l) => l.error_type === type).length,
-  }));
+  for (const l of problems) if (!order.includes(l.error_type)) order.push(l.error_type);
+  const chips = order.map((type) => ({ type, count: problems.filter((l) => l.error_type === type).length }));
 
-  const rank: Record<PushVerdict, number> = { fault: 0, person: 1, ok: 2 };
-  const shown = filter === "all"
-    ? problems
-    : filter === "PUSH_STATE"
-      // Faults first, then what waits on the person, then the working ones; newest first
-      // inside each, which is the order they were loaded in (sort is stable).
-      ? [...devices].sort((a, b) => rank[verdicts.get(a.id)!] - rank[verdicts.get(b.id)!])
-      : logs.filter((l) => l.error_type === filter);
-
-  return { chips, problems, shown, push };
+  const shown = filter === "all" ? problems : problems.filter((l) => l.error_type === filter);
+  const readings = errors.filter((l) => l.error_type === "NO_SESSION").length;
+  return { chips, problems, shown, readings };
 }

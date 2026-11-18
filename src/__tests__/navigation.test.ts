@@ -19,6 +19,7 @@ const SYSTEM_ONLY = [
   "iTouching Stop Codes",
   "Settings",
   "Root Diagnostics",
+  "Phone Notifications",
 ];
 
 describe("sidebar", () => {
