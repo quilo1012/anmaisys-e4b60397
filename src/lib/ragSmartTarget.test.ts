@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { addTallies, hasSmartTarget, smartCoverage, smartExportRows, smartOrigin, smartStatus, smartTally, smartVariancePct, type RagSmartMap } from "./ragSmartTarget";
+import { addTallies, hasSmartTarget, smartCoverage, smartExportRows, smartOrigin, smartScopeNote, smartStatus, smartTally, smartVariancePct, type RagSmartMap } from "./ragSmartTarget";
 import type { ShiftOutcome } from "./shiftOutcome";
 
 const RAN: ShiftOutcome = { kind: "ran", finishedAt: null, openMinutes: 720, grossMinutes: 720 };
@@ -86,5 +86,35 @@ describe("the Smart Target on the RAG board", () => {
       { Date: "2026-11-07", Line: "Line 2", Shift: "Day", Plan: 100, "Smart Target": 2715, Status: "Finished 12:40", "Target for hours open": 1508, Actual: 86, "Smart variance %": -94, "Set at": "05:30" },
       { Date: "2026-11-07", Line: "Line 2", Shift: "Night", Plan: null, "Smart Target": 6666, Status: "Not run", "Target for hours open": null, Actual: null, "Smart variance %": null, "Set at": "17:30" },
     ]);
+  });
+});
+
+describe("a Smart Target total read next to lines that have none (18/11/2026)", () => {
+  const ran = { kind: "ran" } as const;
+  const map = new Map([
+    ["2026-11-16|Line 1|DAY", { expected: 258, setAt: "2026-11-16T05:30:00Z", source: "ahead" }],
+    ["2026-11-16|Line 2|DAY", { expected: 3907, setAt: "2026-11-16T05:30:00Z", source: "ahead" }],
+  ]) as unknown as RagSmartMap;
+
+  it("carries the plan of the same shifts, and nothing for a line without a Smart Target", () => {
+    const total = addTallies([
+      smartTally(map, "2026-11-16", "Line 1", "DAY", 100, 229, ran as never),
+      smartTally(map, "2026-11-16", "Line 2", "DAY", 2500, 2770, ran as never),
+      smartTally(map, "2026-11-16", "Gel Packing", "DAY", 2500, 2568, ran as never),
+    ]);
+    expect(total.smart).toBe(4165);
+    expect(total.plan).toBe(2600);
+  });
+
+  it("says which lines the number covers and gives the like-for-like plan", () => {
+    const total = addTallies([
+      smartTally(map, "2026-11-16", "Line 1", "DAY", 100, 229, ran as never),
+      smartTally(map, "2026-11-16", "Line 2", "DAY", 2500, 2770, ran as never),
+    ]);
+    const note = smartScopeNote(total, ["Gel Packing", "Tablet Line"]);
+    expect(note).toContain("Lines 1–6 only");
+    expect(note).toContain("2,600");
+    expect(note).toContain("Gel Packing, Tablet Line have no Smart Target");
+    expect(smartScopeNote(total, [])).toBeNull();
   });
 });
