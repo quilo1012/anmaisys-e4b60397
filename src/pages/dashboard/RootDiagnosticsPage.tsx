@@ -11,6 +11,8 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { logSystemError } from "@/lib/telemetry";
 import { useMarkDiagnosticsSeen } from "@/hooks/useTelemetryBadge";
+import { diagnosticsView } from "@/lib/diagnosticsView";
+import { pushVerdict, pushVerdictHint, type PushVerdict } from "@/lib/pushDiagnostics";
 
 type Log = {
   id: string; created_at: string; user_id: string | null; user_role: string | null;
@@ -38,15 +40,19 @@ const TYPE_COLOR: Record<string, string> = {
   // apply, which is a job, not an incident.
   SCHEMA_DRIFT: "bg-muted text-muted-foreground border-border",
   PUSH_STATE: "bg-muted text-muted-foreground border-border",
+  // A request sent before the token was there (`requestAuth`). The grant is fine.
+  NO_SESSION: "bg-muted text-muted-foreground border-border",
 };
 
 /**
- * Reports, not errors. PUSH_STATE is each phone saying, once a day, how push stands on
- * it (src/lib/pushDiagnostics.ts) — it is how a "no_device" gets explained, so it keeps
- * being written. It just does not belong in "All", which is the list of things that went
- * wrong; it stays one click away on its own chip.
+ * A PUSH_STATE row is coloured by what it asks of the reader (`pushVerdict`), not by its
+ * type: 22 of the 50 on 18/11/2026 were working phones, drawn exactly like the rest.
  */
-const INFO_TYPES = new Set(["PUSH_STATE"]);
+const VERDICT_STYLE: Record<PushVerdict, { label: string; cls: string }> = {
+  ok: { label: "Working", cls: "bg-success/15 text-success-strong border-success/30" },
+  person: { label: "Waiting on the person", cls: "bg-muted text-muted-foreground border-border" },
+  fault: { label: "Fault", cls: "bg-destructive/15 text-destructive-strong border-destructive/30" },
+};
 
 /** What a logged RLS/API failure was asking for — the card is useless without it. */
 function requestLine(m: Record<string, unknown> | null): string | null {
@@ -74,9 +80,7 @@ export default function RootDiagnosticsPage() {
     },
   });
 
-  const types = Array.from(new Set(logs.map((l) => l.error_type)));
-  const problems = logs.filter((l) => !INFO_TYPES.has(l.error_type));
-  const shown = filter === "all" ? problems : logs.filter((l) => l.error_type === filter);
+  const { chips, problems, shown, push } = diagnosticsView(logs, filter);
 
   const clearAll = async () => {
     if (!window.confirm("Delete ALL telemetry logs? This cannot be undone.")) return;
@@ -108,15 +112,34 @@ export default function RootDiagnosticsPage() {
           }
         />
 
-        {types.length > 0 && (
+        {chips.length > 0 && (
           <div className="flex flex-wrap gap-2">
             <button onClick={() => setFilter("all")} className={`rounded-full border px-3 py-1 text-xs ${filter === "all" ? "bg-primary text-primary-foreground" : "bg-card"}`}>All ({problems.length})</button>
-            {types.map((t) => (
-              <button key={t} onClick={() => setFilter(t)} className={`rounded-full border px-3 py-1 text-xs font-mono ${filter === t ? "bg-primary text-primary-foreground" : "bg-card"}`}>
-                {t} ({logs.filter((l) => l.error_type === t).length})
+            {chips.map(({ type, count }) => (
+              <button key={type} onClick={() => setFilter(type)} className={`rounded-full border px-3 py-1 text-xs font-mono ${filter === type ? "bg-primary text-primary-foreground" : "bg-card"}`}>
+                {type} ({count}{type === "PUSH_STATE" ? " devices" : ""})
               </button>
             ))}
           </div>
+        )}
+
+        {filter === "PUSH_STATE" && !isLoading && !isError && (
+          <Card>
+            <CardContent className="p-4 text-sm space-y-1">
+              <p>
+                <span className="font-semibold text-success-strong">{push.ok} working</span>
+                {" · "}
+                <span className="font-semibold">{push.person} waiting on the person</span>
+                {" · "}
+                <span className={`font-semibold ${push.fault ? "text-destructive-strong" : ""}`}>{push.fault} {push.fault === 1 ? "fault" : "faults"}</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                One line per device, its latest daily reading. "Waiting on the person" is a phone opened in a
+                Safari tab, never turned on, or blocked in its settings — the app already shows them how to fix
+                it, and no code change can say yes for them. Only faults count in All.
+              </p>
+            </CardContent>
+          </Card>
         )}
 
         {isLoading ? (
@@ -133,6 +156,11 @@ export default function RootDiagnosticsPage() {
                   <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-sm">
                     <span className="flex items-center gap-2">
                       <Badge className={`${TYPE_COLOR[l.error_type] ?? "bg-muted"} border font-mono text-2xs`}>{l.error_type}</Badge>
+                      {l.error_type === "PUSH_STATE" && (
+                        <Badge className={`${VERDICT_STYLE[pushVerdict(l.metadata)].cls} border text-2xs`}>
+                          {VERDICT_STYLE[pushVerdict(l.metadata)].label}
+                        </Badge>
+                      )}
                       <span className="font-normal text-muted-foreground text-xs tabular-nums">{format(new Date(l.created_at), "dd/MM HH:mm:ss")}</span>
                     </span>
                     <span className="text-xs font-normal text-muted-foreground">{l.route_path} · {l.user_role ?? "?"}{l.user_id ? ` · ${l.user_id.slice(0, 8)}` : ""}</span>
@@ -140,6 +168,9 @@ export default function RootDiagnosticsPage() {
                 </CardHeader>
                 <CardContent className="pt-0 space-y-2">
                   <p className="font-medium break-words">{l.message}</p>
+                  {l.error_type === "PUSH_STATE" && (
+                    <p className="text-xs text-muted-foreground break-words">{pushVerdictHint(l.metadata)}</p>
+                  )}
                   {requestLine(l.metadata) && (
                     <p className="font-mono text-xs text-muted-foreground break-words">{requestLine(l.metadata)}</p>
                   )}

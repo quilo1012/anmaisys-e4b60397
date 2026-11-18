@@ -18,6 +18,11 @@ export type TelemetryErrorType =
   // only place the drift surfaces — but not a fault anybody caused. `schemaProbes`
   // decides, one column at a time, and everything unlisted stays a fault.
   | "SCHEMA_DRIFT"
+  // A request refused because it went out with no user token (401 / 42501 as `anon`),
+  // and the browser still had no session when `staleJwtRetry` looked again. Not RLS:
+  // `authenticated` holds the grant. Recorded, so a pattern can still be seen, but not
+  // a fault and not in "All" — see `requestAuth`.
+  | "NO_SESSION"
   | "REALTIME";
 
 // Best-effort context, set from AuthContext so logs carry the user + role

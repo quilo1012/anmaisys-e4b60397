@@ -87,6 +87,39 @@ export async function releaseThisDevicePush(): Promise<void> {
   }
 }
 
+/**
+ * Notifications blocked on this device, but it still holds a subscription — and the server
+ * still holds its row. Found 18/11/2026 on the shared Engineer login's Windows desktop:
+ * "permission denied, this device present, server registered". `send-push` keeps sending
+ * there, the push service keeps accepting, the browser shows nothing, and the send is
+ * counted as delivered.
+ *
+ * The row goes first, while the session can still delete it (the policy lets a login delete
+ * only its own), then the browser's subscription. If the person allows notifications again
+ * in the browser's settings, `useKeepPushSubscriptionCurrent` mints a fresh one with no tap.
+ *
+ * Bounded and silent, like `releaseThisDevicePush`. Returns whether anything was removed.
+ */
+export async function releaseDeniedDevicePush(): Promise<boolean> {
+  if (currentPushEnvironment().kind !== "ready") return false;
+  if (Notification.permission !== "denied") return false;
+  try {
+    return await withTimeout((async () => {
+      const reg = await navigator.serviceWorker.getRegistration("/sw.js");
+      const sub = await reg?.pushManager?.getSubscription();
+      if (!sub) return false;
+      await (supabase as unknown as {
+        from: (t: string) => { delete: () => { eq: (k: string, v: string) => Promise<unknown> } };
+      }).from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+      try { await sub.unsubscribe(); } catch { /* gone already is the outcome we wanted */ }
+      return true;
+    })(), 4_000, "Releasing blocked notifications");
+  } catch (e) {
+    console.warn("push release after denial failed", e);
+    return false;
+  }
+}
+
 export function usePushNotifications() {
   const [permission, setPermission] = useState<PermissionState>("default");
   const [subscribed, setSubscribed] = useState(false);
@@ -305,6 +338,12 @@ const RETRY_DELAYS_MS = [5_000, 30_000];
 export function useKeepPushSubscriptionCurrent(userId: string | null | undefined) {
   useEffect(() => {
     if (!userId || currentPushEnvironment().kind !== "ready") return;
+    if (Notification.permission === "denied") {
+      // Nothing to keep current — but a subscription left from before the block is a
+      // device the server believes it can reach. Clear it (see `releaseDeniedDevicePush`).
+      void releaseDeniedDevicePush();
+      return;
+    }
     if (Notification.permission !== "granted") return;
     let cancelled = false;
 
