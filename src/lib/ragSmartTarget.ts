@@ -36,6 +36,12 @@ export interface SmartTally {
   comparedSmart: number;
   /** What was made on those shifts, so the comparison is like for like. */
   actual: number;
+  /**
+   * The plan of the shifts counted in `smart`, so a total that mixes lines with and without
+   * a Smart Target can be read like for like (18/11/2026: All Lines showed 23,140 next to a
+   * plan of 32,500, whose 10,500 were Gel Packing and the Tablet Line, which have none).
+   */
+  plan: number;
   withNumber: number;
   /** Shifts that ran, with a plan or a count, and had no Smart Target. */
   missing: number;
@@ -46,7 +52,7 @@ export interface SmartTally {
   cut: { at: string; target: number } | null;
 }
 
-export const NO_SMART: SmartTally = { smart: 0, comparedSmart: 0, actual: 0, withNumber: 0, missing: 0, notRun: 0, notRunSmart: 0, cut: null };
+export const NO_SMART: SmartTally = { smart: 0, comparedSmart: 0, actual: 0, plan: 0, withNumber: 0, missing: 0, notRun: 0, notRunSmart: 0, cut: null };
 
 /** One line, one shift, with what became of the shift. */
 export function smartTally(
@@ -62,13 +68,14 @@ export function smartTally(
   const f = map.get(ragSmartKey(date, line, shift));
   if (f) {
     if (outcome.kind === "not_run") return { ...NO_SMART, notRun: 1, notRunSmart: f.expected };
-    if (outcome.kind === "upcoming") return { ...NO_SMART, smart: f.expected, withNumber: 1 };
+    if (outcome.kind === "upcoming") return { ...NO_SMART, smart: f.expected, plan, withNumber: 1 };
     const open = targetForHoursOpen(f.expected, outcome);
     return {
       ...NO_SMART,
       smart: f.expected,
       comparedSmart: open,
       actual,
+      plan,
       withNumber: 1,
       cut: outcome.finishedAt ? { at: outcome.finishedAt, target: open } : null,
     };
@@ -83,6 +90,7 @@ export function addTallies(tallies: SmartTally[]): SmartTally {
       smart: sum.smart + t.smart,
       comparedSmart: sum.comparedSmart + t.comparedSmart,
       actual: sum.actual + t.actual,
+      plan: sum.plan + t.plan,
       withNumber: sum.withNumber + t.withNumber,
       missing: sum.missing + t.missing,
       notRun: sum.notRun + t.notRun,
@@ -105,6 +113,16 @@ export function smartCoverage(t: SmartTally): string | null {
   if (!t.missing) return null;
   const all = t.withNumber + t.missing;
   return `${t.withNumber} of ${all} shift${all === 1 ? "" : "s"} that ran had a Smart Target`;
+}
+
+/**
+ * The hover text of a Smart Target total on a view that also holds lines without one: which
+ * lines the number covers, and the plan of those same lines to read it against.
+ */
+export function smartScopeNote(t: SmartTally, linesWithout: string[]): string | null {
+  if (!linesWithout.length || !t.withNumber) return null;
+  const others = linesWithout.join(", ");
+  return `Lines 1–6 only. Plan for the same shifts: ${t.plan.toLocaleString("en-GB")}. ${others} ${linesWithout.length === 1 ? "has" : "have"} no Smart Target and ${linesWithout.length === 1 ? "is" : "are"} in Plan and Actual below.`;
 }
 
 const londonHm = (iso: string) =>

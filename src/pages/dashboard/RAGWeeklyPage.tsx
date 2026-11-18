@@ -39,6 +39,7 @@ import {
   ragSmartKey,
   smartCoverage,
   smartOrigin,
+  smartScopeNote,
   smartStatus,
   smartTally,
   smartVariancePct,
@@ -2112,6 +2113,7 @@ function DayNightTotalSummary({
     // muted so a gap in the past still reads as a gap.
     const futureCol = (ds: string) => ds > nowIso;
 
+    const linesWithoutSmart = lineFilter.filter((l) => !hasSmartTarget(l));
     const rows: { key: string; label: string; render: (c: Cell) => React.ReactNode; bold?: boolean; bucket?: string }[] = [
       // An absent figure recedes rather than competing. A dash carried the same
       // weight as "5,348", and across twenty-one columns of a week opened on a
@@ -2120,14 +2122,19 @@ function DayNightTotalSummary({
       // shouting.
       // At the top of each line (07/11). The number kept before the shift, never typed here (Q71). A total adds the shifts
       // that have one and carries a * when a shift that ran had none (Q73).
+      // On a view that also holds lines without a Smart Target (All Lines: Gel Packing, the
+      // Tablet Line, the capsule machines) the row says it covers Lines 1–6 only, and its
+      // hover gives the plan of those same lines. Plan and Actual below count every line, so
+      // 23,140 sat next to 32,500 with nothing saying the 10,500 between them had no
+      // Smart Target at all (18/11/2026). Nothing is added to the Smart Target for them.
       ...(smartMap && lineFilter.some(hasSmartTarget)
         ? [
             {
               key: "smart",
-              label: "Smart Target",
+              label: linesWithoutSmart.length ? "Smart Target (Lines 1–6)" : "Smart Target",
               render: (c: Cell) =>
                 c.smart.withNumber ? (
-                  <span title={smartCoverage(c.smart) ?? undefined}>
+                  <span title={[smartScopeNote(c.smart, linesWithoutSmart), smartCoverage(c.smart)].filter(Boolean).join(" ") || undefined}>
                     {c.smart.smart.toLocaleString("en-GB")}
                     {c.smart.missing ? "*" : ""}
                     {/* A line that closed early: its target for the hours it was open (Q78). */}
@@ -2149,7 +2156,7 @@ function DayNightTotalSummary({
             },
             {
               key: "smartvar",
-              label: "Smart variance %",
+              label: linesWithoutSmart.length ? "Smart variance % (Lines 1–6)" : "Smart variance %",
               render: (c: Cell) => {
                 const v = smartVariancePct(c.smart);
                 return v === null ? (
