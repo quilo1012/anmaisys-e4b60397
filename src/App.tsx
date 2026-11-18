@@ -193,6 +193,7 @@ const DirectMessagesPage = lazyWithReload(() => import("./pages/dashboard/Direct
 const MeetingsPage = lazyWithReload(() => import("./pages/dashboard/MeetingsPage"));
 const PermissionsMatrixPage = lazyWithReload(() => import("./pages/dashboard/PermissionsMatrixPage"));
 const RootDiagnosticsPage = lazyWithReload(() => import("./pages/dashboard/RootDiagnosticsPage"));
+const PhoneNotificationsPage = lazyWithReload(() => import("./pages/dashboard/PhoneNotificationsPage"));
 
 const queryClient = new QueryClient({
   // Until now a denied or failed request died quietly: the fetch wrapper logged it,
@@ -753,6 +754,14 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAction="system.diagnostics">
                       <RootDiagnosticsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/phone-notifications"
+                  element={
+                    <ProtectedRoute requiredAction="system.diagnostics">
+                      <PhoneNotificationsPage />
                     </ProtectedRoute>
                   }
                 />

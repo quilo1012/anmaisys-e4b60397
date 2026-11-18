@@ -755,6 +755,7 @@ export const routeTitles: Record<string, string> = {
   "/dashboard/safetyculture-settings": "SafetyCulture",
   "/dashboard/intouch-machines": "iTouching Machines",
   "/dashboard/intouch-stop-codes": "iTouching Stop Codes",
+  "/dashboard/phone-notifications": "Phone Notifications",
 };
 
 // The header's menu control opens a menu where the three sidebar states are
