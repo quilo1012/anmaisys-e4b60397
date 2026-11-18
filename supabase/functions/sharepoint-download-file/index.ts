@@ -195,7 +195,14 @@ Deno.serve(async (req) => {
     const normalizedUrl = normalizeShareUrl(shareUrl);
     try {
       const parsedUrl = new URL(normalizedUrl);
-      if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('invalid protocol');
+      if (parsedUrl.protocol !== 'https:') throw new Error('invalid protocol');
+      const host = parsedUrl.hostname.toLowerCase();
+      const allowList = (Deno.env.get('SHAREPOINT_ALLOWED_HOSTS') ?? '')
+        .split(',').map((h) => h.trim().toLowerCase()).filter(Boolean);
+      const hostOk = allowList.length
+        ? allowList.includes(host)
+        : (host.endsWith('.sharepoint.com') || host === '1drv.ms' || host.endsWith('.onedrive.live.com'));
+      if (!hostOk) throw new Error('host not allowed');
     } catch (err) {
       console.error("[sharepoint-download-file] invalid shareUrl rejected", {
         error: (err as Error)?.message ?? String(err),
@@ -224,6 +231,14 @@ Deno.serve(async (req) => {
     }
 
     const buf = new Uint8Array(result.buffer);
+    // Only spreadsheets are imported: .xlsx/.xlsm (zip "PK"), legacy .xls (OLE), or plain-text CSV, max 25 MB.
+    const isZip = buf[0] === 0x50 && buf[1] === 0x4b;
+    const isOle = buf[0] === 0xd0 && buf[1] === 0xcf && buf[2] === 0x11 && buf[3] === 0xe0;
+    const head = new TextDecoder('utf-8', { fatal: false }).decode(buf.slice(0, 512));
+    const isCsv = !isZip && !isOle && !/[\x00-\x08\x0e-\x1f]/.test(head) && /[,;\t]/.test(head);
+    if (buf.length > 25 * 1024 * 1024 || !(isZip || isOle || isCsv)) {
+      return json({ error: 'Only Excel or CSV files up to 25 MB can be imported from SharePoint.' }, 415);
+    }
     // base64 encode
     let bin = '';
     for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
