@@ -225,6 +225,9 @@ export function NotificationPanel() {
           // A phone reporting its push state (pushDiagnostics) is a reading, not a fault:
           // one per phone per day would ring the admin's bell dozens of times a morning.
           if (row.error_type === "PUSH_STATE") return;
+          // Nor is a request that went out before the token was there: the grant is
+          // fine and the next request carries it (see `requestAuth`).
+          if (row.error_type === "NO_SESSION") return;
           const type = row.error_type ?? "ERROR";
           addNotification({
             type: "system_error",

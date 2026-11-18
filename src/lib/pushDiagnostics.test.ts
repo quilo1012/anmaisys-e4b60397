@@ -20,6 +20,9 @@ vi.mock("@/integrations/supabase/client", () => ({
 import {
   currentDisplayMode,
   pushErrorCode,
+  pushStateApplies,
+  pushVerdict,
+  pushVerdictHint,
   readPushDeviceState,
   rememberPushError,
   reportPushDeviceState,
@@ -299,5 +302,91 @@ describe("an iPhone Home Screen app still at 'default'", () => {
     expect(s.reason).toBe("not_enabled");
     expect(s.lastError?.code).toBe("permission_stayed_default");
     expect(telemetryRow(s, "u1", "employee").message).toContain("last error enable:permission_stayed_default");
+  });
+});
+
+/**
+ * 18/11/2026: eight of the 50 PUSH_STATE rows were the line tablets (Line 1–6, Capsules
+ * Line, Gel Machine) saying "android browser tab: permission unsupported" every morning.
+ * Push is not offered on a shared tablet, so there is nothing for them to report.
+ */
+describe("who reports", () => {
+  it("not a line tablet's operator login", async () => {
+    device({ ua: ANDROID_UA, push: false });
+    expect(await reportPushDeviceState("line-1", "operator")).toBe(false);
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("not any login signed in through a shared tablet", async () => {
+    device({ ua: ANDROID_UA, permission: "default" });
+    localStorage.setItem("an_tablet_cred", "{}");
+    expect(await reportPushDeviceState("u-1", "employee")).toBe(false);
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it("everyone else, as before", async () => {
+    device({ ua: ANDROID_UA, permission: "default" });
+    expect(await reportPushDeviceState("u-1", "employee")).toBe(true);
+    expect(insert).toHaveBeenCalledTimes(1);
+  });
+
+  it("the rule on its own", () => {
+    expect(pushStateApplies("operator", false)).toBe(false);
+    expect(pushStateApplies("employee", true)).toBe(false);
+    expect(pushStateApplies("engineer", false)).toBe(true);
+    expect(pushStateApplies(null, false)).toBe(true);
+  });
+});
+
+/**
+ * What each reading asks of the reader. On 18/11/2026 Root Diagnostics drew all 50 the same
+ * grey: 22 working phones, 20 waiting on their owner, 8 tablets — and read as 50 errors.
+ */
+describe("the verdict on a row", () => {
+  const meta = (m: Record<string, unknown>) => ({ permission: "granted", worker: "active", local: "present", server: "registered", reason: null, last_error: null, ...m });
+
+  it("working when every link is there", () => {
+    expect(pushVerdict(meta({}))).toBe("ok");
+  });
+
+  it("the person's, for a Safari tab, never turned on, or blocked", () => {
+    expect(pushVerdict(meta({ environment: "ios-install", permission: "unsupported", reason: "unsupported" }))).toBe("person");
+    expect(pushVerdict(meta({ permission: "default", local: "absent", server: "not_checked", reason: "not_enabled" }))).toBe("person");
+    expect(pushVerdict(meta({ permission: "denied", local: "absent", server: "not_checked", reason: "permission_denied" }))).toBe("person");
+    expect(pushVerdict(meta({ permission: "default", reason: "not_enabled", last_error: { stage: "enable", code: "permission_stayed_default" } }))).toBe("person");
+  });
+
+  it("ours when the phone said yes and the chain broke", () => {
+    for (const reason of ["no_worker", "not_subscribed", "not_saved", "server_unreadable"]) {
+      expect(pushVerdict(meta({ reason }))).toBe("fault");
+    }
+  });
+
+  it("ours when the save itself was refused, whatever the permission", () => {
+    expect(pushVerdict(meta({ permission: "default", reason: "not_enabled", last_error: { stage: "enable", code: "save_refused:42501" } }))).toBe("fault");
+  });
+
+  it("ours when a blocked device is still on the server's list", () => {
+    // The Engineer desktop, 18/11 06:20.
+    expect(pushVerdict(meta({ permission: "denied", local: "present", server: "registered", reason: "permission_denied" }))).toBe("fault");
+  });
+
+  it("an unknown reason is a fault — the direction that catches things", () => {
+    expect(pushVerdict(meta({ reason: "something_new" }))).toBe("fault");
+    expect(pushVerdict(null)).toBe("fault");
+  });
+
+  it("rows from before `reason` existed are judged the same way", () => {
+    const old = { permission: "granted", worker: "active", local: "present", server: "registered" };
+    expect(pushVerdict(old)).toBe("ok");
+    expect(pushVerdict({ ...old, server: "missing" })).toBe("fault");
+    expect(pushVerdict({ permission: "default", worker: "none", local: "absent", server: "not_checked" })).toBe("person");
+  });
+
+  it("says what to do in words", () => {
+    expect(pushVerdictHint(meta({ environment: "ios-install", permission: "unsupported", reason: "unsupported" }))).toMatch(/Add to Home Screen/);
+    expect(pushVerdictHint(meta({ permission: "denied", local: "absent", server: "not_checked", reason: "permission_denied" }))).toMatch(/settings/);
+    expect(pushVerdictHint(meta({}))).toMatch(/^Working/);
+    expect(pushVerdictHint(meta({ reason: "not_saved" }))).toMatch(/^Fault/);
   });
 });

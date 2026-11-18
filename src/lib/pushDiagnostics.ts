@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { currentPushEnvironment, iosVersion, type PushEnvironment } from "@/lib/pushEnvironment";
 import { isDifferentKeyError } from "@/lib/pushSubscribe";
+import { isSharedTabletSession } from "@/lib/sharedTabletSession";
 
 /**
  * What this phone says about push, written where an admin can read it.
@@ -215,6 +216,67 @@ export function gapReason(
   return "not_subscribed";
 }
 
+/**
+ * What a PUSH_STATE row asks of the reader.
+ *
+ *  - `ok`: every link is there — the server can reach this device.
+ *  - `person`: only the person holding it can move it, and the app already tells them how
+ *    (`PushPromptBanner`): an iPhone opened in a Safari tab instead of from its Home Screen
+ *    icon, notifications never turned on, or turned off in the phone's settings. No code
+ *    change makes a phone say yes.
+ *  - `fault`: the phone said yes and the chain still broke — no worker, no subscription,
+ *    a subscription the server never got, a save the database refused. That is ours.
+ *
+ * On 18/11/2026 the page listed all 50 rows the same grey, 22 of them working phones, and
+ * read as fifty errors. Unknown reasons count as faults: the direction that catches things.
+ */
+export type PushVerdict = "ok" | "person" | "fault";
+
+const PERSON_REASONS = new Set<string>(["unsupported", "not_enabled", "permission_denied"]);
+/** Codes from the Turn on tap or the re-save that are not the person's answer. */
+const FAULT_ERROR = /^(save_refused|worker_load|different_key|push_service|other)/;
+
+export function pushVerdict(meta: Record<string, unknown> | null | undefined): PushVerdict {
+  if (!meta) return "fault";
+  const reason = "reason" in meta
+    ? (meta.reason as string | null)
+    // Rows written before `reason` existed (before 03/11/2026): work it out the same way.
+    : gapReason(
+        (meta.permission as PermissionReading) ?? "default",
+        (meta.worker as WorkerState) ?? "unknown",
+        (meta.local as LocalSubscription) ?? "unknown",
+        (meta.server as ServerRegistration) ?? "not_checked",
+      );
+  if (reason === null || reason === undefined) return "ok";
+  if (!PERSON_REASONS.has(reason)) return "fault";
+  // Blocked here, yet the server still holds it: every send "succeeds" into a device that
+  // shows nothing. Ours to clear (`releaseDeniedDevicePush`), not the person's.
+  if (reason === "permission_denied" && meta.server === "registered") return "fault";
+  const err = meta.last_error as { code?: unknown } | null | undefined;
+  return typeof err?.code === "string" && FAULT_ERROR.test(err.code) ? "fault" : "person";
+}
+
+/** What the person would have to do, in the words Root Diagnostics shows next to the row. */
+export function pushVerdictHint(meta: Record<string, unknown> | null | undefined): string {
+  const verdict = pushVerdict(meta);
+  if (verdict === "ok") return "Working — the server can reach this device.";
+  const m = meta ?? {};
+  const reason = m.reason as string | null | undefined;
+  const env = m.environment as string | undefined;
+  const err = (m.last_error as { code?: unknown } | null | undefined)?.code;
+  if (verdict === "fault") {
+    if (reason === "permission_denied") return "Fault — blocked on this device but still registered on the server; the app removes it the next time this device opens.";
+    if (typeof err === "string" && FAULT_ERROR.test(err)) return `Fault — the app failed to register this device (${err}).`;
+    return `Fault — permission is allowed but the chain broke (${reason ?? "unknown"}).`;
+  }
+  if (env === "ios-install") return "Opened in a Safari tab — Share → Add to Home Screen, open from the icon, turn notifications on.";
+  if (env === "ios-too-old") return "iOS older than 16.4 — this iPhone cannot receive web notifications.";
+  if (reason === "unsupported") return "This browser has no notifications — open the app in Chrome, Edge or Safari.";
+  if (reason === "permission_denied") return "Notifications blocked on this device — allow them in its settings.";
+  if (err === "permission_stayed_default") return "Tapped Turn on but did not choose Allow.";
+  return "Notifications never turned on here — the person needs to tap Turn on.";
+}
+
 /** One line a person can read in Root Diagnostics without opening the metadata. */
 export function summarise(s: PushDeviceState): string {
   const opened = s.display === "standalone" ? "Home Screen app" : "browser tab";
@@ -276,8 +338,23 @@ export function telemetryRow(state: PushDeviceState, userId: string, role: strin
 
 let reporting = false;
 
+/**
+ * Whether this device's push state is worth a row at all.
+ *
+ * Not on a shared line tablet. Push is deliberately not offered there (`PushPromptBanner`:
+ * a push would buzz whoever is holding it), the line has its siren instead, and the
+ * tablets run in a kiosk browser with no Push API — so every one of them wrote "android
+ * browser tab: permission unsupported" every morning: eight of the 50 PUSH_STATE rows on
+ * 18/11/2026 (Line 1–6, Capsules Line, Gel Machine), each one reading like a fault and none
+ * of them anything to fix.
+ */
+export function pushStateApplies(role: string | null, sharedTablet = isSharedTabletSession()): boolean {
+  return role !== "operator" && !sharedTablet;
+}
+
 /** Reads the phone and writes a row when one is due. Never throws, never blocks. */
 export async function reportPushDeviceState(userId: string, role: string | null, now = new Date()): Promise<boolean> {
+  if (!pushStateApplies(role)) return false;
   if (reporting) return false;
   reporting = true;
   try {

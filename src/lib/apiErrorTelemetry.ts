@@ -3,6 +3,7 @@ import { isUserCorrectable } from "@/lib/userCorrectable";
 import { isProbedColumn } from "@/lib/schemaProbes";
 import { isPendingRpc } from "@/lib/pendingRpcs";
 import { allowDegradedReport, isDegradedError } from "@/lib/backendHealth";
+import { sentWithoutUserToken } from "@/lib/requestAuth";
 
 // Automatic backend-failure capture. supabase-js issues every PostgREST / RPC /
 // edge-function call through the global fetch, so wrapping fetch once lets Root
@@ -117,7 +118,15 @@ export function installApiErrorTelemetry(): void {
       // log exists to catch.
       const isPendingFunction = body?.code === "PGRST202" && isPendingRpc(body?.message);
 
-      const type = isRls
+      // A refusal of a request that carried no user token is not RLS: `authenticated`
+      // holds the grant, the token was missing (see `requestAuth`). `staleJwtRetry` has
+      // already sent it again if a session turned up; reaching here means the browser had
+      // none. Recorded, under its own name, so it is not mistaken for a policy to fix.
+      const noSession = isRls && res.status === 401 && body?.code === "42501" && sentWithoutUserToken(init);
+
+      const type = noSession
+        ? "NO_SESSION"
+        : isRls
         ? "RLS_ERROR"
         : isHandledProbe || isPendingFunction
           ? "SCHEMA_DRIFT"

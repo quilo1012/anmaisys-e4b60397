@@ -15,7 +15,7 @@ const del = vi.fn(() => ({ eq }));
 const from = vi.fn(() => ({ delete: del }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { from: (...a: unknown[]) => from(...(a as [])) } }));
 
-import { releaseThisDevicePush } from "./usePushNotifications";
+import { releaseDeniedDevicePush, releaseThisDevicePush } from "./usePushNotifications";
 
 const unsubscribe = vi.fn(async () => true);
 function installPush(sub: unknown) {
@@ -56,5 +56,59 @@ describe("releaseThisDevicePush", () => {
     delete (navigator as unknown as { serviceWorker?: unknown }).serviceWorker;
     await releaseThisDevicePush();
     expect(from).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 18/11/2026, the shared Engineer login's Windows desktop: "permission denied, this device
+ * present, server registered". Blocked in the browser, still on the server's list — every
+ * send to it was accepted by the push service and shown to nobody.
+ */
+describe("releaseDeniedDevicePush", () => {
+  beforeEach(() => { vi.clearAllMocks(); eq.mockResolvedValue({ error: null }); });
+  afterEach(() => {
+    delete (window as unknown as { PushManager?: unknown }).PushManager;
+    delete (window as unknown as { Notification?: unknown }).Notification;
+  });
+
+  function blocked(sub: unknown) {
+    installPush(sub);
+    (window as unknown as { Notification: unknown }).Notification = { permission: "denied" };
+  }
+
+  it("takes the blocked device off the server and drops its subscription", async () => {
+    blocked({ endpoint: "https://fcm.googleapis.com/engineer-desktop", unsubscribe });
+    await expect(releaseDeniedDevicePush()).resolves.toBe(true);
+    expect(from).toHaveBeenCalledWith("push_subscriptions");
+    expect(eq).toHaveBeenCalledWith("endpoint", "https://fcm.googleapis.com/engineer-desktop");
+    expect(unsubscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it("deletes the row before the subscription, while the endpoint still names it", async () => {
+    const order: string[] = [];
+    eq.mockImplementation(async () => { order.push("row"); return { error: null }; });
+    unsubscribe.mockImplementation(async () => { order.push("subscription"); return true; });
+    blocked({ endpoint: "https://fcm.googleapis.com/x", unsubscribe });
+    await releaseDeniedDevicePush();
+    expect(order).toEqual(["row", "subscription"]);
+  });
+
+  it("leaves an allowed device alone", async () => {
+    installPush({ endpoint: "https://fcm.googleapis.com/x", unsubscribe });
+    await expect(releaseDeniedDevicePush()).resolves.toBe(false);
+    expect(from).not.toHaveBeenCalled();
+    expect(unsubscribe).not.toHaveBeenCalled();
+  });
+
+  it("does nothing on a blocked device that holds no subscription", async () => {
+    blocked(null);
+    await expect(releaseDeniedDevicePush()).resolves.toBe(false);
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("never throws", async () => {
+    blocked({ endpoint: "https://fcm.googleapis.com/x", unsubscribe });
+    eq.mockRejectedValue(new Error("offline"));
+    await expect(releaseDeniedDevicePush()).resolves.toBe(false);
   });
 });
