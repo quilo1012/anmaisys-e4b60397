@@ -218,9 +218,8 @@ export function useMyOvertimeClashes(enabled: boolean) {
  * own hours it would land on. Empty until BLOCO 95 is pasted — the board-only check in
  * `clashesFor` still runs on its own then.
  */
-/** Asks per `overtime_schedule_clashes` call, and how many calls run at once. */
+/** Asks per `overtime_schedule_clashes` call. */
 export const SCHEDULE_CLASH_BATCH = 10;
-const SCHEDULE_CLASH_PARALLEL = 3;
 
 export function useOvertimeScheduleClashes(requestIds: string[]) {
   const ids = [...requestIds].sort();
@@ -229,29 +228,34 @@ export function useOvertimeScheduleClashes(requestIds: string[]) {
     enabled: ids.length > 0,
     meta: { schemaOptional: true },
     staleTime: 60_000,
-    queryFn: async (): Promise<Map<string, string>> => {
+    queryFn: async ({ signal }): Promise<Map<string, string>> => {
       const out = new Map<string, string>();
       // The function checks every ask against every active person, one pair at a
-      // time (~0.25 ms a pair). A month of asks in one call (68 × 195 people) took
-      // 3.3 s idle and passed the 8 s statement timeout under load (31/10 17:24).
-      // Small batches keep each statement well under it; a few run side by side.
-      const batches: string[][] = [];
+      // time (~0.28 ms a pair: 10 asks × 208 people = 0.58 s idle). A month of asks in
+      // one call passed the 8 s statement timeout under load (31/10 17:24), hence the
+      // batches.
+      //
+      // One batch at a time, and none after the read is cancelled. 19/11/2026 00:52–00:55:
+      // one supervisor's browser, recording outcomes on Overtime and moving to Headcount,
+      // kept three of these running at once, wave after wave — every save restarted the
+      // whole set, and nothing stopped the old sets, not even leaving the page. The
+      // database stalled for three minutes: statement timeouts on every screen, cron jobs
+      // that could not start. Taking the `signal` is what lets React Query cancel a run
+      // that is superseded or no longer on screen; checking it between batches stops the
+      // loop from starting the next one.
       for (let i = 0; i < ids.length; i += SCHEDULE_CLASH_BATCH) {
-        batches.push(ids.slice(i, i + SCHEDULE_CLASH_BATCH));
-      }
-      for (let i = 0; i < batches.length; i += SCHEDULE_CLASH_PARALLEL) {
-        const results = await Promise.all(
-          batches.slice(i, i + SCHEDULE_CLASH_PARALLEL).map((batch) =>
-            db.rpc("overtime_schedule_clashes", { p_request_ids: batch })),
-        );
-        for (const { data, error } of results) {
-          if (error) {
-            if ((error as { code?: string }).code === "PGRST202") return new Map();
-            throw error;
-          }
-          for (const r of data ?? []) {
-            out.set(scheduleClashKey(r.request_id, r.employee_id), r.reason);
-          }
+        if (signal?.aborted) throw signal.reason ?? new DOMException("Cancelled", "AbortError");
+        const batch = ids.slice(i, i + SCHEDULE_CLASH_BATCH);
+        let call = db.rpc("overtime_schedule_clashes", { p_request_ids: batch });
+        if (signal) call = call.abortSignal(signal);
+        const { data, error } = await call;
+        if (signal?.aborted) throw signal.reason ?? new DOMException("Cancelled", "AbortError");
+        if (error) {
+          if ((error as { code?: string }).code === "PGRST202") return new Map();
+          throw error;
+        }
+        for (const r of data ?? []) {
+          out.set(scheduleClashKey(r.request_id, r.employee_id), r.reason);
         }
       }
       return out;
@@ -444,8 +448,35 @@ export const OVERTIME_REFRESH_KEYS: readonly (readonly string[])[] = [
   ["headcount-confirmed-overtime"],
 ];
 
-export function refreshAfterOvertimeChange(qc: Pick<QueryClient, "invalidateQueries">) {
-  for (const queryKey of OVERTIME_REFRESH_KEYS) void qc.invalidateQueries({ queryKey });
+/**
+ * How long a run of overtime saves may settle before the clash check runs again.
+ *
+ * The clash check is the heaviest read in the app (a full panel is ~6 s of database time).
+ * Recording five outcomes in a row used to start it five times over; now the saves mark
+ * it stale at once and it runs once, this long after the last of them. Every other read
+ * refreshes straight away, as before.
+ */
+export const SCHEDULE_CLASH_SETTLE_MS = 4_000;
+const SCHEDULE_CLASH_KEY = ["overtime_schedule_clashes"] as const;
+let scheduleClashTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function refreshAfterOvertimeChange(
+  qc: Pick<QueryClient, "invalidateQueries"> & Partial<Pick<QueryClient, "refetchQueries">>,
+) {
+  for (const queryKey of OVERTIME_REFRESH_KEYS) {
+    if (queryKey[0] === SCHEDULE_CLASH_KEY[0]) {
+      // Stale now (a screen opened meanwhile reads it fresh), re-read once, later.
+      void qc.invalidateQueries({ queryKey, refetchType: "none" });
+    } else {
+      void qc.invalidateQueries({ queryKey });
+    }
+  }
+  if (!qc.refetchQueries) return;
+  if (scheduleClashTimer) clearTimeout(scheduleClashTimer);
+  scheduleClashTimer = setTimeout(() => {
+    scheduleClashTimer = null;
+    void qc.refetchQueries?.({ queryKey: SCHEDULE_CLASH_KEY, type: "active" });
+  }, SCHEDULE_CLASH_SETTLE_MS);
 }
 
 export function useOvertimeMutations() {
