@@ -38,6 +38,9 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Re
 import XLSX from "xlsx-js-style";
 import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 import { inRunOrder, shiftTimeToIso, runTimings, formatRunMinutes, wallClock } from "@/lib/productionTime";
+import { useMachineTime } from "@/hooks/useMachineTime";
+import { MachineTimePanel, MachineTimePrintTable } from "@/components/production/MachineTimePanel";
+import type { LineMachineTime } from "@/lib/machineTime";
 
 /** Drop the customs code ("… [HS CODE:2106909285]") from a catalog name. */
 /** date "yyyy-mm-dd" → "MM/YY" for the compact batch mfg/expiry readout. */
@@ -598,6 +601,7 @@ export type BayBand = {
 
 export function ProductionControlPrintSheet({
   sessions, bands, summary, skuMap, leaders, periodLabel, shiftLabel, filtersLabel,
+  machineTime, producedByLine, lineOrder,
 }: {
   sessions: SessionRow[];
   bands: {
@@ -610,6 +614,10 @@ export function ProductionControlPrintSheet({
   periodLabel: string;
   shiftLabel: string;
   filtersLabel?: string;
+  /** The machine-time table from iTouching's log, printed under the readouts when there is one. */
+  machineTime?: LineMachineTime[];
+  producedByLine?: Map<string, number>;
+  lineOrder?: (a: string, b: string) => number;
 }) {
   const leaderById = new Map(leaders.map((l) => [l.id, l.name]));
   const cell = "px-1.5 py-[3.5px] align-top";
@@ -889,6 +897,10 @@ export function ProductionControlPrintSheet({
           {summary.lineCount === 1 ? "" : "s"}
         </div>
       </div>
+
+      {machineTime && machineTime.length > 0 && (
+        <MachineTimePrintTable lines={machineTime} producedByLine={producedByLine ?? new Map()} order={lineOrder} />
+      )}
 
       {sessions.length === 0 ? (
         <p className="text-[8pt]">No production recorded for this period.</p>
@@ -1281,6 +1293,22 @@ export default function ShiftHistoryPage() {
     return { day, bay, clock };
   }, [filtered, ragPlanBySession]);
 
+  /**
+   * O relógio da MÁQUINA para a pesquisa — total, paragens planeadas, disponível, a
+   * correr, paragens não planeadas — como o "OEE Machine by Period" do iTouching. Vem do
+   * log de estados do iTouching e não das horas escritas nas filas: as duas coisas
+   * respondem a perguntas diferentes e ficam as duas. Ver `machineTime.ts`.
+   *
+   * O líder e o SKU não estreitam a máquina (uma linha não corre "para um líder"), por
+   * isso só o período, o turno e a linha entram na leitura; o painel diz quando há um
+   * filtro que estreita a folha e não a máquina.
+   */
+  const machineTime = useMachineTime({ from, to, shift: fShift, line: fLine === "__all__" ? null : fLine });
+  const producedByLine = useMemo(() => new Map(summary.lines.map((l) => [l.line, l.actual])), [summary.lines]);
+  const lineOrder = (a: string, b: string) => lineRank(a) - lineRank(b) || a.localeCompare(b);
+  const machineNarrowedBy = [fLeader !== "__all__" ? "leader" : null, fSku !== "__all__" ? "SKU" : null]
+    .filter((v): v is string => v !== null);
+
   /** A tinta do atingimento — os mesmos três degraus da régua, um só sítio. */
   const pctTone = (pct: number | null) =>
     pct == null ? "text-muted-foreground"
@@ -1644,7 +1672,17 @@ export default function ShiftHistoryPage() {
           </ControlRow>
         </ControlPlate>
 
-
+        <MachineTimePanel
+          lines={machineTime.data}
+          isLoading={machineTime.isLoading}
+          isError={machineTime.isError}
+          error={machineTime.error}
+          onRetry={() => machineTime.refetch()}
+          tooLong={machineTime.tooLong}
+          producedByLine={producedByLine}
+          narrowedBy={machineNarrowedBy}
+          order={lineOrder}
+        />
 
         {printing && (
           <ProductionControlPrintSheet
@@ -1656,6 +1694,9 @@ export default function ShiftHistoryPage() {
             periodLabel={periodLabel}
             shiftLabel={shiftLabel}
             filtersLabel={filtersLabel}
+            machineTime={machineTime.data}
+            producedByLine={producedByLine}
+            lineOrder={lineOrder}
           />
         )}
 
