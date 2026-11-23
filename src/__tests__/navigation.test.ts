@@ -259,6 +259,21 @@ describe("sidebar", () => {
     expect(item, "the leader scorecard is back in the operator sidebar").toBeUndefined();
   });
 
+  it("keeps Meetings off the line tablet the leaders sign in to", () => {
+    // Owner's decision, 23/11/2026: the operator login is the line tablet, and Meetings
+    // has no place on it — no menu row, no route, no card on the landing page (which
+    // is gated on the same action). Bringing it back is a product decision.
+    expect(can("operator", "meetings.view")).toBe(false);
+    const row = navItems.find((i) => i.url === "/dashboard/communication/meetings");
+    expect(row, "the Meetings row is gone from the menu altogether").toBeDefined();
+    for (const device of ["desktop", "tablet", "mobile"] as const) {
+      expect(navItemShows(row!, "operator", device), `Meetings is back on the operator's ${device} menu`).toBe(false);
+    }
+    // Everyone else keeps it.
+    expect(navItemShows(row!, "engineer", "desktop")).toBe(true);
+    expect(navItemShows(row!, "employee", "mobile")).toBe(true);
+  });
+
   it("gives every bottom-bar row a label that fits without truncating", () => {
     // The tab bar caps each label at max-w-[68px] with `truncate`, which at text-2xs
     // holds about eleven characters — measured in Chromium at 390px, not guessed. Over

@@ -96,7 +96,7 @@ const EXPECTED: Record<Action, Role[]> = {
   "chat.dm": ["admin", "manager", "operator", "supervisor", "production_office_admin", "employee"],
   "chat.groups.manage": ["admin", "supervisor", "production_office_admin"],
   "chat.settings": ["admin", "manager"],
-  "meetings.view": ["admin", "manager", "maintenance_manager", "engineer", "operator", "warehouse", "quality_supervisor", "production_office_admin", "supervisor", "employee"],
+  "meetings.view": ["admin", "manager", "maintenance_manager", "engineer", "warehouse", "quality_supervisor", "production_office_admin", "supervisor", "employee"],
   "meetings.manage": ["admin"],
   "notifications.view": ["admin", "manager", "maintenance_manager", "engineer", "operator", "quality_supervisor", "production_office_admin"],
   "notifications.manage": ["admin", "manager"],

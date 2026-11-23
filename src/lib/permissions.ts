@@ -312,7 +312,12 @@ const MATRIX: Record<Action, Role[]> = {
   // meetings they are invited to (RLS on `meetings`/`meeting_participants`), so the
   // employee holds it inside the ceiling. Scheduling is the admin's alone; SQL asks
   // `has_action(uid, 'meetings.manage', '{admin}')`, so a grant here reaches both sides.
-  "meetings.view": [...ALL, "warehouse", "quality_supervisor", "production_office_admin", "supervisor", "employee"],
+  //
+  // THE OPERATOR IS OUT, by the owner's decision of 23/11/2026: the operator login is the
+  // line tablet the leaders sign in to, and Meetings has no place on it. The list is
+  // written out rather than `...ALL`, because ALL carries `operator` and would quietly
+  // hand the calendar back to the line.
+  "meetings.view": ["admin", "manager", "maintenance_manager", "engineer", "warehouse", "quality_supervisor", "production_office_admin", "supervisor", "employee"],
   "meetings.manage": ["admin"],
 
 
