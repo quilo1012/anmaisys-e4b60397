@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { blockOf, HEADCOUNT_BLOCKS, sheetBandOf, SHEET_BANDS } from "./headcountBlocks";
+import {
+  blockOf, boardBandOf, boardReorderBand, HEADCOUNT_BLOCKS, overtimeSlot, sheetBandOf, SHEET_BANDS,
+} from "./headcountBlocks";
+import { moveLine, renumber } from "./lineOrder";
 
 /**
  * Which block an area is drawn in, asserted rather than assumed.
@@ -126,5 +129,73 @@ describe("sheetBandOf", () => {
         }
       }
     }
+  });
+});
+
+/**
+ * A coluna Overtime no sítio do Lab, no board (23/11/2026).
+ *
+ * As áreas e a ordem são as de produção nesse dia: Runner 130, Lab 140, Blender Room
+ * 150, Office 160; no apoio WH Team 10 … Quality 40.
+ */
+describe("Overtime no sítio do Lab", () => {
+  const a = (name: string, section: string, kind: string, sort_order: number) =>
+    ({ id: name, name, section, kind, sort_order });
+  const areas = [
+    a("Line 1", "production", "production", 10),
+    a("WH Team", "sectors", "support", 10),
+    a("Line 2", "production", "production", 20),
+    a("Maintenance", "sectors", "support", 20),
+    a("Hygiene", "sectors", "support", 30),
+    a("Quality", "sectors", "support", 40),
+    a("Blender Team", "production", "support", 120),
+    a("Runner", "production", "production", 130),
+    a("Lab", "sectors", "support", 140),
+    a("Blender Room", "sectors", "support", 150),
+    a("Office", "sectors", "support", 160),
+  ];
+  const drawn = (band: "production" | "support") => areas.filter((x) => boardBandOf(x) === band);
+
+  it("desce o Lab para o apoio no board, e só o Lab", () => {
+    expect(drawn("production").map((x) => x.name))
+      .toEqual(["Line 1", "Line 2", "Blender Team", "Runner", "Blender Room", "Office"]);
+    expect(drawn("support").map((x) => x.name))
+      .toEqual(["WH Team", "Maintenance", "Hygiene", "Quality", "Lab"]);
+  });
+
+  it("deixa a folha como estava: o Lab continua na banda de produção do export e do papel", () => {
+    expect(sheetBandOf({ name: "Lab", section: "sectors", kind: "support" })).toBe("production");
+  });
+
+  it("põe a coluna Overtime entre o Runner e o Blender Room, onde o Lab estava", () => {
+    const prod = drawn("production");
+    expect(prod[overtimeSlot(prod, areas)].name).toBe("Blender Room");
+  });
+
+  it("põe-na no fim da banda quando não há Lab na produção da folha", () => {
+    const semLab = areas.filter((x) => x.name !== "Lab");
+    const prod = semLab.filter((x) => boardBandOf(x) === "production");
+    expect(overtimeSlot(prod, semLab)).toBe(prod.length);
+  });
+
+  it("mantém o Overtime entre as mesmas vizinhas quando se muda uma linha de sítio", () => {
+    // Line 1 arrastada para o fim da banda (para cima do Office).
+    const band = boardReorderBand(areas, "production");
+    expect(band.map((x) => x.name)).toContain("Lab");
+    const moved = moveLine(band.map((x) => x.id), "Line 1", "Office")!;
+    const { save } = renumber(moved, new Map(band.map((x) => [x.id, x.sort_order])));
+    const by = new Map(save.map((c) => [c.id, c.sort_order]));
+    const after = areas
+      .map((x) => ({ ...x, sort_order: by.get(x.id) ?? x.sort_order }))
+      .sort((x, y) => x.sort_order - y.sort_order || x.name.localeCompare(y.name));
+    const prod = after.filter((x) => boardBandOf(x) === "production");
+    const at = overtimeSlot(prod, after);
+    expect(prod[at - 1].name).toBe("Runner");
+    expect(prod[at].name).toBe("Blender Room");
+  });
+
+  it("não renumera o Lab quando se arrastam colunas no apoio", () => {
+    expect(boardReorderBand(areas, "support").map((x) => x.name))
+      .toEqual(["WH Team", "Maintenance", "Hygiene", "Quality"]);
   });
 });
