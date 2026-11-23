@@ -70,6 +70,67 @@ export function sheetBandOf(
 }
 
 /**
+ * No board, o sítio do Lab na banda de produção é da coluna Overtime (pedido de 23/11/2026).
+ *
+ * A coluna Overtime estava no fim da segunda banda, quase sempre fora do ecrã, e quem trata
+ * das horas extra tinha de a ir buscar lá ao fundo. Passa a ser desenhada onde o Lab estava,
+ * e o Lab desce para o apoio, no fim das áreas — onde o Overtime estava. Ninguém sai do
+ * board: o Lab leva quatro a seis pessoas por dia e continua à vista.
+ *
+ * Só o board muda. A folha (export, papel e import) continua com `sheetBandOf`, e o Lab
+ * continua na banda de produção dela, no mesmo sítio. É por isso que o `sort_order` do Lab
+ * se conta sempre na banda de produção: arrastar colunas no apoio não lhe mexe
+ * (`boardReorderBand`), e é esse número que diz onde a coluna Overtime fica.
+ */
+export const OVERTIME_SLOT_AREA = "lab";
+
+export function isOvertimeSlotArea(area: { name?: string }): boolean {
+  return (area.name ?? "").trim().toLowerCase() === OVERTIME_SLOT_AREA;
+}
+
+/** A banda em que o board desenha a área: a da folha, menos o Lab, que vai para o apoio. */
+export function boardBandOf(
+  area: { name?: string; section: string | null; kind: string },
+): SheetBand {
+  return isOvertimeSlotArea(area) ? "support" : sheetBandOf(area);
+}
+
+/**
+ * As áreas cujo `sort_order` se renumera quando se arrasta uma coluna nesta banda do board.
+ *
+ * Na produção entra o Lab, que lá não é desenhado: ocupa o lugar da coluna Overtime, e
+ * mudar uma linha de sítio mantém-no entre as mesmas vizinhas — na folha e no board. No
+ * apoio fica de fora: um número de apoio pô-lo-ia, na folha, no meio das linhas.
+ */
+export function boardReorderBand<A extends { name: string; section: string | null; kind: string }>(
+  areas: readonly A[],
+  band: SheetBand,
+): A[] {
+  return band === "production"
+    ? areas.filter((a) => sheetBandOf(a) === "production")
+    : areas.filter((a) => boardBandOf(a) === "support" && !isOvertimeSlotArea(a));
+}
+
+/**
+ * Antes de que coluna desenhada da banda de produção entra a coluna Overtime.
+ *
+ * No sítio onde o Lab ficaria pela ordem gravada (`sort_order`, depois o nome, como o board
+ * ordena). Sem Lab na banda de produção da folha — renomeado, desactivado, ou tirado de
+ * `PRODUCTION_BAND_AREAS` — vai para o fim da banda, à vista na mesma.
+ */
+export function overtimeSlot(
+  drawn: readonly { name: string; sort_order: number }[],
+  areas: readonly { name: string; section: string | null; kind: string; sort_order: number }[],
+): number {
+  const lab = areas.find((a) => isOvertimeSlotArea(a) && sheetBandOf(a) === "production");
+  if (!lab) return drawn.length;
+  const at = drawn.findIndex(
+    (a) => a.sort_order > lab.sort_order || (a.sort_order === lab.sort_order && a.name.localeCompare(lab.name) > 0),
+  );
+  return at < 0 ? drawn.length : at;
+}
+
+/**
  * Uma área chamada "Training".
  *
  * A folha da empresa tem Training como uma coluna ao lado das linhas, e alguém criou

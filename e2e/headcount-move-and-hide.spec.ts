@@ -161,7 +161,8 @@ test("without BLOCO 140 the board draws every line and the hide switch says why 
   await page.route(/headcount_area_hidden/, (route) =>
     route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ code: "PGRST205", message: "Could not find the table" }) }));
   await openDay(page);
-  await expect(page.locator(".headcount-columns .headcount-column-title")).toHaveCount(4);
+  // As quatro linhas; a coluna Overtime, que também está na banda, não conta.
+  await expect(page.locator(".headcount-columns .headcount-column-title").filter({ hasNotText: /^Overtime$/ })).toHaveCount(4);
   await page.getByRole("button", { name: "Line 6 actions" }).click();
   await expect(page.getByRole("menuitem", { name: "Hide line (not available yet)" })).toHaveAttribute("aria-disabled", "true");
 });

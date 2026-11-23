@@ -3,8 +3,8 @@ import { HeadcountHoursTable } from "@/components/workforce/HeadcountHoursTable"
 import { lineLeadersByArea } from "@/lib/leaderMark";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO } from "date-fns";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { sheetBandOf, isTrainingArea, foldTrainingArea } from "@/lib/headcountBlocks";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { boardBandOf, boardReorderBand, isOvertimeSlotArea, overtimeSlot, isTrainingArea, foldTrainingArea } from "@/lib/headcountBlocks";
 import { holdDrag, clearDrag, takeDrag } from "@/lib/boardDrag";
 import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type Announcements, type DragEndEvent } from "@dnd-kit/core";
@@ -135,6 +135,13 @@ const AWAY_BLOCKS: { status: AllocStatus; label: string; head: SheetFill }[] = [
   // Amarelo, como uma área: na planilha o Training é uma coluna de sítio, não de falta.
   { status: "training", label: "Training", head: "heading" },
 ];
+
+/**
+ * A coluna Overtime, desenhada na banda de produção no sítio do Lab (`overtimeSlot`)
+ * sempre que essa banda está à vista. Escondida ou dobrada, volta para o fim da segunda
+ * banda com as outras: a coluna muda de sítio, nunca desaparece.
+ */
+const OVERTIME_BLOCK = AWAY_BLOCKS.find((b) => b.status === "overtime")!;
 
 /**
  * As cores da planilha, as mesmas que o export escreve (`SHEET_LOOKS` em
@@ -1226,14 +1233,22 @@ function ShiftBoard({
   const trayPeople = unassigned.filter((e) => !ghostIds.has(e.id));
   // A segunda banda leva as faltas, como na folha — só quando está à vista.
   const supportShown = blockVisible("support") && openSections["support"] !== false
-    && areas.some((a) => sheetBandOf(a) === "support");
+    && areas.some((a) => boardBandOf(a) === "support");
   const awayInSupport = supportShown;
+  // O Overtime sobe para o sítio do Lab na banda de produção quando ela está à vista e
+  // aberta; senão fica no fim, com as faltas, como estava.
+  const overtimeUp = blockVisible("production") && openSections["production"] !== false
+    && areas.some((a) => boardBandOf(a) === "production");
+  const tailBlocks = overtimeUp ? AWAY_BLOCKS.filter((b) => b !== OVERTIME_BLOCK) : AWAY_BLOCKS;
+  const awayRowsOf = (b: (typeof AWAY_BLOCKS)[number]) =>
+    peopleWith(b.status).length + (b.status === "holiday" ? halfDayMirrors.length : 0);
 
   /**
    * Os números da barra de cima levam à coluna que contam.
    *
-   * Overtime e Training estão no fim da segunda banda, muitas vezes fora do ecrã à
-   * direita e em baixo; quem lê "5 Overtime" quer ver quem são. Uma secção dobrada ou
+   * Training está no fim da segunda banda, muitas vezes fora do ecrã à direita e em
+   * baixo (o Overtime também esteve, até subir para o sítio do Lab); quem lê
+   * "5 Overtime" quer ver quem são. Uma secção dobrada ou
    * escondida pelo filtro abre-se primeiro, senão o salto caía num sítio invisível.
    * O realce dura o suficiente para o olho encontrar a coluna depois do scroll.
    */
@@ -1255,7 +1270,8 @@ function ShiftBoard({
 
   /**
    * O fim da segunda banda: `Total staff in Production` a roxo, e depois as faltas, as
-   * horas extra e a formação, cada uma na sua coluna com a cor que a folha lhe dá.
+   * horas extra e a formação, cada uma na sua coluna com a cor que a folha lhe dá. As
+   * horas extra só quando não subiram para a banda de produção (`tailBlocks`).
    */
   const sheetTail = (rows: number) => (
     <>
@@ -1273,73 +1289,76 @@ function ShiftBoard({
         </div>
         <div className="flex-1 bg-card" />
       </div>
-      {AWAY_BLOCKS.map((block) => {
-        // Holidays also mirrors everybody on a line who is on a half-day holiday, the
-        // way Overtime lists people who are on their line. The mirror is not a second
-        // person: they are counted once, on their line, and the column says so.
-        const people = block.status === "holiday" ? [...peopleWith("holiday"), ...halfDayMirrors] : peopleWith(block.status);
-        const own = block.status === "holiday" ? people.length - halfDayMirrors.length : people.length;
-        const mirrored = people.length - own;
-        return (
-          <DropZone
-            key={block.status}
-            id={jumpId(block.status)}
-            disabled={!canManage}
-            className="-mb-px -mr-px h-full rounded-none"
-            onDrop={(employeeId) => handleDrop({ areaId: null, status: block.status })(employeeId)}
-          >
-            <SheetColumn
-              title={block.label}
-              head={block.head}
-              onHeadClick={canManage ? () => setPickingAway({ status: block.status, label: block.label }) : undefined}
-              headHint={canManage ? `Add or remove people in ${block.label}` : undefined}
-              rows={rows}
-              count={own}
-              filled={people.length}
-              countLabel={mirrored ? `${own} + ${mirrored} half day` : undefined}
-              blank={canManage ? (
-                <SheetCellInput
-                  className="h-full"
-                  people={everyone}
-                  columnName={block.label}
-                  whereNow={whereNow}
-                  onPick={(id) => handleDrop({ areaId: null, status: block.status })(id)}
-                />
-              ) : undefined}
-            >
-              {people.map((p) => (
-                <Chip
-                  key={`${p.id}${p.halfWhere ? "-half" : ""}`}
-                  name={p.shown}
-                  personRef={refOf.get(p.id)}
-                  sheetName={p.sheetName}
-                  startTime={p.startTime}
-                  tag={p.tag}
-                  workHours={workHoursOf(p.id)}
-                  onOpen={() => setEditing(p.id)}
-                  dimmed={isDimmed(p.shown) && isDimmed(p.full_name)}
-                  role={roleOf(p)}
-                  tone={block.status === "overtime" ? "overtime" : block.status === "training" ? "training" : "away"}
-                  half={isHalfDay(byEmployee.get(p.id))}
-                  halfWhere={p.halfWhere}
-                  hint={block.status === "holiday" && !p.halfWhere && isHalfDay(byEmployee.get(p.id)) && !byEmployee.get(p.id)?.area_id
-                    ? "Worked half — drag onto the line they worked" : null}
-                  {...marksOf(p.id)}
-                  crew={crewBadge(p.shift_group)}
-                  leftOn={p.left_on ?? null}
-                  draggable={canManage}
-                  onDragStart={(e) => {
-                    holdDrag(p.id);
-                    dragStart(e, p.id);
-                  }}
-                />
-              ))}
-            </SheetColumn>
-          </DropZone>
-        );
-      })}
+      {tailBlocks.map((block) => awayColumn(block, rows))}
     </>
   );
+
+  /** One column of the blocks under the board: Sickness, Unpaid, Holidays, Overtime, Training. */
+  const awayColumn = (block: (typeof AWAY_BLOCKS)[number], rows: number) => {
+    // Holidays also mirrors everybody on a line who is on a half-day holiday, the
+    // way Overtime lists people who are on their line. The mirror is not a second
+    // person: they are counted once, on their line, and the column says so.
+    const people = block.status === "holiday" ? [...peopleWith("holiday"), ...halfDayMirrors] : peopleWith(block.status);
+    const own = block.status === "holiday" ? people.length - halfDayMirrors.length : people.length;
+    const mirrored = people.length - own;
+    return (
+      <DropZone
+        key={block.status}
+        id={jumpId(block.status)}
+        disabled={!canManage}
+        className="-mb-px -mr-px h-full rounded-none"
+        onDrop={(employeeId) => handleDrop({ areaId: null, status: block.status })(employeeId)}
+      >
+        <SheetColumn
+          title={block.label}
+          head={block.head}
+          onHeadClick={canManage ? () => setPickingAway({ status: block.status, label: block.label }) : undefined}
+          headHint={canManage ? `Add or remove people in ${block.label}` : undefined}
+          rows={rows}
+          count={own}
+          filled={people.length}
+          countLabel={mirrored ? `${own} + ${mirrored} half day` : undefined}
+          blank={canManage ? (
+            <SheetCellInput
+              className="h-full"
+              people={everyone}
+              columnName={block.label}
+              whereNow={whereNow}
+              onPick={(id) => handleDrop({ areaId: null, status: block.status })(id)}
+            />
+          ) : undefined}
+        >
+          {people.map((p) => (
+            <Chip
+              key={`${p.id}${p.halfWhere ? "-half" : ""}`}
+              name={p.shown}
+              personRef={refOf.get(p.id)}
+              sheetName={p.sheetName}
+              startTime={p.startTime}
+              tag={p.tag}
+              workHours={workHoursOf(p.id)}
+              onOpen={() => setEditing(p.id)}
+              dimmed={isDimmed(p.shown) && isDimmed(p.full_name)}
+              role={roleOf(p)}
+              tone={block.status === "overtime" ? "overtime" : block.status === "training" ? "training" : "away"}
+              half={isHalfDay(byEmployee.get(p.id))}
+              halfWhere={p.halfWhere}
+              hint={block.status === "holiday" && !p.halfWhere && isHalfDay(byEmployee.get(p.id)) && !byEmployee.get(p.id)?.area_id
+                ? "Worked half — drag onto the line they worked" : null}
+              {...marksOf(p.id)}
+              crew={crewBadge(p.shift_group)}
+              leftOn={p.left_on ?? null}
+              draggable={canManage}
+              onDragStart={(e) => {
+                holdDrag(p.id);
+                dragStart(e, p.id);
+              }}
+            />
+          ))}
+        </SheetColumn>
+      </DropZone>
+    );
+  };
   const { onLines, support, overtime, training } = tally;
   // Training is outside `away` and outside working: a person in training is here and
   // is paid, and counting them as away would tell a supervisor to ring them. It is
@@ -1947,8 +1966,11 @@ function ShiftBoard({
 
       {SECTIONS.map((section) => {
         if (!blockVisible(section.key)) return null;
-        const allOfKind = areas.filter((a) => sheetBandOf(a) === section.key);
+        const allOfKind = areas.filter((a) => boardBandOf(a) === section.key);
         if (allOfKind.length === 0) return null;
+        // Os números que um arrasto renumera: na produção com o Lab, que lá não se desenha
+        // mas guarda o sítio da coluna Overtime; no apoio sem ele (`boardReorderBand`).
+        const reorderBand = boardReorderBand(areas, section.key === "production" ? "production" : "support");
         // Hidden on this shift and empty today: not drawn. Hidden but with people on it:
         // drawn anyway and flagged, so a filter never takes anybody off the headcount.
         const { drawn: ofKind, hiddenButStaffed } = linesToDraw(allOfKind, hiddenHere, (id) => peopleIn(id).length);
@@ -1956,13 +1978,17 @@ function ShiftBoard({
         const lastDrawn = ofKind[ofKind.length - 1]?.id;
         const open = openSections[section.key] !== false;
         const inSection = ofKind.reduce((n, a) => n + peopleIn(a.id).length, 0);
+        // A coluna Overtime, na banda de produção, entra antes desta coluna desenhada.
+        const withOvertime = section.key === "production" && overtimeUp;
+        const otAt = withOvertime ? overtimeSlot(ofKind, areas) : -1;
         // A banda inteira tem a altura da coluna mais comprida, mais uma linha livre
         // para escrever um nome — como a folha. As faltas contam na banda de apoio
-        // quando estão lá dentro.
+        // quando estão lá dentro, e o Overtime na de produção quando subiu.
         const bandRows = Math.max(
           0,
           ...ofKind.map((a) => peopleIn(a.id).length + ghostsIn(a.id).length),
-          ...(section.key === "support" && awayInSupport ? AWAY_BLOCKS.map((b) => peopleWith(b.status).length + (b.status === "holiday" ? halfDayMirrors.length : 0)) : []),
+          ...(section.key === "support" && awayInSupport ? tailBlocks.map(awayRowsOf) : []),
+          ...(withOvertime ? [awayRowsOf(OVERTIME_BLOCK)] : []),
         ) + 1;
         return (
         <div key={section.key} id={jumpId(section.key)}>
@@ -1992,9 +2018,9 @@ function ShiftBoard({
             if (!over) return;
             // The whole band, hidden lines included (see `moveLine`). Only sort_order is
             // written: the people point at the line, so the team goes with it as it is.
-            const moved = moveLine(allOfKind.map((a) => a.id), String(active.id), String(over.id));
+            const moved = moveLine(reorderBand.map((a) => a.id), String(active.id), String(over.id));
             if (!moved) return;
-            const { save, undo } = renumber(moved, new Map(allOfKind.map((a) => [a.id, a.sort_order])));
+            const { save, undo } = renumber(moved, new Map(reorderBand.map((a) => [a.id, a.sort_order])));
             if (!save.length) return;
             const name = allOfKind.find((a) => a.id === active.id)?.name ?? "Line";
             const drawnIds = new Set(ofKind.map((a) => a.id));
@@ -2014,12 +2040,14 @@ function ShiftBoard({
             não um corredor de cartões. Tantas lado a lado quantas o ecrã deixar. */}
         <div
           className="headcount-columns grid gap-0"
-          style={{ gridTemplateColumns: bandTracks(ofKind.length + (section.key === "support" && awayInSupport ? 1 + AWAY_BLOCKS.length : 0)) }}
+          style={{ gridTemplateColumns: bandTracks(ofKind.length + (section.key === "support" && awayInSupport ? 1 + tailBlocks.length : 0) + (withOvertime ? 1 : 0)) }}
         >
-        {ofKind.map((area) => {
+        {ofKind.map((area, i) => {
           const people = peopleIn(area.id);
           return (
-            <SortableColumn key={area.id} id={area.id} name={area.name}>
+            <Fragment key={area.id}>
+            {i === otAt && awayColumn(OVERTIME_BLOCK, bandRows)}
+            <SortableColumn id={area.id} name={area.name}>
             {(grip) => (
             <>
             {gaps.before.has(area.id) && (
@@ -2036,7 +2064,9 @@ function ShiftBoard({
               <SheetColumn
                 title={area.name}
                 head="heading"
-                grip={canManage ? grip : undefined}
+                // O Lab, no apoio, não se arrasta: o seu número é o sítio da coluna Overtime
+                // na produção, e um arrasto aqui renumerava-o com as áreas de apoio.
+                grip={canManage && !(section.key === "support" && isOvertimeSlotArea(area)) ? grip : undefined}
                 onHeadClick={canManage ? () => setPicking({ id: area.id, name: area.name }) : undefined}
                 headHint={canManage ? `Add or remove people on ${area.name}` : undefined}
                 actions={canManage ? (
@@ -2151,8 +2181,10 @@ function ShiftBoard({
             </>
             )}
             </SortableColumn>
+            </Fragment>
           );
         })}
+        {otAt === ofKind.length && awayColumn(OVERTIME_BLOCK, bandRows)}
         {/* A figura roxa e as faltas fecham a segunda banda, que é onde a folha as tem. */}
         {section.key === "support" && awayInSupport && sheetTail(bandRows)}
         </div>
@@ -2429,9 +2461,9 @@ function ShiftBoard({
           ela: ficam numa fila sua, com o mesmo desenho. */}
       {!awayInSupport && (
         <>
-          <SectionLabel>Away, overtime &amp; training</SectionLabel>
+          <SectionLabel>{overtimeUp ? "Away & training" : <>Away, overtime &amp; training</>}</SectionLabel>
           <div className="headcount-away grid gap-0" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))" }}>
-            {sheetTail(Math.max(0, ...AWAY_BLOCKS.map((b) => peopleWith(b.status).length + (b.status === "holiday" ? halfDayMirrors.length : 0))) + 1)}
+            {sheetTail(Math.max(0, ...tailBlocks.map(awayRowsOf)) + 1)}
           </div>
         </>
       )}

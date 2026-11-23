@@ -69,7 +69,9 @@ async function openDay(page: Page) {
   await expect(page.locator(".headcount-columns").getByText("Bruno Reis").first()).toBeVisible({ timeout: 20000 });
 }
 
-const titles = (page: Page) => page.locator(".headcount-columns .headcount-column-title");
+// As colunas das linhas. A coluna Overtime também está na banda (no sítio do Lab, que
+// aqui não existe, por isso no fim), mas não se arrasta e não é o que isto mede.
+const titles = (page: Page) => page.locator(".headcount-columns .headcount-column-title").filter({ hasNotText: /^Overtime$/ });
 const column = (page: Page, name: string) => page.locator(".headcount-sheet-column").filter({ has: page.locator(".headcount-column-title", { hasText: new RegExp(`^${name}$`) }) });
 
 /** Pick a column up by its grip and put it down over another, the way a mouse does. */

@@ -121,6 +121,34 @@ test("os sectores estão na banda de apoio, e o Runner na de produção", async 
   expect(where["Line 1"]).toBe("PRODUCTION");
 });
 
+// 23/11/2026: a coluna Overtime sobe para a banda de produção, no sítio do Lab, para
+// quem trata das horas extra não ter de a ir buscar ao fim da segunda banda. O Lab
+// desce para o apoio — continua no board, com as suas pessoas.
+test("a coluna Overtime fica no sítio do Lab, e o Lab desce para o apoio", async ({ page }) => {
+  await openBoard(page);
+  const bands = page.locator(".headcount-columns");
+  await expect(bands.nth(0).locator(".headcount-column-title")).toHaveText([
+    "Line 1", "Line 2", "Line 3", "Line 4", "Line 5", "Line 6", "Tablet line", "Runner", "Overtime", "Office",
+  ]);
+  await expect(bands.nth(1).locator(".headcount-column-title")).toHaveText([
+    "Hygiene", "Quality", "WH team", "Maintenance", "Lab", "Sickness", "Unpaid", "Holidays", "Training",
+  ]);
+  // Uma coluna Overtime só, e com quem lá está.
+  await expect(page.locator("#headcount-day-overtime")).toHaveCount(1);
+  const otPerson = EMP.find((e) => e.id === ALLOCS.find((a) => a.status === "overtime")!.employee_id)!;
+  await expect(page.locator("#headcount-day-overtime").getByText(otPerson.full_name)).toBeVisible();
+  // O Lab no apoio não se arrasta: o seu sítio na produção é o da coluna Overtime.
+  await expect(page.getByRole("button", { name: "Move Lab to another position" })).toHaveCount(0);
+});
+
+test("com a Production dobrada, a coluna Overtime volta para o fim da segunda banda", async ({ page }) => {
+  await openBoard(page);
+  await page.locator(".headcount-section-label", { hasText: "Production" }).click();
+  const support = page.locator(".headcount-columns").nth(1);
+  await expect(support.locator(".headcount-column-title")).toContainText(["Lab", "Sickness", "Unpaid", "Holidays", "Overtime", "Training"]);
+  await expect(page.locator("#headcount-day-overtime")).toHaveCount(1);
+});
+
 test("cada coluna acaba num Total, como cada coluna da planilha", async ({ page }) => {
   await openBoard(page);
 
