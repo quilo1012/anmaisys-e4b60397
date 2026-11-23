@@ -317,9 +317,10 @@ export const navItems: NavItem[] = [
   { title: "Analytics", url: "/dashboard/analytics", icon: BarChart3, roles: ["admin", "manager", "production_office_admin"], group: "Overview", action: "reports.analytics" },
 
   { title: "Communication Hub", shortTitle: "Messages", url: "/dashboard/communication", icon: MessageCircle, roles: ["admin", "manager", "operator", "supervisor", "production_office_admin", "employee"], group: "Communication", action: "chat.dm" },
-  // Meetings (BLOCO 159): every role, because the database shows each person only the
-  // meetings they are invited to; only `meetings.manage` schedules.
-  { title: "Meetings", url: "/dashboard/communication/meetings", icon: CalendarDays, roles: ["admin", "manager", "maintenance_manager", "engineer", "operator", "warehouse", "quality_supervisor", "production_office_admin", "supervisor", "employee"], group: "Communication", action: "meetings.view" },
+  // Meetings (BLOCO 159): every role but the line tablet, because the database shows each
+  // person only the meetings they are invited to; only `meetings.manage` schedules. Not
+  // on the operator's menu since 23/11/2026 — that login is the leaders' line tablet.
+  { title: "Meetings", url: "/dashboard/communication/meetings", icon: CalendarDays, roles: ["admin", "manager", "maintenance_manager", "engineer", "warehouse", "quality_supervisor", "production_office_admin", "supervisor", "employee"], group: "Communication", action: "meetings.view" },
 
   // Administration — who can do what. Everything that configures the system itself
   // (the audit trail, the iTouching integration) lives under System.
@@ -1187,8 +1188,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     and the conversation started under the tab bar (30/10/2026). */}
                 {!location.pathname.startsWith("/dashboard/communication") && <PushPromptBanner role={role} />}
                 {/* Each person's Overview is their landing page; the next three meetings sit
-                    on top of it, and nothing is drawn when there are none. */}
-                {location.pathname === homePath && <UpcomingMeetingsWidget className="mb-3" />}
+                    on top of it, and nothing is drawn when there are none — nor for a login
+                    that cannot open the calendar the card links to (the line tablet). */}
+                {location.pathname === homePath && can(role as Role, "meetings.view") && <UpcomingMeetingsWidget className="mb-3" />}
                 <ShellTitleContext.Provider value={currentPageTitle}><InShellContentContext.Provider value={true}>{children}</InShellContentContext.Provider></ShellTitleContext.Provider>
               </div>
             </div>
