@@ -17,7 +17,9 @@
  * - **On lines** is people in production in a `production` area; **support** is the
  *   rest of them. The two add up to in production.
  * - **Away** is `sick`, `unpaid` and `holiday`. Training is apart from it: a person in
- *   training is here and is paid.
+ *   training is here and is paid. So is **other department** (`other_department`):
+ *   in, paid, working for another department of the company today — neither away nor
+ *   in production.
  * - Only rows the board can draw count (`drawable` — active people, and leavers up to
  *   their last day; see `boardPeopleOn`). Counting what is not drawn is how a column
  *   reading zero sat under a total saying ten.
@@ -57,6 +59,8 @@ export interface BoardTally {
   support: number;
   overtime: number;
   training: number;
+  /** In today, working for another department rather than on this board. */
+  otherDepartment: number;
   away: { sick: number; unpaid: number; holiday: number; total: number };
   /** On the rota today and on no row of the board. */
   notPlaced: number;
@@ -97,6 +101,7 @@ export function tallyBoard({ allocations, areas, roster, drawable }: BoardTallyI
     support: inAreas.length - onLines,
     overtime: overtime.length,
     training: is("training").length,
+    otherDepartment: is("other_department").length,
     away: { sick, unpaid, holiday, total: sick + unpaid + holiday },
     notPlaced: roster.filter((e) => !placed.has(e.id)).length,
     byArea,

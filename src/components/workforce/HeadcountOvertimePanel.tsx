@@ -93,7 +93,7 @@ export function HeadcountOvertimePanel() {
       const byShift = new Map<string, number>();
       for (const a of allocs as any[]) {
         const c = counts.get(a.employee_id) ?? { present: 0, holiday: 0, sick: 0, unpaid: 0 };
-        if (a.status === "assigned" || a.status === "overtime") c.present += 1;
+        if (a.status === "assigned" || a.status === "overtime" || a.status === "other_department") c.present += 1;
         else if (a.status === "holiday") c.holiday += 1;
         else if (a.status === "sick") c.sick += 1;
         else if (a.status === "unpaid") c.unpaid += 1;

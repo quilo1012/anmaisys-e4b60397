@@ -31,6 +31,7 @@ const STATUS_LABEL: Record<string, string> = {
   unpaid: "Absence",
   holiday: "Holiday",
   training: "Training",
+  other_department: "Other department",
 };
 
 function OperatorTeamContent() {

@@ -214,6 +214,7 @@ export function droppedOut(outcome: string | undefined): boolean {
 
 const OFF_STATUS: Record<string, string> = {
   holiday: "On holiday", sick: "Off sick", unpaid: "Unpaid leave", training: "On training",
+  other_department: "In another department",
 };
 
 /**

@@ -26,10 +26,13 @@
  * Training sits directly under a day on a line: somebody in training was in the
  * building and is paid for the day, so it beats every away mark — but a person who
  * also stood on a line that day worked, and the line wins.
+ *
+ * Another department is a day worked, only not on these lines: it ranks with them.
  */
 const RANK: Record<string, number> = {
   assigned: 0,
   overtime: 0,
+  other_department: 0,
   training: 1,
   holiday: 2,
   sick: 3,
@@ -47,6 +50,8 @@ export function attendanceForStatus(boardStatus: string): AttendanceStatus {
     // accepted `training` since the workforce board was written; only the production
     // board could not say it.
     : boardStatus === "training" ? "training"
+    // `other_department` falls through here on purpose: they came in and worked the
+    // shift, for another department. Payroll pays it as a day present.
     : "present";
 }
 

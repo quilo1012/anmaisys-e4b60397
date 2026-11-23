@@ -127,14 +127,15 @@ function markStatus(status: string): DayStatus {
 
 /** What a board row says the person would be doing. */
 function boardStatus(status: string): DayStatus {
-  if (status === "assigned" || status === "overtime") return "present";
+  // Another department is still their shift, worked — only not on these lines.
+  if (status === "assigned" || status === "overtime" || status === "other_department") return "present";
   if (status === "training") return "other";
   return kindStatus(status);
 }
 
 const BOARD_WORDS: Record<string, string> = {
   assigned: "Working", overtime: "Overtime", holiday: "Holiday", sick: "Sick",
-  unpaid: "Unpaid leave", training: "Training",
+  unpaid: "Unpaid leave", training: "Training", other_department: "Other department",
 };
 
 /** Statuses that come from a record, and so can be compared with the board's plan. */
@@ -449,7 +450,7 @@ export function myShifts(
       // off-rota placement: a shift they are put on, not
       // overtime they said yes to. My Overtime lists it as "Not one you accepted".
       const kind: MyShift["kind"] =
-        b.status === "assigned" || (b.status === "overtime" && !ask) ? "scheduled"
+        b.status === "assigned" || b.status === "other_department" || (b.status === "overtime" && !ask) ? "scheduled"
         : b.status === "overtime" || b.status === "training" || b.status === "holiday" || b.status === "sick" || b.status === "unpaid" ? b.status
         : "other";
       const away = kind === "holiday" || kind === "sick" || kind === "unpaid" || kind === "other";

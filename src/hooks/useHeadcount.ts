@@ -98,7 +98,13 @@ export type Allocation = {
  * day is paid. It is now `unpaid`, with `sick` beside it, so the board records the
  * two separately at the moment somebody knows which it was.
  */
-export type AllocStatus = "assigned" | "overtime" | "sick" | "unpaid" | "holiday" | "training";
+/**
+ * `other_department`: in today, paid, working their shift for another department of
+ * the company rather than on this board's lines — lent to the warehouse for the day,
+ * say. Like Training it is neither an absence nor a place on a line: payroll reads it
+ * as `present`, and it is not in "Total staff in Production".
+ */
+export type AllocStatus = "assigned" | "overtime" | "sick" | "unpaid" | "holiday" | "training" | "other_department";
 
 /** Areas that make up the board columns (production first, then support). */
 export function useHeadcountAreas() {
@@ -646,14 +652,18 @@ export function useLastWorkedDay(onDate: string, shift: string, enabled = true) 
   });
 }
 
-/** Read each person's earlier working positions and booked absences; never write on opening. */
+/**
+ * Read each person's earlier working positions, booked absences and standing place on
+ * their record; never write on opening. The standing place is read only so somebody
+ * whose place on file is Training can be suggested in the Training column.
+ */
 export function usePreviousWorkingPlaces(onDate: string, shift: string, enabled: boolean) {
   return useQuery({
     queryKey: ["headcount-previous-places", onDate, shift],
     enabled,
     staleTime: 60_000,
     queryFn: async () => {
-      const [previous, attendance] = await Promise.all([
+      const [previous, attendance, standing] = await Promise.all([
         fetchAllRows<PreviousPlace>({
           range: (from, to) => supabase.from("daily_allocations")
             .select("employee_id,area_id,status,on_date")
@@ -662,11 +672,15 @@ export function usePreviousWorkingPlaces(onDate: string, shift: string, enabled:
             .order("on_date", { ascending: false }).order("id").range(from, to),
         }),
         supabase.from("employee_attendance").select("employee_id,status").eq("on_date", onDate),
+        supabase.from("employees").select("id,headcount_area_id").eq("active", true).not("headcount_area_id", "is", null),
       ]);
       if (attendance.error) throw attendance.error;
+      if (standing.error) throw standing.error;
       return {
         previous,
         awayIds: (attendance.data ?? []).filter((r) => r.status !== "present").map((r) => r.employee_id),
+        standing: ((standing.data ?? []) as Array<{ id: string; headcount_area_id: string | null }>)
+          .map((r) => ({ employee_id: r.id, area_id: r.headcount_area_id })),
       };
     },
   });
@@ -1167,8 +1181,10 @@ export function useAllocationMutations(onDate: string, shift: string) {
       // rota does not put on this board on this date is dropped here rather than
       // written down as working outside their rota — they are simply not due.
       // Unknown is not off, exactly as everywhere else: an unrecorded rota is kept.
+      // A suggested Training row has no area — the Training column is a state, not an
+      // area — and is kept: it is the suggestion for somebody whose place is Training.
       const placements: BoardPlacement[] = from.kind === "suggested"
-        ? from.rows.filter((r) => !!r.area_id && !isOffRota(rotaCover(r.employee_id, onDate, shift)))
+        ? from.rows.filter((r) => (!!r.area_id || r.status === "training") && !isOffRota(rotaCover(r.employee_id, onDate, shift)))
         : source === null
         ? ((srcRows.data ?? []) as Array<{ employee_id: string; area_id: string | null }>)
             // A matrix row with no line (somebody away on the day it was saved) says
@@ -1187,7 +1203,9 @@ export function useAllocationMutations(onDate: string, shift: string) {
 
       const here = (hereRows.data ?? []) as Array<{ employee_id: string }>;
       const onBoard = new Set(here.map((r) => r.employee_id));
-      const working = placements.filter((r) => r.status === "assigned" || r.status === "overtime");
+      // Only a suggested plan carries Training forward (see `rowsToCopy`'s `keepTraining`).
+      const working = placements.filter((r) => r.status === "assigned" || r.status === "overtime"
+        || (from.kind === "suggested" && r.status === "training"));
       // A named day can be a day nobody worked, and a matrix can be empty or hold
       // nobody due in today. Said plainly, because "nobody was copied" and "nobody was
       // there" are different answers and only one of them means try another day.
@@ -1240,6 +1258,7 @@ export function useAllocationMutations(onDate: string, shift: string) {
         shift,
         alreadyOnTheDay: [...onBoard, ...away, ...gone],
         cover: (id) => rotaCover(id, onDate, shift),
+        keepTraining: from.kind === "suggested",
       });
       if (payload.length === 0) {
         return { source: label, written: 0, kept: here.length, away: away.length, gone: gone.length, receipt: null };

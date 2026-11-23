@@ -721,6 +721,13 @@ describe("the day laid out as the company's sheet", () => {
     expect(layout([al("e1", "training", null)]).bottom.map((c) => c.label)).toContain("Training");
   });
 
+  it("prints Other department only on a day somebody is in it, and never in the total", () => {
+    expect(layout([]).bottom.map((c) => c.label)).not.toContain("Other department");
+    const l = layout([al("e1", "other_department", null), al("e2", "assigned", "l1")]);
+    expect(l.bottom.find((c) => c.label === "Other department")!.names.map((n) => n.name)).toEqual(["Zeca Lima"]);
+    expect(l.totalStaff).toBe(1);
+  });
+
   it("prints first and last name, and every name when two people would read the same", () => {
     const crew = [emp("e1", "Felipe de Oliveira Nascimento"), emp("e2", "Maria Souza Santos"), emp("e3", "Maria Lima Santos")];
     const l = printSheetLayout({
