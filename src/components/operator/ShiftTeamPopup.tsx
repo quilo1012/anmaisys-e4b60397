@@ -21,6 +21,7 @@ const STATUS_LABEL: Record<string, string> = {
   unpaid: "Unpaid",
   holiday: "Holiday",
   training: "Training",
+  other_department: "Other department",
 };
 
 const KEY_PREFIX = "an_shift_team_seen_";

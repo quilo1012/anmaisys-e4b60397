@@ -134,6 +134,10 @@ const AWAY_BLOCKS: { status: AllocStatus; label: string; head: SheetFill }[] = [
   { status: "overtime", label: "Overtime", head: "leave" },
   // Amarelo, como uma área: na planilha o Training é uma coluna de sítio, não de falta.
   { status: "training", label: "Training", head: "heading" },
+  // Quem veio e trabalha hoje para outro departamento da empresa (emprestado ao
+  // armazém, por exemplo). Também amarelo: é um sítio onde estão, não uma falta. Conta
+  // como presente para o payroll e fica fora do "Total staff in Production".
+  { status: "other_department", label: "Other department", head: "heading" },
 ];
 
 /**
@@ -1195,6 +1199,11 @@ function ShiftBoard({
   const planKind: "normal" | "changeover" = [1, 5].includes(new Date(`${onDate}T12:00:00`).getDay()) ? "changeover" : "normal";
   const plan = matrix.matrices.find((m) => m.kind === planKind);
   const previousPlaces = usePreviousWorkingPlaces(onDate, shift, onDate >= todayIso);
+  // Quem tem o Training como sítio habitual na ficha é sugerido na coluna Training.
+  const trainingIds = useMemo(() => {
+    const ids = new Set(allAreas.filter(isTrainingArea).map((a) => a.id));
+    return (previousPlaces.data?.standing ?? []).filter((r) => r.area_id && ids.has(r.area_id)).map((r) => r.employee_id);
+  }, [allAreas, previousPlaces.data]);
   const suggestedRows = useMemo(() => {
     if (!previousPlaces.isSuccess || matrix.isLoading) return [];
     return suggestHeadcountPlaces({
@@ -1205,9 +1214,10 @@ function ShiftBoard({
       primary: plan?.rows ?? [],
       secondary: matrix.matrices.find((m) => m.kind !== planKind)?.rows ?? [],
       previous: previousPlaces.data.previous,
+      trainingIds,
       onDate, today: todayIso,
     });
-  }, [previousPlaces.isSuccess, previousPlaces.data, matrix.isLoading, matrix.matrices, onShift, byEmployee, areas, plan, planKind, onDate, todayIso]);
+  }, [previousPlaces.isSuccess, previousPlaces.data, matrix.isLoading, matrix.matrices, onShift, byEmployee, areas, plan, planKind, onDate, todayIso, trainingIds]);
   const ghostByArea = useMemo(() => {
     const out = new Map<string, HeadcountEmployee[]>();
     for (const r of suggestedRows) {
@@ -1219,9 +1229,23 @@ function ShiftBoard({
     for (const list of out.values()) list.sort((a, b) => a.full_name.localeCompare(b.full_name));
     return out;
   }, [suggestedRows, employeeById]);
-  const ghostCount = [...ghostByArea.values()].reduce((n, l) => n + l.length, 0);
-  const ghostIds = new Set([...ghostByArea.values()].flat().map((p) => p.id));
+  // As sugestões sem área — hoje só o Training — desenham-se na coluna do seu estado.
+  const ghostByStatus = useMemo(() => {
+    const out = new Map<string, HeadcountEmployee[]>();
+    for (const r of suggestedRows) {
+      if (r.area_id) continue;
+      const p = employeeById.get(r.employee_id);
+      if (!p) continue;
+      out.set(r.status, [...(out.get(r.status) ?? []), p]);
+    }
+    for (const list of out.values()) list.sort((a, b) => a.full_name.localeCompare(b.full_name));
+    return out;
+  }, [suggestedRows, employeeById]);
+  const allGhosts = [...ghostByArea.values(), ...ghostByStatus.values()].flat();
+  const ghostCount = allGhosts.length;
+  const ghostIds = new Set(allGhosts.map((p) => p.id));
   const ghostsIn = (areaId: string) => ghostByArea.get(areaId) ?? [];
+  const ghostsWith = (status: AllocStatus) => ghostByStatus.get(status) ?? [];
   // A bandeja é para quem não tem sítio nenhum — nem gravado, nem no plano.
   const trayPeople = unassigned.filter((e) => !ghostIds.has(e.id));
   // A segunda banda leva as faltas, como na folha — só quando está à vista.
@@ -1264,7 +1288,7 @@ function ShiftBoard({
             cabeçalho ter a altura dos outros. O nome inteiro fica no title. */}
         <div
           className={cn("flex min-h-[40px] items-center justify-center border-b px-1.5 text-center text-sm font-bold", SHEET_RULE, SHEET_FILL.grand)}
-          title="Total staff in Production — everyone on a line or in support, overtime included; Sickness, Unpaid, Holidays and Training are not added in"
+          title="Total staff in Production — everyone on a line or in support, overtime included; Sickness, Unpaid, Holidays, Training and Other department are not added in"
         >
           Total staff in Pr
         </div>
@@ -1295,7 +1319,7 @@ function ShiftBoard({
               headHint={canManage ? `Add or remove people in ${block.label}` : undefined}
               rows={rows}
               count={own}
-              filled={people.length}
+              filled={people.length + ghostsWith(block.status).length}
               countLabel={mirrored ? `${own} + ${mirrored} half day` : undefined}
               blank={canManage ? (
                 <SheetCellInput
@@ -1319,7 +1343,7 @@ function ShiftBoard({
                   onOpen={() => setEditing(p.id)}
                   dimmed={isDimmed(p.shown) && isDimmed(p.full_name)}
                   role={roleOf(p)}
-                  tone={block.status === "overtime" ? "overtime" : block.status === "training" ? "training" : "away"}
+                  tone={block.status === "overtime" ? "overtime" : block.status === "training" || block.status === "other_department" ? "training" : "away"}
                   half={isHalfDay(byEmployee.get(p.id))}
                   halfWhere={p.halfWhere}
                   hint={block.status === "holiday" && !p.halfWhere && isHalfDay(byEmployee.get(p.id)) && !byEmployee.get(p.id)?.area_id
@@ -1333,6 +1357,16 @@ function ShiftBoard({
                     dragStart(e, p.id);
                   }}
                 />
+              ))}
+              {ghostsWith(block.status).map((p) => (
+                <div
+                  key={`plan-${p.id}`}
+                  data-planned
+                  title={`${p.full_name} — ${block.label} is their place on file, not saved yet`}
+                  className={cn("flex h-12 shrink-0 flex-col items-center justify-center border-b px-2 text-center text-sm italic text-muted-foreground", SHEET_RULE)}
+                >
+                  <span className="max-w-full truncate">{p.full_name}</span>
+                </div>
               ))}
             </SheetColumn>
           </DropZone>
@@ -1962,7 +1996,7 @@ function ShiftBoard({
         const bandRows = Math.max(
           0,
           ...ofKind.map((a) => peopleIn(a.id).length + ghostsIn(a.id).length),
-          ...(section.key === "support" && awayInSupport ? AWAY_BLOCKS.map((b) => peopleWith(b.status).length + (b.status === "holiday" ? halfDayMirrors.length : 0)) : []),
+          ...(section.key === "support" && awayInSupport ? AWAY_BLOCKS.map((b) => peopleWith(b.status).length + ghostsWith(b.status).length + (b.status === "holiday" ? halfDayMirrors.length : 0)) : []),
         ) + 1;
         return (
         <div key={section.key} id={jumpId(section.key)}>
@@ -2429,9 +2463,9 @@ function ShiftBoard({
           ela: ficam numa fila sua, com o mesmo desenho. */}
       {!awayInSupport && (
         <>
-          <SectionLabel>Away, overtime &amp; training</SectionLabel>
+          <SectionLabel>Away, overtime, training &amp; other departments</SectionLabel>
           <div className="headcount-away grid gap-0" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))" }}>
-            {sheetTail(Math.max(0, ...AWAY_BLOCKS.map((b) => peopleWith(b.status).length + (b.status === "holiday" ? halfDayMirrors.length : 0))) + 1)}
+            {sheetTail(Math.max(0, ...AWAY_BLOCKS.map((b) => peopleWith(b.status).length + ghostsWith(b.status).length + (b.status === "holiday" ? halfDayMirrors.length : 0))) + 1)}
           </div>
         </>
       )}

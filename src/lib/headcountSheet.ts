@@ -24,6 +24,8 @@ const STATUS_BLOCKS: { label: string; status: AllocStatus; also?: string[] }[] =
   { label: "Unpaid", status: "unpaid", also: ["Unpaid leave", "Unpaid Leave"] },
   { label: "Holidays", status: "holiday", also: ["Holiday", "Annual leave"] },
   { label: "Overtime", status: "overtime", also: ["Overtime staff", "OT"] },
+  // Written by the export only on a day somebody is in it; read back by its heading.
+  { label: "Other department", status: "other_department", also: ["Other dept", "Other dept.", "Another department"] },
 ];
 
 /**
@@ -449,6 +451,10 @@ export function buildHeadcountWorkbook(input: {
       // dois, por `also`, por isso uma folha antiga continua a entrar.
       ["Overtime staff", namesWith(["overtime"])],
     ];
+    // Other department only on a day somebody is in it: the company sheet has no such
+    // column, and an empty one every morning is a column nobody asked for.
+    const elsewhere = namesWith(["other_department"]);
+    if (elsewhere.length) states.push(["Other department", elsewhere]);
     const known = new Set(input.areas.map((a) => a.id));
     const noLine = working
       .filter((a) => !a.area_id || !known.has(a.area_id))
@@ -549,8 +555,9 @@ export interface PrintSheetLayout {
  * - **One "Absence".** The board keeps Sickness and Unpaid apart because payroll needs
  *   to. The sheet has never said which, and a page pinned up by the lines is not where
  *   it should start.
- * - **Training appears only when somebody is on it.** The company sheet has no such
- *   column, and an empty one every day is a column nobody asked for.
+ * - **Training and Other department appear only when somebody is in them.** The
+ *   company sheet has neither column, and an empty one every day is a column nobody
+ *   asked for.
  */
 export function printSheetLayout(input: {
   areas: HeadcountArea[];
@@ -615,6 +622,8 @@ export function printSheetLayout(input: {
   const top = columnsOf(active.filter((a) => sheetBandOf(a) === "production")).map(place);
   const support = columnsOf(active.filter((a) => sheetBandOf(a) !== "production")).map(place);
   const training = state("Training", "training", ["training"]);
+  // Yellow, like a place: they are working, only for another department.
+  const elsewhere = state("Other department", "area", ["other_department"]);
 
   return {
     top,
@@ -637,6 +646,7 @@ export function printSheetLayout(input: {
           .map((a) => cell(a))),
       },
       ...(training.names.length ? [training] : []),
+      ...(elsewhere.names.length ? [elsewhere] : []),
     ],
     totalStaff: [...top, ...support].reduce((n, c) => n + c.names.length, 0),
   };

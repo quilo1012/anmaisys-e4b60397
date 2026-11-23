@@ -181,10 +181,10 @@ function useBoardTally(shift: Shift, day: string) {
 }
 
 function sumTallies(ts: BoardTally[]) {
-  const s = { onRota: 0, working: 0, inProduction: 0, onLines: 0, support: 0, overtime: 0, training: 0, notPlaced: 0, sick: 0, holiday: 0, unpaid: 0, away: 0 };
+  const s = { onRota: 0, working: 0, inProduction: 0, onLines: 0, support: 0, overtime: 0, training: 0, otherDepartment: 0, notPlaced: 0, sick: 0, holiday: 0, unpaid: 0, away: 0 };
   for (const t of ts) {
     s.onRota += t.onRota; s.working += t.working; s.inProduction += t.inProduction; s.onLines += t.onLines; s.support += t.support;
-    s.overtime += t.overtime; s.training += t.training; s.notPlaced += t.notPlaced;
+    s.overtime += t.overtime; s.training += t.training; s.otherDepartment += t.otherDepartment; s.notPlaced += t.notPlaced;
     s.sick += t.away.sick; s.holiday += t.away.holiday; s.unpaid += t.away.unpaid; s.away += t.away.total;
   }
   return s;
@@ -239,7 +239,8 @@ function Staffing({ day, shifts, from, to }: { day: string; shifts: Shift[]; fro
         <KpiCard label="On overtime" value={t.overtime} loading={loading} icon={<Clock3 className="h-4 w-4" />}
           sublabel="People on an overtime row" accent="purple" onClick={() => navigate(boardLink())} />
         <KpiCard label="Training" value={t.training} loading={loading} icon={<CheckCircle2 className="h-4 w-4" />}
-          sublabel="Here, not on a line" accent="muted" onClick={() => navigate(boardLink())} />
+          sublabel={t.otherDepartment ? `Here, not on a line · ${t.otherDepartment} in another department` : "Here, not on a line"}
+          accent="muted" onClick={() => navigate(boardLink())} />
       </div>
 
       <div className="grid gap-3 lg:grid-cols-2">
@@ -421,7 +422,7 @@ function StaffingAlerts({ day, shifts }: { day: string; shifts: Shift[] }) {
         detail: "Absences nobody booked ahead", to: `/dashboard/headcount?date=${day}&shift=${s}` });
     }
     const tm = tomorrow[s].tally;
-    if (!tomorrow[s].isLoading && tm.onRota > 0 && tm.working + tm.away.total + tm.training < tm.onRota) {
+    if (!tomorrow[s].isLoading && tm.onRota > 0 && tm.working + tm.away.total + tm.training + tm.otherDepartment < tm.onRota) {
       items.push({ tone: "info", text: `${s} tomorrow: ${tm.working} of ${tm.onRota} due in are placed`,
         to: `/dashboard/headcount?date=${next}&shift=${s}` });
     }

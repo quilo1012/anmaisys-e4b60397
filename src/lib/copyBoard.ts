@@ -87,15 +87,27 @@ export function rowsToCopy(input: {
   alreadyOnTheDay: Iterable<string>;
   /** Whether the rota puts this person on this board on the target date. */
   cover: (employeeId: string) => RotaCover;
+  /**
+   * Write `training` rows too, as Training. Only for the board's own suggested plan,
+   * where a Training row is the suggestion for somebody whose standing place is
+   * Training. A day copied from another day still carries only who was working: a
+   * training day is a record of that date, like its absences.
+   */
+  keepTraining?: boolean;
 }): CopiedRow[] {
   const skip = new Set(input.alreadyOnTheDay);
   const taken = new Set<string>();
   const out: CopiedRow[] = [];
 
   for (const row of input.source) {
-    if (row.status !== "assigned" && row.status !== "overtime") continue;
+    const training = input.keepTraining === true && row.status === "training";
+    if (row.status !== "assigned" && row.status !== "overtime" && !training) continue;
     if (skip.has(row.employee_id) || taken.has(row.employee_id)) continue;
     taken.add(row.employee_id);
+    if (training) {
+      out.push({ on_date: input.onDate, shift: input.shift, employee_id: row.employee_id, area_id: null, status: "training" });
+      continue;
+    }
     out.push({
       on_date: input.onDate,
       shift: input.shift,
