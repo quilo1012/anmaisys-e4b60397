@@ -1,4 +1,4 @@
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, type ReactNode } from "react";
 import { installTelemetryHandlers, setTelemetryContext } from "@/lib/telemetry";
 import { lazyWithReload } from "@/lib/lazyWithReload";
 import { useAppUpdater } from "@/hooks/useAppUpdater";
@@ -267,6 +267,17 @@ const LegacyWoLinkRedirect = () => {
 const MessagesRedirect = () => {
   const { search } = useLocation();
   return <Navigate to={`/dashboard/communication${search}`} replace />;
+};
+
+/**
+ * "Where I'm working" is not part of the employee login (owner's request, 24/11/2026):
+ * no menu row, and an old bookmark or typed address lands on the employee's home screen
+ * instead. Every other role that holds `attendance.view_own` still opens the page.
+ */
+const EmployeeLeavesWorkArea = ({ children }: { children: ReactNode }) => {
+  const { role } = useAuth();
+  if (role === "employee") return <Navigate to={roleDashMap.employee} replace />;
+  return <>{children}</>;
 };
 
 const SessionRedirect = () => {
@@ -591,7 +602,7 @@ const App = () => (
                   path="/dashboard/my-work-area"
                   element={
                     <ProtectedRoute requiredAction="attendance.view_own">
-                      <MyWorkAreaPage />
+                      <EmployeeLeavesWorkArea><MyWorkAreaPage /></EmployeeLeavesWorkArea>
                     </ProtectedRoute>
                   }
                 />

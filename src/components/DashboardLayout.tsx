@@ -17,7 +17,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, PanelLeft, PanelLeftClose, PanelLeftOpen, Target, Warehouse, HandCoins, Hand, CalendarCheck, Link2, Search, X, MapPin, KeyRound } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, PanelLeft, PanelLeftClose, PanelLeftOpen, Target, Warehouse, HandCoins, Hand, CalendarCheck, Link2, Search, X, KeyRound } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -262,7 +262,12 @@ export const navItems: NavItem[] = [
   // and the Permissions page can put the row back for a role without touching this
   // file. Same treatment /dashboard/workforce and Control Center already have.
   { title: "My Attendance", shortTitle: "Attendance", url: "/dashboard/my-attendance", icon: CalendarCheck, roles: ["employee"], group: "Production", action: "attendance.view_own" },
-  { title: "Where I'm working", shortTitle: "Work area", url: "/dashboard/my-work-area", icon: MapPin, roles: ["employee"], group: "Production", action: "attendance.view_own" },
+  // "Where I'm working" is OFF the employee login: owner's request, 24/11/2026. The row
+  // is deleted rather than given `roles: []`, because it shared `attendance.view_own`
+  // with My Attendance — a Permissions-page override of that action for `employee`
+  // would have put it straight back in `navItemShows`. The route still exists for the
+  // roles that are not employees, and sends an employee to their home screen
+  // (`EmployeeLeavesWorkArea` in App.tsx). Bringing it back is a product decision.
 
   // ── Warehouse ────────────────────────────────────────────────────────────────
   // O armazém é um departamento, não um ecrã de manutenção, e estava debaixo do
