@@ -1,4 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { navItems, navItemShows, SIDEBAR_GROUPS } from "@/components/DashboardLayout";
 import { SYSTEM_TOOLS } from "@/pages/dashboard/SystemHubPage";
 import { can, roleHolds, setPermissionOverrides, ALL_ACTIONS, ALL_ROLES, type Action, type Role } from "@/lib/permissions";
@@ -132,10 +134,10 @@ describe("sidebar", () => {
       // because they are the same people seen from the ask, not a new subject.
       "Overtime",
       "My Overtime",
-      // The same person's own record beside their own overtime: the two self-service
-      // rows read together, and come last because they are about one person.
+      // The same person's own record beside their own overtime: the self-service rows
+      // read together, and come last because they are about one person. Where I'm
+      // working left the menu on 24/11/2026 (owner's request).
       "My Attendance",
-      "Where I'm working",
     ]);
   });
 
@@ -179,14 +181,34 @@ describe("sidebar", () => {
     // `employees.user_id = auth.uid()`, and the five roles that carried this row have
     // seven logins and zero employee records between them — 281 of the 281 answers in
     // `overtime_responses` from a role with the row came from employees.
-    for (const url of ["/dashboard/my-attendance", "/dashboard/my-work-area", "/dashboard/my-overtime"]) {
+    // Where I'm working left the menu altogether on 24/11 — see the test below.
+    for (const url of ["/dashboard/my-attendance", "/dashboard/my-overtime"]) {
       const row = navItems.find((i) => i.url === url);
       expect(row, `${url} has lost its menu row entirely`).toBeDefined();
       expect(
         row!.roles,
-        `${row!.title} is offered to ${row!.roles.join(", ")} — these three are the floor's own record`,
+        `${row!.title} is offered to ${row!.roles.join(", ")} — these are the floor's own record`,
       ).toEqual(["employee"]);
     }
+  });
+
+  it("keeps Where I'm working off the employee login", () => {
+    // Owner's request, 24/11/2026: an employee signing in with their badge does not
+    // get Where I'm working — no menu row on any device, and the address sends them to
+    // their home screen. The row is gone from navItems altogether, not hidden by role:
+    // it shared `attendance.view_own` with My Attendance, so an override of that action
+    // on the Permissions page would otherwise bring it back. Bringing it back is a
+    // product decision.
+    expect(navItems.find((i) => i.url === "/dashboard/my-work-area"), "Where I'm working is back in the menu").toBeUndefined();
+    for (const device of ["desktop", "tablet", "mobile"] as const) {
+      const shown = navItems.filter((i) => navItemShows(i, "employee", device)).map((i) => i.url);
+      expect(shown, `employee ${device} menu`).not.toContain("/dashboard/my-work-area");
+    }
+    const app = readFileSync(resolve(__dirname, "../App.tsx"), "utf8");
+    const at = app.indexOf('path="/dashboard/my-work-area"');
+    expect(at, "the route itself is still there for other roles").toBeGreaterThan(-1);
+    expect(app.slice(at, at + 300), "an employee typing the address is not sent home").toContain("<EmployeeLeavesWorkArea>");
+    expect(app).toMatch(/role === "employee"\) return <Navigate to=\{roleDashMap\.employee\} replace \/>/);
   });
 
   it("still lets anyone who can answer an ask be shown one", () => {
@@ -200,11 +222,9 @@ describe("sidebar", () => {
   });
 
   it("leaves the employee a way to each of their own screens", () => {
-    // The other half: employee is the one role that MUST keep them. An employee's whole
-    // sidebar is four rows, and two of them are these.
+    // The other half: employee is the one role that MUST keep them.
     const employeeRows = navItems.filter((i) => (i.roles as string[]).includes("employee")).map((i) => i.url);
     expect(employeeRows).toContain("/dashboard/my-attendance");
-    expect(employeeRows).toContain("/dashboard/my-work-area");
     expect(employeeRows).toContain("/dashboard/my-overtime");
   });
 
