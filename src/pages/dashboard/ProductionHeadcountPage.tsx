@@ -48,6 +48,7 @@ import { suggestHeadcountPlaces } from "@/lib/headcountSuggestions";
 import { useRole } from "@/hooks/useRole";
 import { AreaPicker } from "@/components/workforce/AreaPicker";
 import { useShiftPatterns } from "@/hooks/useWorkforce";
+import { patternHoursLabel } from "@/lib/patternHoursLabel";
 import { PersonDayDialog } from "@/components/workforce/PersonDayDialog";
 import { roleStripe } from "@/lib/workforceRoles";
 import { disambiguators } from "@/lib/boardNames";
@@ -1082,7 +1083,9 @@ function ShiftBoard({
         // O nome do cadastro, um por pessoa. A grafia da folha vai para o tooltip.
         shown: person.full_name,
         sheetName: a.sheet_name ?? null,
-        startTime: a.sheet_start_time ?? null,
+        // Hora da folha primeiro; senão o horário do rota, só quando não é o turno de 12 h.
+        startTime: a.sheet_start_time
+          ?? (a.status === "assigned" ? patternHoursLabel(patterns.find((p) => p.id === person.shift_pattern_id), onDate) : null),
         tag: a.sheet_tag ?? null,
         overtime: a.status === "overtime",
         // Only the leader designated on this line, shift and date. A job title alone never leads.
@@ -1098,7 +1101,7 @@ function ShiftBoard({
       });
     }
     return byArea;
-  }, [allocations, employeeById]);
+  }, [allocations, employeeById, patterns, onDate]);
 
   /** Lines with more than one designated leader this shift: shown, never silently resolved. */
   const leaderConflicts = useMemo(() => {
