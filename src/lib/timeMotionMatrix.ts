@@ -10,3 +10,20 @@ export const TIME_MOTION: Record<number, readonly TimeMotionRow[]> = {
   5: [[0.39, 508.0, 7.09, "Keep current (low data)"], [0.4, 480.0, 7.5, "Last 3 months"], [0.45, 437.5, 8.23, "All runs"], [0.5, 410.7, 8.77, "All runs"], [0.8, 380.0, 9.47, "Last 3 months"], [0.825, 430.5, 8.36, "Last 3 months"], [0.85, 431.0, 8.35, "All runs"], [0.875, 245.0, 14.69, "Keep current (low data)"], [0.9, 579.6, 6.21, "Last 3 months"], [1.0, 457.5, 7.87, "Last 3 months"], [1.2, 512.0, 7.03, "Last 3 months"], [1.4, 350.0, 10.29, "Keep current (low data)"], [1.5, 255.3, 14.1, "Keep current (low data)"], [1.6, 318.0, 11.32, "Last 3 months"], [1.8, 357.2, 10.08, "Last 3 months"], [2.0, 298.2, 12.07, "Last 3 months"], [2.4, 312.4, 11.52, "All runs"], [3.0, 217.4, 16.56, "All runs"], [3.13, 246.9, 14.58, "All runs"], [6.0, 119.3, 30.19, "Last 3 months"], [12.0, 56.6, 63.6, "All runs"], [20.0, 37.2, 96.86, "All runs"], [25.0, 159.0, 22.64, "All runs"]],
   6: [[0.132, 823.4, 4.37, "All runs"], [0.4, 425.0, 8.47, "Keep current (low data)"], [0.45, 496.8, 7.25, "Last 3 months"], [0.5, 410.6, 8.77, "All runs"], [0.825, 409.6, 8.79, "Last 3 months"], [0.85, 357.0, 10.08, "Last 3 months"], [0.9, 427.5, 8.42, "Last 3 months"], [1.0, 443.0, 8.13, "Last 3 months"], [1.2, 328.9, 10.95, "All runs"], [1.5, 282.1, 12.76, "All runs"], [1.8, 296.0, 12.16, "Last 3 months"], [2.0, 291.4, 12.36, "Last 3 months"], [2.4, 318.6, 11.3, "Last 3 months"], [3.13, 204.1, 17.64, "All runs"], [6.0, 126.3, 28.51, "Last 3 months"], [25.0, 22.0, 163.64, "All runs"]],
 };
+
+/** Machines outside the six filler lines, from the same review ("Recommended Matrix" / "Matrix Capsules + Gel").
+ * `pack` is shown as written on the sheet; `note` carries the review's own warning. */
+export interface MachineSpeed { pack: string; perHour: number; unit: string; seconds: number; product?: string; note?: string }
+export const OTHER_MACHINES: { name: string; rows: MachineSpeed[] }[] = [
+  { name: "Gel Machine", rows: [{ pack: "0.6 kg", perHour: 3494, unit: "tubs", seconds: 1.03 }] },
+  {
+    name: "Tablet Line",
+    rows: [
+      { pack: "60 tablets", perHour: 950, unit: "tubs", seconds: 3.7, note: "Copied from Line 6 on the sheet — not tablet data" },
+      { pack: "90 tablets", perHour: 850, unit: "tubs", seconds: 4.2, note: "Copied from Line 6 on the sheet — not tablet data" },
+      { pack: "120 tablets", perHour: 766, unit: "tubs", seconds: 4.63, note: "Copied from Line 6 on the sheet — not tablet data" },
+    ],
+  },
+  { name: "Capsules Machine 1", rows: [{ pack: "647 mg", perHour: 26034, unit: "capsules", seconds: 0.69, product: "TONGKAT ALI - 647mg", note: "5 fills per cycle" }] },
+  { name: "Capsules Machine 2", rows: [{ pack: "500 mg", perHour: 1525125, unit: "capsules", seconds: 0.049, product: "High Strength Probiotic", note: "Sheet figure (1,525,125/h, 21 fills per cycle) looks too high — confirm" }] },
+];

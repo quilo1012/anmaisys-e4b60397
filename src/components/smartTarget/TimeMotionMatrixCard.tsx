@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { TIME_MOTION, TIME_MOTION_SOURCE } from "@/lib/timeMotionMatrix";
+import { TIME_MOTION, TIME_MOTION_SOURCE, OTHER_MACHINES } from "@/lib/timeMotionMatrix";
 import { packSizeKg } from "@/lib/packSize";
 import { cn } from "@/lib/utils";
 
@@ -81,6 +81,29 @@ export function TimeMotionMatrixCard() {
             </div>
           ))}
         </div>
+        {line === "all" && (
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            {OTHER_MACHINES.map((m) => (
+              <div key={m.name} className="overflow-hidden rounded-lg border">
+                <div className="bg-muted px-3 py-2 font-semibold">{m.name}</div>
+                <table className="w-full text-sm">
+                  <thead className="text-xs uppercase tracking-wide text-muted-foreground">
+                    <tr><th className="p-2 text-left">Pack</th><th className="p-2 text-right">Per hour</th><th className="p-2 text-right">Fill time</th></tr>
+                  </thead>
+                  <tbody>
+                    {m.rows.map((r) => (
+                      <tr key={r.pack} className="border-t align-top">
+                        <td className="p-2"><div className="font-medium">{r.pack}</div>{r.product && <div className="text-xs text-muted-foreground">{r.product}</div>}{r.note && <div className="text-xs text-warning">{r.note}</div>}</td>
+                        <td className="p-2 text-right tabular-nums">{r.perHour.toLocaleString("en-GB")} {r.unit}</td>
+                        <td className="p-2 text-right font-semibold tabular-nums">{r.seconds.toFixed(2)} s</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
   );
