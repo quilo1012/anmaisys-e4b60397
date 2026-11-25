@@ -12,7 +12,7 @@ import { useMyAttendance } from "@/hooks/useMyAttendance";
 import { currentShift } from "@/lib/operationalShift";
 import { isSharedTabletSession } from "@/lib/sharedTabletSession";
 import { myShifts } from "@/lib/myAttendance";
-import { KIND_LABEL, areaText, fmtDay, plusDays } from "@/lib/myShiftText";
+import { KIND_LABEL, areaTextOn, fmtDay, plusDays } from "@/lib/myShiftText";
 
 /**
  * Where the signed-in person works over the next fourteen days: which board, which
@@ -32,7 +32,7 @@ export default function MyWorkAreaPage() {
         <ModuleHeader
           module="Production"
           title="Where I'm working"
-          description="Your shifts and work area for the next two weeks, from the Headcount Board."
+          description="Your shifts for the next two weeks, from the Headcount Board. The work area shows on the day."
           brand
         />
         {sharedTablet ? (
@@ -83,7 +83,7 @@ function WorkAreaCard({ today, to, data }: { today: string; to: string; data: Pa
                     <ShiftTag shift={sh.shift} />
                     {sh.hours && <span className="font-normal text-muted-foreground">{sh.hours}</span>}
                   </div>
-                  <div className={cn("text-xs", sh.area ? "text-foreground" : "text-muted-foreground")}>{areaText(sh)}</div>
+                  <div className={cn("text-xs", sh.area && sh.date <= today ? "text-foreground" : "text-muted-foreground")}>{areaTextOn(sh, today)}</div>
                 </div>
                 {sh.kind !== "scheduled" && <Badge variant="outline">{KIND_LABEL[sh.kind]}</Badge>}
               </li>

@@ -1,6 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Bell, BellOff, Share, Loader2 } from "lucide-react";
+import { useState } from "react";
+import { Bell, BellOff, Share, Loader2, X } from "lucide-react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { isIOSDevice } from "@/lib/pushEnvironment";
 
@@ -29,12 +30,42 @@ export interface PushNudgeProps {
   title?: string;
   /** What they lose by not turning it on. */
   reason?: string;
+  /** When set, the card can be put away for a week; the date is kept under this key. */
+  snoozeKey?: string;
 }
 
-export function OvertimePushNudge({
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+function snoozedUntil(key: string): number {
+  try { return Number(localStorage.getItem(key)) || 0; } catch { return 0; }
+}
+
+export function OvertimePushNudge({ snoozeKey, ...rest }: PushNudgeProps = {}) {
+  const [hidden, setHidden] = useState(() => !!snoozeKey && snoozedUntil(snoozeKey) > Date.now());
+  if (hidden) return null;
+  if (!snoozeKey) return <NudgeCard {...rest} />;
+  const snooze = () => {
+    try { localStorage.setItem(snoozeKey, String(Date.now() + WEEK_MS)); } catch { /* storage unavailable */ }
+    setHidden(true);
+  };
+  return <NudgeCard {...rest} onSnooze={snooze} />;
+}
+
+function SnoozeButton({ onSnooze }: { onSnooze?: () => void }) {
+  if (!onSnooze) return null;
+  return (
+    <Button type="button" size="icon" variant="ghost" aria-label="Not now" onClick={onSnooze}
+      className="absolute right-1 top-1 h-9 w-9 text-muted-foreground">
+      <X className="h-4 w-4" />
+    </Button>
+  );
+}
+
+function NudgeCard({
   title = "Get a buzz when overtime opens",
   reason = "Otherwise you only find out when you open the app — and the places may be gone.",
-}: PushNudgeProps = {}) {
+  onSnooze,
+}: Omit<PushNudgeProps, "snoozeKey"> & { onSnooze?: () => void }) {
   const { supported, environment, permission, subscribed, loading, subscribe } = usePushNotifications();
 
   if (subscribed) return null;
@@ -42,7 +73,8 @@ export function OvertimePushNudge({
   // iPhone in a browser tab: push is not on offer until the app is on the Home Screen.
   if (environment.kind === "ios-install") {
     return (
-      <Card className="border-primary/30 bg-primary/5">
+      <Card className={`relative border-primary/30 bg-primary/5${onSnooze ? " pr-10" : ""}`}>
+        <SnoozeButton onSnooze={onSnooze} />
         <CardContent className="flex items-start gap-3 py-4">
           <Share className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
           <div className="text-sm">
@@ -66,7 +98,8 @@ export function OvertimePushNudge({
     // of "your browser settings" — which nobody on the floor could find (30/10/2026).
     const iPhone = typeof navigator !== "undefined" && isIOSDevice(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
     return (
-      <Card className="border-warning/30 bg-warning/5" data-testid="push-blocked">
+      <Card className={`relative border-warning/30 bg-warning/5${onSnooze ? " pr-10" : ""}`} data-testid="push-blocked">
+        <SnoozeButton onSnooze={onSnooze} />
         <CardContent className="flex items-start gap-3 py-4">
           <BellOff className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
           <div className="text-sm">
@@ -94,7 +127,8 @@ export function OvertimePushNudge({
   }
 
   return (
-    <Card className="border-primary/30 bg-primary/5">
+    <Card className={`relative border-primary/30 bg-primary/5${onSnooze ? " pr-10" : ""}`}>
+        <SnoozeButton onSnooze={onSnooze} />
       <CardContent className="flex flex-wrap items-center justify-between gap-3 py-4">
         <div className="flex items-start gap-3 text-sm">
           <Bell className="mt-0.5 h-5 w-5 shrink-0 text-primary" />

@@ -226,3 +226,9 @@ export function matchesSearch(c: ConversationSummary, q: string): boolean {
   const hay = foldForSearch(`${c.name} ${c.subtitle ?? ""}`);
   return words.every((w) => hay.includes(w));
 }
+
+/** The shift at the end of a "Employee · Lab · Night shift" job line, or null. */
+export function shiftLine(job: string | null | undefined): string | null {
+  const last = job?.split(" · ").pop()?.trim() ?? "";
+  return /\S\s+shift$/i.test(last) ? last : null;
+}

@@ -106,7 +106,7 @@ export default function DirectMessagesPage() {
       return {
         key: `dm:${id}` as ConversationKey, kind: "dm" as const, id,
         name: person?.name ?? p?.name ?? "Someone",
-        subtitle: p?.line_labels ?? person?.job ?? null,
+        subtitle: p?.line_labels ?? null,
         avatarPath: person?.avatar_path ?? null,
         lastAt: s?.last_at ?? null,
         preview: s ? `${s.last_from_me ? "You: " : ""}${body}` : null,
@@ -313,8 +313,8 @@ export default function DirectMessagesPage() {
 
   const myName = people.data?.[me]?.name ?? "You";
   const listHeader = (
-    <div className="flex flex-col gap-2">
-    <div className="flex items-center gap-3">
+    <div className="flex flex-row items-center gap-2 md:flex-col md:items-stretch">
+    <div className="flex shrink-0 items-center gap-3">
       <div className="relative">
         <ChatAvatar name={myName} path={myPhoto.data?.path ?? null} />
         {myPhoto.data && !myPhoto.data.notSetUp && (
@@ -325,12 +325,12 @@ export default function DirectMessagesPage() {
           </button>
         )}
       </div>
-      <div className="min-w-0">
+      <div className="hidden min-w-0 md:block">
         <h1 className="text-base font-semibold leading-tight">Communication Hub</h1>
         <p className="truncate text-xs text-muted-foreground">Private conversations and your groups</p>
       </div>
     </div>
-    <AvailabilityMenu className="w-full" />
+    <div className="min-w-0 flex-1 md:flex-none"><AvailabilityMenu className="w-full" /></div>
     </div>
   );
 
@@ -357,6 +357,7 @@ export default function DirectMessagesPage() {
           <OvertimePushNudge
             title="Turn on notifications to get messages on your phone"
             reason="Without this a message only reaches you when you next open the app — it will not buzz."
+            snoozeKey="an_hub_push_nudge_snooze_until"
           />
         </div>
         {/* `grid-cols-1` is minmax(0, 1fr). Without it a phone's one column was sized by

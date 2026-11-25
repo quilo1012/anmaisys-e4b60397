@@ -90,7 +90,7 @@ describe("Where I'm working after an overtime is cancelled", () => {
     const monday = rows().filter((t) => t.includes("Overtime"));
     expect(monday).toHaveLength(1);
     expect(monday[0]).toMatch(/06:00–18:00/);
-    expect(monday[0]).toMatch(/Work area not yet assigned/);
+    expect(monday[0]).toMatch(/Work area shown on the day/);
   });
 
   it("after the fix: no overtime row, and her rota and placed Tuesday are still there", () => {
@@ -99,8 +99,8 @@ describe("Where I'm working after an overtime is cancelled", () => {
     renderPage();
     const all = rows();
     expect(all.some((t) => t.includes("Overtime"))).toBe(false);
-    expect(all.some((t) => t.includes("Gel Packing") && t.includes("06:00–18:00"))).toBe(true);
-    // Tue 20/10 is today here; Wed–Thu of both weeks are rota days the board has not placed.
-    expect(all.filter((t) => t.includes("Work area not yet assigned"))).toHaveLength(5);
+    // Tue 20/10 is today here; every later day hides the work area until the day.
+    expect(all.some((t) => t.includes("Gel Packing"))).toBe(false);
+    expect(all.some((t) => t.includes("06:00–18:00") && t.includes("Work area shown on the day"))).toBe(true);
   });
 });

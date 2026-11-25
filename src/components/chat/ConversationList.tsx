@@ -76,8 +76,11 @@ export function ConversationList({
 }) {
   const groups = conversations.filter((c) => c.kind === "group");
   const dms = conversations.filter((c) => c.kind === "dm");
+  const noGroupsAtAll = groups.length === 0 && !canCreateGroup && !groupsNotSetUp && !search;
   const sections = filter === "all"
-    ? [{ title: "Groups", items: groups }, { title: "Private", items: dms }]
+    ? noGroupsAtAll
+      ? [{ title: null, items: dms }]
+      : [{ title: "Groups", items: groups }, { title: "Private", items: dms }]
     : [{ title: null, items: filter === "group" ? groups : dms }];
 
   return (

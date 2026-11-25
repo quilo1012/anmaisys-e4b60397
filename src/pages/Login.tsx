@@ -151,6 +151,9 @@ export default function Login() {
   const [activeIndex, setActiveIndex] = useState(-1);
   const comboRef = useRef<HTMLDivElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
+  const identifierRef = useRef<HTMLInputElement>(null);
+  // Which field the error is about; null when it is about the form (network, lockout).
+  const [errorField, setErrorField] = useState<"identifier" | "password" | null>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
   const identity = useMemo(
@@ -282,6 +285,7 @@ export default function Login() {
     setListOpen(false);
     setActiveIndex(-1);
     setFormError(null);
+    setErrorField(null);
     // Escolher o posto é meia decisão; a outra metade é a password, e o teclado do
     // tablet já está aberto. Levar o foco lá poupa um toque.
     requestAnimationFrame(() => passwordRef.current?.focus());
@@ -324,10 +328,13 @@ export default function Login() {
     e.preventDefault();
     if (submittingRef.current) return;
     setFormError(null);
+    setErrorField(null);
 
     if (!identifier.trim()) {
       const msg = "Enter your email or employee ID, or pick your tablet.";
       setFormError(msg);
+      setErrorField("identifier");
+      requestAnimationFrame(() => identifierRef.current?.focus());
       return;
     }
     // Nem email nem tablet: dizer isso agora é melhor do que deixar o Supabase
@@ -337,12 +344,15 @@ export default function Login() {
         ? "Not recognised. Use your work email, your employee ID (like E045), or pick your tablet from the list."
         : "Not recognised. Use your work email address or your employee ID (like E045).";
       setFormError(msg);
+      setErrorField("identifier");
+      requestAnimationFrame(() => identifierRef.current?.focus());
       return;
     }
 
     if (password.length < 6) {
       const msg = password ? "Passwords here are at least 6 characters." : "Enter your password.";
       setFormError(msg);
+      setErrorField("password");
       requestAnimationFrame(() => passwordRef.current?.focus());
       return;
     }
@@ -474,6 +484,7 @@ export default function Login() {
       // The raw reason stays in the console for whoever is debugging, not on the screen.
       if (failure.kind === "unknown") console.warn("login failed:", reason);
       setFormError(description);
+      setErrorField(isNetwork || after.lockedMsLeft > 0 ? null : "password");
       setAuthed(false);
       // A password errada é para reescrever; o posto não. Deixar o foco onde o erro
       // é, em vez de obrigar a procurá-lo.
@@ -527,11 +538,17 @@ export default function Login() {
             )}
             <input
               id="identifier"
+              ref={identifierRef}
+              name="username"
+              enterKeyHint="next"
+              aria-invalid={errorField === "identifier" ? true : undefined}
+              aria-describedby={errorField === "identifier" ? "identifier-status login-error" : "identifier-status"}
               type="text"
               value={identifier}
               onChange={(e) => {
                 setIdentifier(e.target.value);
                 setFormError(null);
+                setErrorField(null);
                 setActiveIndex(-1);
                 // Só abre enquanto houver escolha por fazer. Abrir sempre punha um
                 // painel de doze linhas por cima do campo da password e do botão de
@@ -622,7 +639,7 @@ export default function Login() {
           {/* O que o sistema reconheceu, dito antes de submeter. */}
           {/* Na letra do formulário, não em maiúsculas monoespaçadas: é uma frase para
               ler, não uma etiqueta de máquina. */}
-          <p className="flex min-h-[1.25rem] flex-wrap items-center gap-1.5 text-[13px] leading-snug">
+          <p id="identifier-status" className="flex min-h-[1.25rem] flex-wrap items-center gap-1.5 text-[13px] leading-snug">
             {matchedTablet ? (
               <span className="flex items-center gap-1.5 font-medium text-auth-brand">
                 <Tablet className="h-3.5 w-3.5" />
@@ -677,15 +694,17 @@ export default function Login() {
             <input
               id="password"
               ref={passwordRef}
+              name="password"
+              enterKeyHint="go"
               type={showPassword ? "text" : "password"}
               value={password}
-              onChange={(e) => { setPassword(e.target.value); setFormError(null); }}
+              onChange={(e) => { setPassword(e.target.value); setFormError(null); setErrorField(null); }}
               placeholder="••••••••"
               minLength={6}
               required
               autoComplete="current-password"
-              aria-invalid={formError ? true : undefined}
-              aria-describedby={formError ? "login-error" : undefined}
+              aria-invalid={errorField === "password" ? true : undefined}
+              aria-describedby={errorField === "password" ? "login-error" : undefined}
               className={authFieldIconedAction}
             />
             <button

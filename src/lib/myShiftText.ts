@@ -27,3 +27,10 @@ export const FUTURE_AREA_TEXT = "Work area shown on the day";
 export function areaTextOn(sh: MyShift, today: string): string {
   return sh.date > today ? FUTURE_AREA_TEXT : areaText(sh);
 }
+
+export const AREA_ON_THE_DAY = FUTURE_AREA_TEXT;
+
+/** today is currentShift().operationalDate. */
+export function areaVisibleOn(date: string, today: string): boolean {
+  return date <= today;
+}
