@@ -25,6 +25,7 @@
 export const DEPARTMENTS = [
   "Production",
   "Warehouse",
+  "Warehouse AC1",
   "Hygiene",
   "Quality",
   "Maintenance",
