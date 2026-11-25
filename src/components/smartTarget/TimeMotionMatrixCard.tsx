@@ -12,10 +12,11 @@ const kgLabel = (kg: number) => (kg < 1 ? `${Math.round(kg * 1000)} g` : `${kg} 
 
 /** Recommended fill speeds per line and pack size, as on the Time & Motion review sheet. Type a product or size to find its row. */
 export function TimeMotionMatrixCard() {
-  const [line, setLine] = useState<number | "all">("all");
+  const [line, setLine] = useState<number | string>("all");
   const [query, setQuery] = useState("");
   const kg = packSizeKg(query) ?? (Number(query.replace(",", ".")) > 0 ? Number(query.replace(",", ".")) : null);
-  const lines = line === "all" ? LINES : [line];
+  const lines = line === "all" ? LINES : typeof line === "number" ? [line] : [];
+  const machines = line === "all" ? OTHER_MACHINES : OTHER_MACHINES.filter((m) => m.name === line);
   const max = useMemo(() => Math.max(...LINES.flatMap((l) => TIME_MOTION[l].map((r) => r[1]))), []);
 
   return (
@@ -29,11 +30,11 @@ export function TimeMotionMatrixCard() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Product or pack size…" className="h-12 max-w-sm" autoComplete="off" />
-          {(["all", ...LINES] as const).map((l) => (
+          {(["all", ...LINES, ...OTHER_MACHINES.map((m) => m.name)] as (number | string)[]).map((l) => (
             <button key={l} type="button" onClick={() => setLine(l)}
               className={cn("inline-flex h-12 items-center gap-2 rounded-lg border px-4 text-sm font-medium", line === l ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted")}>
-              {l !== "all" && <span className="h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: bayInk(`Line ${l}`) }} aria-hidden />}
-              {l === "all" ? "All lines" : `Line ${l}`}
+              {l !== "all" && <span className="h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: bayInk(typeof l === "number" ? `Line ${l}` : l) }} aria-hidden />}
+              {l === "all" ? "All" : typeof l === "number" ? `Line ${l}` : l}
             </button>
           ))}
         </div>
@@ -83,9 +84,9 @@ export function TimeMotionMatrixCard() {
             </div>
           ))}
         </div>
-        {line === "all" && (
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            {OTHER_MACHINES.map((m) => (
+        {machines.length > 0 && (
+          <div className={cn("grid gap-4 md:grid-cols-2", lines.length > 0 && "mt-6")}>
+            {machines.map((m) => (
               <div key={m.name} className="overflow-hidden rounded-lg border" style={{ borderTop: `4px solid ${bayInk(m.name)}` }}>
                 <div className="flex items-center gap-2 px-3 py-2 font-semibold" style={{ backgroundColor: bayWash(m.name) }}><span className="h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: bayInk(m.name) }} aria-hidden />{m.name}</div>
                 <table className="w-full text-sm">
