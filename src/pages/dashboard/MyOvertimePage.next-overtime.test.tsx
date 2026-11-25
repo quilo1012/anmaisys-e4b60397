@@ -90,7 +90,8 @@ describe("the next booked overtime, as a reminder", () => {
     const card = screen.getByTestId("next-overtime");
     expect(card).toHaveTextContent("Next overtime");
     expect(card).toHaveTextContent("06:00–18:00");
-    expect(card).toHaveTextContent("Line 4");
+    expect(card).toHaveTextContent("Work area shown on the day");
+    expect(card).not.toHaveTextContent("Line 4");
     // Fri 22:20 → Mon 06:00 is 2 days, 7 hours and 40 minutes.
     expect(screen.getByTestId("next-overtime-countdown")).toHaveTextContent("2 d 7 h");
     expect(card).toHaveTextContent("+1 more booked");

@@ -20,3 +20,10 @@ export function areaText(sh: MyShift): string {
 
 export const fmtDay = (d: string) =>
   new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+
+export const FUTURE_AREA_TEXT = "Work area shown on the day";
+
+/** Past and today (operational date) show the column; later days keep it hidden. */
+export function areaTextOn(sh: MyShift, today: string): string {
+  return sh.date > today ? FUTURE_AREA_TEXT : areaText(sh);
+}

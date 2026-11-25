@@ -35,7 +35,7 @@ import { useMySupervisor } from "@/hooks/useDirectMessages";
 import { useMyAttendance } from "@/hooks/useMyAttendance";
 import { currentShift } from "@/lib/operationalShift";
 import { overtimeOnTheBoardOnly, type MyShift } from "@/lib/myAttendance";
-import { areaText, plusDays } from "@/lib/myShiftText";
+import { areaTextOn, FUTURE_AREA_TEXT, plusDays } from "@/lib/myShiftText";
 import { boardSlotOf } from "@/lib/boardOvertime";
 import { countdownLabel, dayWord, nextBookedShift, type BookedShift, type NextShift } from "@/lib/overtimeCountdown";
 
@@ -301,7 +301,7 @@ function BoardBookingCard({ b }: { b: MyShift }) {
                 {b.hours}
               </div>
             )}
-            <div className="text-sm text-muted-foreground">{areaText(b)}</div>
+            <div className="text-sm text-muted-foreground">{areaTextOn(b, currentShift().operationalDate)}</div>
           </div>
           <Badge variant="outline" className="shrink-0 font-normal">
             On the Headcount
@@ -359,8 +359,8 @@ function NextOvertimeCard({ next, more, now, onShowAll }: {
               <Clock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
               {windowLabel(next.startsAt, next.endsAt)}
             </div>
-            <div className={cn("text-sm", next.area ? "text-foreground" : "text-muted-foreground")}>
-              {next.area ?? "Work area not yet assigned"}
+            <div className={cn("text-sm", next.area && next.date <= currentShift().operationalDate ? "text-foreground" : "text-muted-foreground")}>
+              {next.date > currentShift().operationalDate ? FUTURE_AREA_TEXT : next.area ?? "Work area not yet assigned"}
             </div>
           </div>
           <div className="shrink-0 text-right" aria-live="polite">

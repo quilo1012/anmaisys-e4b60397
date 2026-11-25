@@ -106,7 +106,8 @@ describe("overtime placed on the Headcount by the office", () => {
     const card = screen.getByTestId("board-booking");
     expect(card).not.toHaveTextContent("You're in");
     expect(card).toHaveTextContent("Not one you accepted");
-    expect(card).toHaveTextContent("Line 2");
+    expect(card).toHaveTextContent("Work area shown on the day");
+    expect(card).not.toHaveTextContent("Line 2");
     expect(card).toHaveTextContent("06:00–18:00");
     expect(card).not.toHaveTextContent("Put on the Headcount by the office");
     // Nothing to answer and nothing to cancel on it.

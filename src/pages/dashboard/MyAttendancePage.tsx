@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import type { PayslipDraft } from "@/lib/payslipDraft";
 import { Button } from "@/components/ui/button";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
-import { areaText, fmtDay } from "@/lib/myShiftText";
+import { areaTextOn, fmtDay } from "@/lib/myShiftText";
 import { cn } from "@/lib/utils";
 import { ShiftTag } from "@/components/ShiftTag";
 import { shiftKind } from "@/lib/shiftLook";
@@ -586,7 +586,7 @@ function DayDetail({ day, shifts }: { day: MyDay; shifts: MyShift[] }) {
         {shifts.filter((sh) => !["holiday", "sick", "unpaid", "other"].includes(sh.kind)).map((sh, i) => (
           <span key={`wa-${i}`} className="contents">
             <dt className="text-muted-foreground">Work area{shifts.length > 1 ? ` (${sh.shift})` : ""}</dt>
-            <dd>{areaText(sh)}{sh.hours ? ` · ${sh.hours}` : ""}</dd>
+            <dd>{areaTextOn(sh, currentShift().operationalDate)}{sh.hours ? ` · ${sh.hours}` : ""}</dd>
           </span>
         ))}
         {day.requests.map((r, i) => (
