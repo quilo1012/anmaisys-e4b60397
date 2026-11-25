@@ -126,6 +126,7 @@ describe("sidebar", () => {
       // What the shift should make, after what it made and why not: the forecast
       // reads against the two rows above it.
       "Smart Target",
+      "Fill speed matrix",
       "SKU Products",
       "Production Control",
       "Board",
