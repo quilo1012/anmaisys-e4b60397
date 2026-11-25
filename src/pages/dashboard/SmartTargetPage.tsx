@@ -52,7 +52,7 @@ import {
   type LineFactor,
 } from "@/lib/smartTargetRates";
 import { ItouchCyclesCard } from "@/components/smartTarget/ItouchCyclesCard";
-import { FillTimeCard } from "@/components/smartTarget/FillTimeCard";
+import { TimeMotionMatrixCard } from "@/components/smartTarget/TimeMotionMatrixCard";
 import { ShiftStrip, stripHours, stripSegments } from "@/components/smartTarget/ShiftStrip";
 import { PrintShiftReport, ShiftReport, TargetBar, TONE_TEXT, resultTone, signed, vsTarget } from "@/components/smartTarget/ShiftReport";
 import { useShiftRuns } from "@/hooks/useShiftRuns";
@@ -997,7 +997,7 @@ export default function SmartTargetPage() {
 
         <ItouchCyclesCard />
 
-        <FillTimeCard />
+        <TimeMotionMatrixCard />
 
         {assumptions.length > 0 && (
           <details className="rounded-lg border bg-card p-4 text-sm">
