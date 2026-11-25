@@ -96,7 +96,7 @@ export function TimeMotionMatrixCard() {
                   <tbody>
                     {m.rows.map((r) => (
                       <tr key={r.pack} className="border-t align-top">
-                        <td className="p-2"><div className="font-medium">{r.pack}</div>{r.product && <div className="text-xs text-muted-foreground">{r.product}</div>}{r.note && <div className="text-xs text-warning">{r.note}</div>}</td>
+                        <td className="p-2"><div className="font-medium">{r.pack}</div>{r.product && <div className="text-xs text-muted-foreground">{r.product}</div>}{r.basis && <div className="text-xs text-muted-foreground">{r.basis}</div>}{r.note && <div className="text-xs text-warning">{r.note}</div>}</td>
                         <td className="p-2 text-right tabular-nums">{r.perHour.toLocaleString("en-GB")} {r.unit}</td>
                         <td className="p-2 text-right font-semibold tabular-nums">{r.seconds.toFixed(2)} s</td>
                       </tr>

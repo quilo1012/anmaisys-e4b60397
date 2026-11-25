@@ -13,9 +13,9 @@ export const TIME_MOTION: Record<number, readonly TimeMotionRow[]> = {
 
 /** Machines outside the six filler lines, from the same review ("Recommended Matrix" / "Matrix Capsules + Gel").
  * `pack` is shown as written on the sheet; `note` carries the review's own warning. */
-export interface MachineSpeed { pack: string; perHour: number; unit: string; seconds: number; product?: string; note?: string }
+export interface MachineSpeed { pack: string; perHour: number; unit: string; seconds: number; product?: string; note?: string; basis?: string }
 export const OTHER_MACHINES: { name: string; rows: MachineSpeed[] }[] = [
-  { name: "Gel Machine", rows: [{ pack: "0.6 kg", perHour: 3494, unit: "tubs", seconds: 1.03 }] },
+  { name: "Gel Machine", rows: [{ pack: "0.60 g", perHour: 3494, unit: "sachets", seconds: 1.03, basis: "0.60 g gel sachets (owner, 25/11/2026)" }] },
   {
     name: "Tablet Line",
     rows: [
