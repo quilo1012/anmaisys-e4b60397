@@ -1,15 +1,14 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { PageHeader } from "@/components/ui/PageHeader";
+import { Gauge } from "lucide-react";
 import { TimeMotionMatrixCard } from "@/components/smartTarget/TimeMotionMatrixCard";
 import { FillTimeCorrectionCard } from "@/components/smartTarget/FillTimeCorrectionCard";
 
 export default function FillSpeedMatrixPage() {
   return (
     <DashboardLayout>
-      <div className="space-y-6 p-4 md:p-6">
-        <div>
-          <h1 className="text-2xl font-bold">Fill speed matrix</h1>
-          <p className="text-sm text-muted-foreground">Standard fill time per line, machine and pack size. Reference only — Smart Target targets are not changed here.</p>
-        </div>
+      <div className="space-y-6">
+        <PageHeader dense module="Production" title="Fill speed matrix" description="Standard fill time per line, machine and pack size. Reference only — targets are not changed here." icon={<Gauge className="h-5 w-5" />} className="mb-0 border-b pb-3" />
         <FillTimeCorrectionCard />
         <TimeMotionMatrixCard />
       </div>

@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { TIME_MOTION, TIME_MOTION_SOURCE, OTHER_MACHINES } from "@/lib/timeMotionMatrix";
 import { packSizeKg } from "@/lib/packSize";
+import { bayInk, bayWash } from "@/lib/lineBay";
 import { cn } from "@/lib/utils";
 
 const LINES = Object.keys(TIME_MOTION).map(Number);
@@ -30,7 +31,8 @@ export function TimeMotionMatrixCard() {
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Product or pack size…" className="h-12 max-w-sm" autoComplete="off" />
           {(["all", ...LINES] as const).map((l) => (
             <button key={l} type="button" onClick={() => setLine(l)}
-              className={cn("h-12 rounded-lg border px-4 text-sm font-medium", line === l ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted")}>
+              className={cn("inline-flex h-12 items-center gap-2 rounded-lg border px-4 text-sm font-medium", line === l ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted")}>
+              {l !== "all" && <span className="h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: bayInk(`Line ${l}`) }} aria-hidden />}
               {l === "all" ? "All lines" : `Line ${l}`}
             </button>
           ))}
@@ -48,9 +50,9 @@ export function TimeMotionMatrixCard() {
       <CardContent>
         <div className={cn("grid gap-4", lines.length > 1 ? "md:grid-cols-2 xl:grid-cols-3" : "")}>
           {lines.map((l) => (
-            <div key={l} className="overflow-hidden rounded-lg border">
-              <div className="flex items-center justify-between bg-muted px-3 py-2">
-                <span className="font-semibold">Line {l}</span>
+            <div key={l} className="overflow-hidden rounded-lg border" style={{ borderTop: `4px solid ${bayInk(`Line ${l}`)}` }}>
+              <div className="flex items-center justify-between px-3 py-2" style={{ backgroundColor: bayWash(`Line ${l}`) }}>
+                <span className="flex items-center gap-2 font-semibold"><span className="h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: bayInk(`Line ${l}`) }} aria-hidden />Line {l}</span>
                 <span className="text-xs text-muted-foreground">{TIME_MOTION[l].length} sizes</span>
               </div>
               <div className="max-h-[420px] overflow-auto">
@@ -66,7 +68,7 @@ export function TimeMotionMatrixCard() {
                           <td className="whitespace-nowrap p-2">{kgLabel(p)}</td>
                           <td className="p-2">
                             <div className="flex items-center gap-2">
-                              <div className="h-2 flex-1 rounded bg-muted"><div className="h-2 rounded bg-primary" style={{ width: `${(tph / max) * 100}%` }} /></div>
+                              <div className="h-2 flex-1 rounded bg-muted"><div className="h-2 rounded" style={{ width: `${(tph / max) * 100}%`, backgroundColor: bayInk(`Line ${l}`) }} /></div>
                               <span className="w-12 text-right tabular-nums">{Math.round(tph)}</span>
                             </div>
                           </td>
@@ -84,8 +86,8 @@ export function TimeMotionMatrixCard() {
         {line === "all" && (
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             {OTHER_MACHINES.map((m) => (
-              <div key={m.name} className="overflow-hidden rounded-lg border">
-                <div className="bg-muted px-3 py-2 font-semibold">{m.name}</div>
+              <div key={m.name} className="overflow-hidden rounded-lg border" style={{ borderTop: `4px solid ${bayInk(m.name)}` }}>
+                <div className="flex items-center gap-2 px-3 py-2 font-semibold" style={{ backgroundColor: bayWash(m.name) }}><span className="h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: bayInk(m.name) }} aria-hidden />{m.name}</div>
                 <table className="w-full text-sm">
                   <thead className="text-xs uppercase tracking-wide text-muted-foreground">
                     <tr><th className="p-2 text-left">Pack</th><th className="p-2 text-right">Per hour</th><th className="p-2 text-right">Fill time</th></tr>

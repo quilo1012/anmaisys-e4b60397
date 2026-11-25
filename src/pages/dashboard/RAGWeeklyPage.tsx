@@ -986,6 +986,7 @@ export default function RAGWeeklyPage() {
           title="Weekly RAG"
           description="Red, amber and green by line, with the issues behind each rating."
           icon={<FileBarChart className="h-5 w-5" />}
+          className="mb-0 border-b pb-3"
           actions={
             <>
                 {/* As acções do ecrã — gerir linhas, saltar para uma linha, entrar e sair

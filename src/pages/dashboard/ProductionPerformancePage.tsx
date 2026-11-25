@@ -7,7 +7,7 @@ import { StatusRail, type RailState } from "@/components/ui/StatusRail";
 import { ControlPlate, ControlDisclosure, ControlField, ControlDivider } from "@/components/ui/ControlPlate";
 import { ConsoleCell } from "@/components/ui/ConsoleStrip";
 import { scorecardPath, scorecardLinkPeriod } from "@/lib/scorecardRoute";
-import { LineIndicators } from "@/components/production/LineIndicators";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -729,7 +729,7 @@ export default function ProductionPerformancePage() {
           o que se lê a três metros é a barra, e o que se lê a trinta centímetros são os
           números, que continuam sobre o mesmo fundo de sempre. */}
       <div className={cn("-m-3 space-y-6 p-3 transition-colors duration-500 sm:-m-4 sm:p-4 md:-m-6 md:p-6", ANDON_FIELD[factory.state])}>
-        <h1 className="sr-only">Production performance</h1>
+        <PageHeader dense module="Production" title="Performance" description="Output against plan by line, shift and leader." icon={<BarChart3 className="h-5 w-5" />} className="mb-0 border-b pb-3" />
         {/* O mastro: a lâmpada e a régua, num instrumento só.
             Eram três bandas empilhadas — a barra de andon, o título do ecrã e um cartão
             "Overall performance" — e as três diziam a mesma coisa por ordem: 65%,
@@ -1519,17 +1519,6 @@ export default function ProductionPerformancePage() {
             );
           })}
         </div>
-        {/* Below the lines, not above them.
-            It is a key and a gap report — what the colours mean and which lines have
-            no data — and both are read after the boards, not before. Above them it
-            pushed the thing the screen exists for below the fold. */}
-        <LineIndicators
-          lines={sortedByLine.map((l) => ({ line: l.line, target: l.target, actual: l.actual, eff: l.eff }))}
-          from={range.from}
-          to={range.to}
-          shift={shift === "all" ? "ALL" : shift}
-          leader={leaderFilter === "__all__" ? null : leaderFilter}
-        />
         </>
         )}
       </div>
