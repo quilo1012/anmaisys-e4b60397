@@ -31,6 +31,13 @@ export function parseAllergens(text: string): string[] {
   return out;
 }
 
+/** Untouched fields preserve the stored confirmation; unconfirming writes NULL, never []. */
+export function editedAllergens(text: string | null, confirmed: boolean | null, original?: string[] | null): string[] | null | undefined {
+  if (confirmed === false) return null;
+  if (text === null && confirmed === null) return undefined;
+  return parseAllergens(text ?? (original ?? []).join(", "));
+}
+
 export function skuDeleteError(error: { code?: string; message: string }): string {
   return error.code === "23503" || /foreign key|production records|production targets/i.test(error.message)
     ? "This SKU has production targets or production history and cannot be deleted. Deactivate it instead; all records will be kept."

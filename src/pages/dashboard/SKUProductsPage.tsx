@@ -15,8 +15,7 @@ import { Plus, Trash2, Pencil, Upload, Search, Download, Eraser, Undo2, Boxes, M
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import ExcelJS from "exceljs";
-import { assertSkuRowsChanged, parseAllergens, skuDeleteError, skuUpdatePayload } from "@/lib/skuCatalog";
-import { suggestAllergens } from "@/lib/smartTargetCleaning";
+import { assertSkuRowsChanged, editedAllergens, skuDeleteError, skuUpdatePayload } from "@/lib/skuCatalog";
 import { Switch } from "@/components/ui/switch";
 
 interface Sku { id: string; code: string; name: string; category: string | null; target_per_hour: number | null; weight: number | null; active: boolean; allergens?: string[] | null }
@@ -162,8 +161,12 @@ export default function SKUProductsPage() {
   // What is typed in the allergens box; null until touched, so opening and saving a product
   // nobody has confirmed leaves it unconfirmed.
   const [allergenText, setAllergenText] = useState<string | null>(null);
+  const [allergenConfirmed, setAllergenConfirmed] = useState<boolean | null>(null);
   const setEditing = (sku: Partial<Sku> | null) => {
-    if (sku?.id !== editing?.id || !sku) setAllergenText(null);
+    if (sku?.id !== editing?.id || !sku) {
+      setAllergenText(null);
+      setAllergenConfirmed(null);
+    }
     setEditingRaw(sku);
   };
   const [open, setOpen] = useState(false);
@@ -209,7 +212,7 @@ export default function SKUProductsPage() {
 
   const filtered = useMemo(() => {
     const s = search.toLowerCase();
-    return all.filter((p) => !s || p.code.toLowerCase().includes(s) || p.name.toLowerCase().includes(s));
+    return all.filter((p) => !s || p.code.toLowerCase().includes(s) || p.name.toLowerCase().includes(s) || p.allergens?.some((a) => a.toLowerCase().includes(s)));
   }, [all, search]);
   const pageRows = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
   // BLOCO 158 adds the column; until then the rows have no `allergens` key and the field is hidden.
@@ -473,18 +476,15 @@ export default function SKUProductsPage() {
                       <Label htmlFor="sku-allergens">Allergens</Label>
                       <Input
                         id="sku-allergens"
-                        placeholder="e.g. Milk, Gluten — leave empty for none"
+                        placeholder="e.g. Milk, Gluten, Soya"
                         value={allergenText ?? (editing?.allergens ?? []).join(", ")}
-                        onChange={(e) => setAllergenText(e.target.value)}
+                        onChange={(e) => { setAllergenText(e.target.value); setAllergenConfirmed(true); }}
                       />
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Smart Target deep cleans from a product with an allergen to one without it.
-                        {editing?.allergens == null && (
-                          <>
-                            {" "}Not confirmed yet{suggestAllergens(editing?.name ?? "").length ? `; the name suggests ${suggestAllergens(editing?.name ?? "").join(", ")}` : ""}. Saving confirms what is in the box.
-                          </>
-                        )}
-                      </p>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <Label htmlFor="sku-allergens-confirmed">Allergens confirmed</Label>
+                        <Switch id="sku-allergens-confirmed" checked={allergenConfirmed ?? editing?.allergens != null} onCheckedChange={setAllergenConfirmed} />
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">{(allergenConfirmed ?? editing?.allergens != null) ? ((allergenText ?? (editing?.allergens ?? []).join(", ")).trim() ? "Confirmed allergens" : "Confirmed: no allergens") : "Not confirmed"}</p>
                     </div>
                   )}
                   <div className="flex items-center justify-between gap-3">
@@ -492,7 +492,7 @@ export default function SKUProductsPage() {
                     <Switch id="sku-active" checked={editing?.active ?? true} onCheckedChange={(active) => setEditing({ ...editing, active })} />
                   </div>
                 </div>
-                <DialogFooter><Button onClick={() => editing && save.mutate(hasAllergens && (allergenText !== null || editing.allergens != null) ? { ...editing, allergens: parseAllergens(allergenText ?? (editing.allergens ?? []).join(", ")) } : { ...editing, allergens: undefined })} disabled={save.isPending || !editing?.code?.trim() || !editing?.name || !!clash}>{save.isPending ? "Saving…" : "Save"}</Button></DialogFooter>
+                <DialogFooter><Button onClick={() => editing && save.mutate({ ...editing, allergens: hasAllergens ? editedAllergens(allergenText, allergenConfirmed, editing.allergens) : undefined })} disabled={save.isPending || !editing?.code?.trim() || !editing?.name || !!clash}>{save.isPending ? "Saving…" : "Save"}</Button></DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
@@ -502,7 +502,7 @@ export default function SKUProductsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2"><Search className="h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search by code or name" aria-label="Search SKUs by code or name" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} />
+              <Input placeholder="Search by code, product or allergen" aria-label="Search SKUs by code, product or allergen" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} />
               <Badge variant="outline" className="tabular-nums" aria-label={`${filtered.length} SKUs shown`}>{filtered.length}</Badge>
             </div>
           </CardHeader>
@@ -521,10 +521,8 @@ export default function SKUProductsPage() {
                     {hasAllergens && (
                       <TableCell>
                         {p.allergens == null ? (
-                          <span className="text-muted-foreground" title="Not confirmed: Smart Target uses what the name suggests">
-                            {suggestAllergens(p.name).length ? `${suggestAllergens(p.name).join(", ")}?` : "?"}
-                          </span>
-                        ) : p.allergens.length ? p.allergens.join(", ") : "None"}
+                          <Badge variant="outline" className="text-muted-foreground">Not confirmed</Badge>
+                        ) : p.allergens.length ? <div className="flex flex-wrap gap-1">{p.allergens.map((a) => <Badge key={a} variant="secondary">{a}</Badge>)}</div> : <Badge variant="outline">None · confirmed</Badge>}
                       </TableCell>
                     )}
                     <TableCell>{p.active ? <Badge className="bg-success hover:bg-success/90 text-success-foreground border-transparent">Active</Badge> : <Badge variant="secondary">Off</Badge>}</TableCell>
