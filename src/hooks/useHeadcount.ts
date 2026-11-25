@@ -308,6 +308,14 @@ async function markTeamLeaders(
   return null;
 }
 
+/**
+ * Staff of a department outside production (Warehouse AC1) are not on the Headcount
+ * roster; they appear only once a saved allocation (e.g. an overtime booking) puts them there.
+ */
+export function outsideProduction(e: { department: string | null }): boolean {
+  return /warehouse\s*-?\s*ac\s*1/i.test(e.department ?? "");
+}
+
 export function useShiftRoster(shift: string, onDate: string, showAll = false) {
   const { data: patterns } = useShiftPatterns();
   const { data: history } = useShiftHistory();
@@ -331,6 +339,7 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
     // Midday, so a timezone an hour either side cannot move the weekday.
     const day = new Date(`${onDate}T12:00:00`);
     return (everyone ?? []).filter((e) => {
+      if (outsideProduction(e)) return false;
       const held = resolveShiftOn(history, e, onDate);
       if (boardShiftFor(held.shift_group) !== shift) return false;
       if (showAll) return true;
@@ -366,7 +375,7 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
     const patternById = new Map((patterns ?? []).map((p) => [p.id, p]));
     const day = new Date(`${onDate}T12:00:00`);
     return (everyone ?? [])
-      .filter((e) => boardShiftFor(resolveShiftOn(history, e, onDate).shift_group) === shift)
+      .filter((e) => !outsideProduction(e) && boardShiftFor(resolveShiftOn(history, e, onDate).shift_group) === shift)
       .map((e) => {
         const held = resolveShiftOn(history, e, onDate);
         const pattern = held.shift_pattern_id ? patternById.get(held.shift_pattern_id) ?? null : null;
@@ -375,7 +384,7 @@ export function useShiftRoster(shift: string, onDate: string, showAll = false) {
       });
   }, [everyone, patterns, history, shift, onDate]);
 
-  const noCrew = useMemo(() => withNoCrewOn(everyone ?? [], history, onDate), [everyone, history, onDate]);
+  const noCrew = useMemo(() => withNoCrewOn((everyone ?? []).filter((e) => !outsideProduction(e)), history, onDate), [everyone, history, onDate]);
 
   // Read apart from the roster, so nothing that offers or places a person can see them.
   const { data: leavers } = useQuery({
