@@ -7,7 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { dashboardPathFor, type Role } from "@/lib/permissions";
+import { plainText } from "@/lib/announcements";
 import { cn } from "@/lib/utils";
 import { PushNotificationSetup } from "@/components/PushNotificationSetup";
 import { railEdge } from "@/components/ui/StatusRail";
@@ -101,6 +103,10 @@ export function NotificationPanel() {
   const [open, setOpen] = useState(false);
   const { role, user } = useAuth();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  // Where an announcement is already drawn in full, with its button: the person's
+  // Overview and the Announcements page. A toast there only covers the card it repeats.
+  const showsAnnouncements = pathname === "/dashboard/updates" || pathname === dashboardPathFor(role as Role | null);
   const mountedAt = useRef<number>(Date.now());
 
   const addNotification = useCallback((n: Omit<Notification, "id" | "read" | "timestamp">) => {
@@ -265,15 +271,17 @@ export function NotificationPanel() {
       if (seenStored.current.has(n.id)) continue;
       seenStored.current.add(n.id);
       if (n.read_at) continue;
+      const isAnnouncement = n.kind === "announcement";
+      if (isAnnouncement && showsAnnouncements) continue;
       const target = notificationTarget(n);
       toast.info(n.title, {
-        description: n.body,
+        description: isAnnouncement ? "New announcement. Open it to read and confirm." : n.body,
         duration: 10000,
         icon: n.kind === "overtime_new" ? <Hand className="h-5 w-5" /> : <Bell className="h-5 w-5" />,
         action: target ? { label: n.kind === "overtime_new" ? "View" : "Open", onClick: () => navigate(target) } : undefined,
       });
     }
-  }, [stored.notifications, stored.loaded, navigate]);
+  }, [stored.notifications, stored.loaded, navigate, showsAnnouncements]);
 
   const unreadCount = notifications.filter((n) => !n.read).length + storedUnread.length;
   const criticalCount =
@@ -457,7 +465,7 @@ function StoredRow({ n, available, onClick, invite, answering, onAnswer }: {
               <span className="text-2xs px-1.5 py-0.5 rounded font-bold shrink-0 bg-muted text-muted-foreground">No longer available</span>
             )}
           </div>
-          {n.body && <p className="text-muted-foreground text-xs mt-1 break-words">{n.body}</p>}
+          {n.body && <p className="text-muted-foreground text-xs mt-1 break-words line-clamp-3">{n.kind === "announcement" ? plainText(n.body) : n.body}</p>}
           <p className="text-muted-foreground text-2xs mt-1">
             {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
             {isOvertime && <span className="ml-2 font-medium text-primary">View overtime →</span>}

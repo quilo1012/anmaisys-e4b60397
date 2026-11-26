@@ -10,7 +10,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { can } from "@/lib/permissions";
 import { dayKeyOf, firstMeetingAfter, stepAnchor, viewDays, viewRange, type CalendarView, type MyMeeting } from "@/lib/meetings";
 import { isNotInstalled, useMeeting, useMeetingsInRange, useUpcomingMeetings } from "@/hooks/useMeetings";
-import { MeetingCalendar, MeetingDayList, ToneLegend, WeekStrip } from "@/components/meetings/MeetingCalendar";
+import { MeetingAgenda, MeetingCalendar, MeetingDayList, ToneLegend, WeekStrip } from "@/components/meetings/MeetingCalendar";
 import { MeetingDetails } from "@/components/meetings/MeetingDetails";
 import { MeetingFormDialog } from "@/components/meetings/MeetingFormDialog";
 import { MeetingsToAnswer } from "@/components/meetings/MeetingsToAnswer";
@@ -38,8 +38,11 @@ export default function MeetingsPage() {
   const today = dayKeyOf(new Date());
   const [params, setParams] = useSearchParams();
 
-  const [chosenView, setView] = useState<CalendarView>("week");
-  const view: CalendarView = isMobile ? "day" : chosenView;
+  // Whoever schedules opens on the week; everybody else on the agenda — the meetings they
+  // are in, by day — because a week of empty hour rows is what most of the floor saw.
+  const [chosenView, setView] = useState<CalendarView | "agenda">(canManage ? "week" : "agenda");
+  const agenda = chosenView === "agenda";
+  const view: CalendarView = isMobile || agenda ? (isMobile ? "day" : "week") : chosenView;
   const [anchor, setAnchor] = useState(today);
   // The phone shows one day but reads its week, so the day strip can mark busy days.
   const range = useMemo(() => viewRange(isMobile ? "week" : view, anchor), [isMobile, view, anchor]);
@@ -101,24 +104,32 @@ export default function MeetingsPage() {
               <MeetingsToAnswer onOpen={pick} />
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              {!agenda && (<>
               <div className="flex items-center gap-1">
                 <Button variant="outline" size="icon" aria-label="Previous" onClick={() => setAnchor(stepAnchor(view, anchor, -1))}><ChevronLeft className="h-4 w-4" /></Button>
                 <Button variant="outline" size="sm" onClick={() => setAnchor(today)}>Today</Button>
                 <Button variant="outline" size="icon" aria-label="Next" onClick={() => setAnchor(stepAnchor(view, anchor, 1))}><ChevronRight className="h-4 w-4" /></Button>
               </div>
               <h2 className="text-base font-semibold tabular-nums">{periodLabel(view, anchor)}</h2>
-              {!isMobile && (
-                <ToggleGroup type="single" size="sm" variant="outline" className="ml-auto" value={view} onValueChange={(v) => v && setView(v as CalendarView)}>
+              </>)}
+              <ToggleGroup type="single" size="sm" variant="outline" className="ml-auto" value={agenda ? "agenda" : view}
+                onValueChange={(v) => v && setView(v as CalendarView | "agenda")} aria-label="View">
+                <ToggleGroupItem value="agenda">Upcoming</ToggleGroupItem>
+                {isMobile ? (
+                  <ToggleGroupItem value="day">Calendar</ToggleGroupItem>
+                ) : (<>
                   <ToggleGroupItem value="day">Day</ToggleGroupItem>
                   <ToggleGroupItem value="week">Week</ToggleGroupItem>
                   <ToggleGroupItem value="month">Month</ToggleGroupItem>
-                </ToggleGroup>
-              )}
+                </>)}
+              </ToggleGroup>
             </div>
-            <ToneLegend />
+            {!agenda && <ToneLegend />}
             {meetings.error && <p className="text-sm text-destructive">Could not load the meetings. They will retry on their own.</p>}
 
-            {isMobile ? (
+            {agenda ? (
+              <MeetingAgenda meetings={upcoming.data ?? []} today={today} loading={upcoming.isLoading} onOpen={pick} />
+            ) : isMobile ? (
               <>
                 <WeekStrip anchor={anchor} today={today} meetings={meetings.data ?? []} onPick={setAnchor} />
                 <MeetingDayList

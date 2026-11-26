@@ -92,3 +92,32 @@ describe("formProblems", () => {
       .toEqual(["The end date must be after the publish date."]);
   });
 });
+
+import { parseBody, plainText } from "./announcements";
+
+describe("the message's formatting", () => {
+  // The first real announcement, 26/11/2026, as it was typed.
+  const body = "Hello, everyone!\n\nPlease take note:\n\n- **11 December:** Company Christmas Party 🎄\n- **12 December:** Company Closed.\n\nPlease speak to management.";
+
+  it("draws **bold** and the - lines as a list", () => {
+    const blocks = parseBody(body);
+    expect(blocks.map((b) => b.kind)).toEqual(["p", "p", "list", "p"]);
+    const list = blocks[2];
+    expect(list.kind === "list" && list.items.length).toBe(2);
+    expect(list.kind === "list" && list.items[0]).toEqual([
+      { text: "11 December:", bold: true }, { text: " Company Christmas Party 🎄", bold: false },
+    ]);
+  });
+
+  it("keeps a line break inside a paragraph", () => {
+    expect(parseBody("one\ntwo")).toEqual([{ kind: "p", lines: [[{ text: "one", bold: false }], [{ text: "two", bold: false }]] }]);
+  });
+
+  it("leaves a lone ** and anything that looks like HTML as text", () => {
+    expect(parseBody("5 ** 2 <b>x</b>")).toEqual([{ kind: "p", lines: [[{ text: "5 ** 2 <b>x</b>", bold: false }]] }]);
+  });
+
+  it("gives the bell one line without the marks", () => {
+    expect(plainText(body)).toBe("Hello, everyone! Please take note: • 11 December: Company Christmas Party 🎄 • 12 December: Company Closed. Please speak to management.");
+  });
+});

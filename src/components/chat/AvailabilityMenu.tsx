@@ -54,7 +54,9 @@ export function AvailabilityMenu({ variant = "default", className }: {
         >
           <span className="flex min-w-0 items-center gap-2">
             {shown ? <AvailabilityDot status={shown} /> : <Loader2 className="h-3 w-3 animate-spin" aria-hidden />}
-            <span className="truncate text-xs">{shown ? AVAILABILITY_LABEL[shown] : "Availability"}</span>
+            {/* "You appear": it is how others see you, not whether you are connected —
+                a person reading their messages and told "Offline" took it as a fault. */}
+            <span className="truncate text-xs">{shown ? <><span className="text-muted-foreground">You appear </span>{AVAILABILITY_LABEL[shown]}</> : "Availability"}</span>
           </span>
           <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
         </Button>

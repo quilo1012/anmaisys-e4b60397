@@ -1,4 +1,5 @@
-import { AlertCircle, Plus, RotateCw, Search } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlertCircle, ChevronDown, Plus, RotateCw, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -76,12 +77,21 @@ export function ConversationList({
 }) {
   const groups = conversations.filter((c) => c.kind === "group");
   const dms = conversations.filter((c) => c.kind === "dm");
+  // The private list is the whole company — 200 names on a phone, with the two people
+  // somebody actually talks to lost among them. Conversations come first; everybody
+  // else waits behind one button, or a search, until the person wants to start one.
+  const talked = dms.filter((c) => c.lastAt || c.unread > 0 || c.key === activeKey);
+  const others = dms.filter((c) => !talked.includes(c));
+  const [showEveryone, setShowEveryone] = useState(false);
+  useEffect(() => { if (!search) setShowEveryone(false); }, [search, filter]);
+  const everyoneOpen = !!search || showEveryone || talked.length === 0;
+  const privateItems = everyoneOpen ? [...talked, ...others] : talked;
   const noGroupsAtAll = groups.length === 0 && !canCreateGroup && !groupsNotSetUp && !search;
   const sections = filter === "all"
     ? noGroupsAtAll
-      ? [{ title: null, items: dms }]
-      : [{ title: "Groups", items: groups }, { title: "Private", items: dms }]
-    : [{ title: null, items: filter === "group" ? groups : dms }];
+      ? [{ title: null, items: privateItems, isPrivate: true }]
+      : [{ title: "Groups", items: groups, isPrivate: false }, { title: "Private", items: privateItems, isPrivate: true }]
+    : [{ title: null, items: filter === "group" ? groups : privateItems, isPrivate: filter !== "group" }];
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -164,6 +174,18 @@ export function ConversationList({
                 s.items.map((c) => (
                   <Row key={c.key} c={c} active={c.key === activeKey} onSelect={() => onSelect(c.key)} status={presence?.get(c.id) ?? null} />
                 ))
+              )}
+              {s.isPrivate && !everyoneOpen && others.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowEveryone(true)}
+                  className="mt-1 flex min-h-11 w-full items-center gap-2 rounded-lg border border-dashed px-3 py-2 text-left text-sm font-medium text-primary hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <Plus className="h-4 w-4 shrink-0" aria-hidden />
+                  <span className="flex-1">New conversation</span>
+                  <span className="text-xs font-normal text-muted-foreground">{others.length} people</span>
+                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                </button>
               )}
             </section>
           ))

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { audienceLabel, isRead, whenLabel, type MyAnnouncement } from "@/lib/announcements";
 import { useAcknowledgeAnnouncement } from "@/hooks/useAnnouncements";
+import { AnnouncementBody } from "./AnnouncementBody";
 
 const errText = (e: unknown) => (e as { message?: string })?.message ?? "Could not record it. Try again.";
 
@@ -54,7 +55,7 @@ export const AnnouncementCard = forwardRef<HTMLElement, Props>(function Announce
       </div>
 
       <h3 id={`ann-${a.id}-title`} className="text-lg font-semibold leading-snug">{a.title}</h3>
-      <p className="mt-2 whitespace-pre-wrap break-words text-[15px] leading-relaxed">{a.body}</p>
+      <AnnouncementBody body={a.body} className="mt-2" />
 
       <p className="mt-3 text-xs text-muted-foreground">
         Published {whenLabel(a.published_at)} · {audienceLabel(a.audience_department, a.audience_shift_group)}

@@ -284,3 +284,58 @@ export function ToneLegend() {
     </div>
   );
 }
+
+/**
+ * The agenda: what is coming up, grouped by day — "Today", "Tomorrow", then the date.
+ * The default for whoever does not schedule meetings. Most of the floor has none in a
+ * given week, and a week of empty hour rows said nothing at all while taking the screen.
+ */
+export function MeetingAgenda({ meetings, today, onOpen, loading }: {
+  meetings: MyMeeting[]; today: string; onOpen: (m: MyMeeting) => void; loading?: boolean;
+}) {
+  if (loading) return <p className="text-sm text-muted-foreground">Loading…</p>;
+  const tomorrow = dayKeyOf(new Date(new Date(`${today}T12:00:00Z`).getTime() + 86_400_000));
+  const days = new Map<string, MyMeeting[]>();
+  for (const m of [...meetings].sort((a, b) => a.starts_at.localeCompare(b.starts_at))) {
+    const k = dayKeyOf(m.starts_at);
+    days.set(k, [...(days.get(k) ?? []), m]);
+  }
+  if (days.size === 0) {
+    return (
+      <div className="rounded-xl border border-dashed bg-card p-8 text-center">
+        <p className="font-medium">No meetings coming up</p>
+        <p className="mt-1 text-sm text-muted-foreground">When someone invites you, it shows here and on your Overview, and your phone gets a notification.</p>
+      </div>
+    );
+  }
+  const heading = (k: string) => (k === today ? "Today" : k === tomorrow ? "Tomorrow" : `${dayLabel(k).wd} ${dayLabel(k).date}`);
+  return (
+    <div className="space-y-4">
+      {[...days.entries()].map(([k, list]) => (
+        <section key={k} aria-label={heading(k)}>
+          <h3 className={cn("mb-2 text-sm font-semibold", k === today && "text-primary")}>{heading(k)}</h3>
+          <ul className="space-y-2">
+            {list.map((m) => {
+              const tone = toneOf(m);
+              return (
+                <li key={m.id}>
+                  <button type="button" onClick={() => onOpen(m)}
+                    className="flex min-h-14 w-full items-stretch gap-3 rounded-xl border bg-card p-3 text-left hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <span className={cn("w-1.5 shrink-0 rounded-full border", TONE_CLASS[tone])} aria-hidden />
+                    <span className="w-14 shrink-0 text-sm font-semibold tabular-nums">{timeOf(m.starts_at)}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className={cn("block truncate font-semibold", tone === "cancelled" && "text-muted-foreground line-through")}>{m.title}</span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        until {timeOf(m.ends_at)}{m.location ? ` · ${m.location}` : ""} · {TONE_LABEL[tone]}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+}

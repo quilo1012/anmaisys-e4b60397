@@ -16,7 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { can } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import {
-  STATUS_LABEL, audienceLabel, isRead, percentOf, statusOf, whenLabel,
+  STATUS_LABEL, audienceLabel, isRead, percentOf, plainText, statusOf, whenLabel,
   type AnnouncementStatus, type ManagedAnnouncement,
 } from "@/lib/announcements";
 import { isNotInstalled, useAnnouncementActions, useManagedAnnouncements, useMyAnnouncements } from "@/hooks/useAnnouncements";
@@ -151,7 +151,7 @@ function ManagePanel() {
                     <span className="text-xs text-muted-foreground">{audienceLabel(a.audience_department, a.audience_shift_group)}</span>
                   </div>
                   <h3 className="font-semibold leading-snug">{a.title}</h3>
-                  <p className="mt-0.5 line-clamp-2 whitespace-pre-wrap text-sm text-muted-foreground">{a.body}</p>
+                  <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{plainText(a.body)}</p>
                   <p className="mt-1 text-xs text-muted-foreground">
                     {st === "scheduled" ? "Goes out" : "Published"} {whenLabel(a.published_at)} · by {a.author_name}
                     {a.expires_at && ` · shown until ${whenLabel(a.expires_at)}`}

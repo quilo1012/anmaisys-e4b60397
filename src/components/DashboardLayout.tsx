@@ -524,11 +524,18 @@ function SidebarNav({ filteredItems, permissionOverrideCount, dmUnread, crashCou
     items: filteredItems.filter((i) => i.group === g),
   })).filter((g) => g.items.length > 0);
 
+  // An item with a query (`?tab=…`) is active only on that exact query. An item without
+  // one is active on its page whatever the query says — an open conversation
+  // (`/dashboard/communication?c=…`) or a bell link (`/dashboard/updates?a=…`) is still
+  // that page — unless another item names this same page with the query on screen.
   const isItemActive = (url: string) => {
     const [path, query = ""] = url.split("?");
     if (location.pathname !== path) return false;
-    const itemSearch = query ? `?${query}` : "";
-    return (location.search || "") === itemSearch;
+    const search = location.search || "";
+    if (query) return search === `?${query}`;
+    if (!search) return true;
+    const all = filteredItems.flatMap((i) => [i, ...(i.children ?? [])]);
+    return !all.some((i) => i.url === `${path}${search}`);
   };
 
   const groupHasActive = (items: NavItem[]) => items.some((i) => isItemActive(i.url));
