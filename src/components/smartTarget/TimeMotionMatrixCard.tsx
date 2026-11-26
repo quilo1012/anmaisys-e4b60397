@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw, Download, Upload } from "lucide-react";
+import { useRef } from "react";
+import { downloadMatrixWorkbook, readMatrixWorkbook } from "@/lib/fillSpeedMatrixSheet";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +34,21 @@ export function TimeMotionMatrixCard() {
   const lines = line === "all" ? LINES : typeof line === "number" ? [line] : [];
   const machines = line === "all" ? OTHER_MACHINES : OTHER_MACHINES.filter((m) => m.name === line);
   const editedCount = Object.keys(overrides).length;
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importNote, setImportNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const onImport = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const r = await readMatrixWorkbook(file);
+      setOverrides(r.overrides);
+      setDrafts({});
+      setImportNote({ ok: r.skipped.length === 0, text: `Imported ${r.updated} rows${r.skipped.length ? `; skipped ${r.skipped.length} (${r.skipped.slice(0, 3).join("; ")}${r.skipped.length > 3 ? "…" : ""})` : ""}.` });
+    } catch (e) {
+      setImportNote({ ok: false, text: e instanceof Error ? e.message : "Could not read this file." });
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
 
   useEffect(() => {
     try {
@@ -89,6 +106,14 @@ export function TimeMotionMatrixCard() {
               Recommended speed per line and pack size, from the {TIME_MOTION_SOURCE}. Edit any fill time in seconds; per-hour and per-minute rates update automatically. Corrections are saved in this browser.
             </p>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => downloadMatrixWorkbook(overrides)}>
+              <Download className="mr-2 h-4 w-4" /> Export Excel
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+              <Upload className="mr-2 h-4 w-4" /> Import Excel
+            </Button>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" aria-label="Import fill speed matrix" onChange={(e) => onImport(e.target.files?.[0])} />
           {editedCount > 0 && (
             <div className="flex items-center gap-2">
               <Badge variant="outline" className="border-warning text-warning">{editedCount} {editedCount === 1 ? "correction" : "corrections"}</Badge>
@@ -97,7 +122,9 @@ export function TimeMotionMatrixCard() {
               </Button>
             </div>
           )}
+          </div>
         </div>
+        {importNote && <p role="status" className={cn("text-sm", importNote.ok ? "text-muted-foreground" : "text-destructive")}>{importNote.text}</p>}
         <div className="flex flex-wrap items-center gap-2">
           <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Product or pack size…" className="h-12 max-w-sm" autoComplete="off" />
           {(["all", ...LINES, ...OTHER_MACHINES.map((m) => m.name)] as (number | string)[]).map((l) => (
