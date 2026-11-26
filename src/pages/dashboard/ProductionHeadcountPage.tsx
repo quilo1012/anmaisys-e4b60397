@@ -559,7 +559,7 @@ export function Chip({
       // One line, never two: the cell is a fixed 48px so the band's Totals stay in one
       // row, and a second line of marks pushed the name off the top and the crew off
       // the bottom. What does not fit is cut at the right, after the hours.
-      <span className="flex max-w-full flex-nowrap items-center justify-center gap-1 overflow-hidden leading-none">
+      <span className="flex max-w-full flex-nowrap items-center justify-[safe_center] gap-1 overflow-hidden leading-none">
       {workHours && (
         <span
           data-testid="board-work-hours"
@@ -590,8 +590,9 @@ export function Chip({
         </span>
       )}
       {startTime && (
-        <span title={`Starts ${startTime}`} className="shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-2xs font-bold leading-tight text-foreground">
-          {startTime}
+        <span title={`Hours ${startTime}`} className="shrink-0 whitespace-nowrap rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-2xs font-bold leading-tight text-foreground">
+          {/* "08:00–16:00" becomes "08–16" so it fits beside the crew badge. */}
+          {startTime.replace(/(\d{2}):00/g, "$1")}
         </span>
       )}
       {tag && !isHalfDayTag(tag) && (
