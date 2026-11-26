@@ -39,3 +39,19 @@ export function useApproveSkuFillTime() {
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   });
 }
+
+/** Registers (or updates) the real fill time of a SKU on a line or machine. */
+export function useRegisterSkuFillTime() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { machine_name: string; sku_code: string; product_description: string; approved_seconds: number; time_basis: TimeBasis; units_per_cycle: number | null }) => {
+      const { data: existing, error: e1 } = await db.from("sku_fill_times").select("id").eq("machine_name", p.machine_name).eq("sku_code", p.sku_code).maybeSingle();
+      if (e1) throw e1;
+      const { error } = existing
+        ? await db.from("sku_fill_times").update({ approved_seconds: p.approved_seconds, time_basis: p.time_basis, units_per_cycle: p.units_per_cycle }).eq("id", existing.id)
+        : await db.from("sku_fill_times").insert(p);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
+  });
+}
