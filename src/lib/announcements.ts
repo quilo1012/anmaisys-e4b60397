@@ -161,3 +161,56 @@ export function formProblems(input: AnnouncementInput, now: Date = new Date()): 
   if (input.expiresAt && new Date(input.expiresAt) <= start) out.push("The end date must be after the publish date.");
   return out;
 }
+
+/**
+ * The little formatting an announcement may carry, as people type it on a keyboard or
+ * paste it from a chat: **bold**, and lines that start with "- ", "* " or "• " as a list.
+ * Nothing else is interpreted, and nothing becomes HTML: the card builds React elements
+ * from these blocks, so a pasted <script> is just text.
+ */
+export type BodyBlock =
+  | { kind: "p"; lines: InlinePart[][] }
+  | { kind: "list"; items: InlinePart[][] };
+export type InlinePart = { text: string; bold: boolean };
+
+const BULLET = /^\s*[-*•]\s+/;
+
+export function inlineParts(line: string): InlinePart[] {
+  const out: InlinePart[] = [];
+  const re = /\*\*(.+?)\*\*/g;
+  let last = 0;
+  for (let m = re.exec(line); m; m = re.exec(line)) {
+    if (m.index > last) out.push({ text: line.slice(last, m.index), bold: false });
+    out.push({ text: m[1], bold: true });
+    last = m.index + m[0].length;
+  }
+  if (last < line.length) out.push({ text: line.slice(last), bold: false });
+  return out.filter((p) => p.text.length > 0);
+}
+
+export function parseBody(body: string): BodyBlock[] {
+  const blocks: BodyBlock[] = [];
+  for (const line of body.replace(/\r\n?/g, "\n").split("\n")) {
+    const prev = blocks[blocks.length - 1];
+    if (!line.trim()) { blocks.push({ kind: "p", lines: [] }); continue; }
+    if (BULLET.test(line)) {
+      const item = inlineParts(line.replace(BULLET, ""));
+      if (prev?.kind === "list") prev.items.push(item);
+      else blocks.push({ kind: "list", items: [item] });
+      continue;
+    }
+    if (prev?.kind === "p" && prev.lines.length > 0) prev.lines.push(inlineParts(line));
+    else if (prev?.kind === "p") prev.lines.push(inlineParts(line));
+    else blocks.push({ kind: "p", lines: [inlineParts(line)] });
+  }
+  return blocks.filter((b) => (b.kind === "p" ? b.lines.length > 0 : b.items.length > 0));
+}
+
+/** The words without the marks, on one line: for previews, the bell and the phone. */
+export function plainText(body: string): string {
+  return body
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/(^|\n)\s*[-*•]\s+/g, "$1• ")
+    .replace(/\s*\n+\s*/g, " ")
+    .trim();
+}

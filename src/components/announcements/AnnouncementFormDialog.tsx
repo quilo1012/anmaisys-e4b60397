@@ -129,7 +129,7 @@ export function AnnouncementFormDialog({ open, onClose, editing }: Props) {
             <Label htmlFor="ann-body">Message</Label>
             <Textarea id="ann-body" value={body} rows={6} maxLength={4000} onChange={(e) => setBody(e.target.value)}
               placeholder="Please be advised that the company will be closed on December 12." />
-            <p className="text-right text-xs tabular-nums text-muted-foreground">{body.length} / 4000</p>
+            <p className="flex justify-between gap-2 text-xs text-muted-foreground"><span>Write **like this** for bold; start a line with - for a list.</span><span className="tabular-nums">{body.length} / 4000</span></p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
