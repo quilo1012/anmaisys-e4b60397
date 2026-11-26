@@ -25,6 +25,7 @@ import { leaderNamePattern } from "@/lib/leaderNameMatch";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { useLeaderShifts } from "@/hooks/useLeaderShifts";
 import { useMachineTime } from "@/hooks/useMachineTime";
+import { ItouchFillTimeAlert } from "@/components/smartTarget/ItouchFillTimeAlert";
 import { MachineTimePanel } from "@/components/production/MachineTimePanel";
 import { useActiveLines } from "@/hooks/useProductionPlanner";
 import { actionsInReportPeriod, actionShift, shiftWasRecorded } from "@/lib/performanceActions";
@@ -748,6 +749,7 @@ export default function ProductionPerformancePage() {
           números, que continuam sobre o mesmo fundo de sempre. */}
       <div className={cn("-m-3 space-y-6 p-3 transition-colors duration-500 sm:-m-4 sm:p-4 md:-m-6 md:p-6", ANDON_FIELD[factory.state])}>
         <PageHeader dense module="Production" title="Performance" description="Output against plan by line, shift and leader." icon={<BarChart3 className="h-5 w-5" />} className="mb-0 border-b pb-3" />
+        <ItouchFillTimeAlert />
         {/* O mastro: a lâmpada e a régua, num instrumento só.
             Eram três bandas empilhadas — a barra de andon, o título do ecrã e um cartão
             "Overall performance" — e as três diziam a mesma coisa por ordem: 65%,
