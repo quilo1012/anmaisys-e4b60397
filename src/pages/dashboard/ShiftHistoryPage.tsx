@@ -39,7 +39,7 @@ import XLSX from "xlsx-js-style";
 import { OPS_RANGE_KEY } from "@/hooks/useOpsFilters";
 import { inRunOrder, shiftTimeToIso, runTimings, formatRunMinutes, wallClock } from "@/lib/productionTime";
 import { useMachineTime } from "@/hooks/useMachineTime";
-import { MachineTimePanel, MachineTimePrintTable } from "@/components/production/MachineTimePanel";
+import { MachineTimePrintTable } from "@/components/production/MachineTimePanel";
 import type { LineMachineTime } from "@/lib/machineTime";
 
 /** Drop the customs code ("… [HS CODE:2106909285]") from a catalog name. */
@@ -1300,14 +1300,12 @@ export default function ShiftHistoryPage() {
    * respondem a perguntas diferentes e ficam as duas. Ver `machineTime.ts`.
    *
    * O líder e o SKU não estreitam a máquina (uma linha não corre "para um líder"), por
-   * isso só o período, o turno e a linha entram na leitura; o painel diz quando há um
-   * filtro que estreita a folha e não a máquina.
+   * isso só o período, o turno e a linha entram na leitura. O relógio da máquina saiu
+   * do ecrã com o painel (25/11/2026, dono); a folha impressa continua a levá-lo.
    */
   const machineTime = useMachineTime({ from, to, shift: fShift, line: fLine === "__all__" ? null : fLine });
   const producedByLine = useMemo(() => new Map(summary.lines.map((l) => [l.line, l.actual])), [summary.lines]);
   const lineOrder = (a: string, b: string) => lineRank(a) - lineRank(b) || a.localeCompare(b);
-  const machineNarrowedBy = [fLeader !== "__all__" ? "leader" : null, fSku !== "__all__" ? "SKU" : null]
-    .filter((v): v is string => v !== null);
 
   /** A tinta do atingimento — os mesmos três degraus da régua, um só sítio. */
   const pctTone = (pct: number | null) =>
@@ -1671,18 +1669,6 @@ export default function ShiftHistoryPage() {
             </div>
           </ControlRow>
         </ControlPlate>
-
-        <MachineTimePanel
-          lines={machineTime.data}
-          isLoading={machineTime.isLoading}
-          isError={machineTime.isError}
-          error={machineTime.error}
-          onRetry={() => machineTime.refetch()}
-          tooLong={machineTime.tooLong}
-          producedByLine={producedByLine}
-          narrowedBy={machineNarrowedBy}
-          order={lineOrder}
-        />
 
         {printing && (
           <ProductionControlPrintSheet

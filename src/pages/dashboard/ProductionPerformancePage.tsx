@@ -24,6 +24,8 @@ import { getCurrentFactoryShift, getCurrentShiftStart, getCurrentShiftEnd, shift
 import { leaderNamePattern } from "@/lib/leaderNameMatch";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { useLeaderShifts } from "@/hooks/useLeaderShifts";
+import { useMachineTime } from "@/hooks/useMachineTime";
+import { MachineTimePanel } from "@/components/production/MachineTimePanel";
 import { useActiveLines } from "@/hooks/useProductionPlanner";
 import { actionsInReportPeriod, actionShift, shiftWasRecorded } from "@/lib/performanceActions";
 import { classifyLive, stopClock, LIVE_TONE, type LiveReading } from "@/lib/lineLiveStatus";
@@ -453,6 +455,22 @@ export default function ProductionPerformancePage() {
     if (n.includes("gel")) return 200;
     return 999;
   };
+  // Machine time from iTouching's machine log, for exactly the period, shift and line
+  // the plate is showing. It used to sit on Production Control; the owner moved it
+  // here (25/11/2026) — run and stop time is read as performance, not as the sheet.
+  // The leader narrows the cards above but not the machine (a line does not run "for
+  // a leader"), so the panel is told when it does. Produced is this screen's own
+  // figure — what was logged on the sheet — so a row agrees with the card above it.
+  const machineTime = useMachineTime({
+    from: range.from,
+    to: range.to,
+    shift,
+    line: lineFilter === "__all__" ? null : lineFilter,
+  });
+  const producedByLine = useMemo(() => new Map(byLine.map((l) => [l.line, l.actual])), [byLine]);
+  const machineNarrowedBy = [leaderFilter !== "__all__" ? "leader" : null].filter((v): v is string => v !== null);
+  const machineOrder = (a: string, b: string) => lineRank(a) - lineRank(b) || a.localeCompare(b);
+
   const sortedByLine = useMemo(() => [...byLine].sort((a, b) => lineRank(a.line) - lineRank(b.line) || a.line.localeCompare(b.line)), [byLine]);
   const sortedLines = useMemo(() => [...lines].sort((a, b) => lineRank(a.name) - lineRank(b.name) || a.name.localeCompare(b.name)), [lines]);
 
@@ -1521,6 +1539,18 @@ export default function ProductionPerformancePage() {
         </div>
         </>
         )}
+
+        <MachineTimePanel
+          lines={machineTime.data}
+          isLoading={machineTime.isLoading}
+          isError={machineTime.isError}
+          error={machineTime.error}
+          onRetry={() => machineTime.refetch()}
+          tooLong={machineTime.tooLong}
+          producedByLine={producedByLine}
+          narrowedBy={machineNarrowedBy}
+          order={machineOrder}
+        />
       </div>
 
       {/* Print preview — look before printing/downloading. */}

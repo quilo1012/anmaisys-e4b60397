@@ -12,8 +12,8 @@ import {
 } from "@/lib/machineTime";
 
 /**
- * Machine time (run, planned and unplanned stops) for the period and shift Production
- * Control is showing, from iTouching's machine log. See `machineTime.ts`.
+ * Machine time (run, planned and unplanned stops) for the period and shift being
+ * shown, from iTouching's machine log. See `machineTime.ts`.
  *
  * `line` narrows the read to one line; null reads every line. Periods longer than
  * {@link MAX_MACHINE_TIME_DAYS} are not read at all (`tooLong`), so picking "All time"
