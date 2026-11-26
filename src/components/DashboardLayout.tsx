@@ -17,7 +17,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, TrendingUp, PanelLeft, PanelLeftClose, PanelLeftOpen, Target, Warehouse, HandCoins, Hand, CalendarCheck, Link2, Search, X, KeyRound } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, Megaphone, TrendingUp, PanelLeft, PanelLeftClose, PanelLeftOpen, Target, Warehouse, HandCoins, Hand, CalendarCheck, Link2, Search, X, KeyRound } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -66,6 +66,7 @@ import { AvailabilityMenu } from "@/components/chat/AvailabilityMenu";
 import { endMyPresence } from "@/components/chat/PresenceHeartbeat";
 import { useTelemetryCrashCount } from "@/hooks/useTelemetryBadge";
 import { UpcomingMeetingsWidget } from "@/components/meetings/UpcomingMeetingsWidget";
+import { UnreadAnnouncementsWidget } from "@/components/announcements/UnreadAnnouncementsWidget";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -327,6 +328,9 @@ export const navItems: NavItem[] = [
   // person only the meetings they are invited to; only `meetings.manage` schedules. Not
   // on the operator's menu since 23/11/2026 — that login is the leaders' line tablet.
   { title: "Meetings", url: "/dashboard/communication/meetings", icon: CalendarDays, roles: ["admin", "manager", "maintenance_manager", "engineer", "warehouse", "quality_supervisor", "production_office_admin", "supervisor", "employee"], group: "Communication", action: "meetings.view" },
+  // Employee Announcements (BLOCO 164): same people as Meetings, for the same reason — the
+  // database shows each person only what is addressed to their department and shift.
+  { title: "Announcements", shortTitle: "Notices", url: "/dashboard/updates", icon: Megaphone, roles: ["admin", "manager", "maintenance_manager", "engineer", "warehouse", "quality_supervisor", "production_office_admin", "supervisor", "employee"], group: "Communication", action: "announcements.view" },
 
   // Administration — who can do what. Everything that configures the system itself
   // (the audit trail, the iTouching integration) lives under System.
@@ -1196,6 +1200,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 {/* Each person's Overview is their landing page; the next three meetings sit
                     on top of it, and nothing is drawn when there are none — nor for a login
                     that cannot open the calendar the card links to (the line tablet). */}
+                {/* Announcements not yet confirmed come first, in full and with the button:
+                    opening the app is enough to see and acknowledge them. Nothing when all
+                    are read. */}
+                {location.pathname === homePath && can(role as Role, "announcements.view") && <UnreadAnnouncementsWidget className="mb-3" />}
                 {location.pathname === homePath && can(role as Role, "meetings.view") && <UpcomingMeetingsWidget className="mb-3" />}
                 <ShellTitleContext.Provider value={currentPageTitle}><InShellContentContext.Provider value={true}>{children}</InShellContentContext.Provider></ShellTitleContext.Provider>
               </div>
