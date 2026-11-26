@@ -1,5 +1,5 @@
 /** Recommended fill speeds from the Time & Motion Matrix RAG Review (23 Nov 2026, v4.1), "Recommended Matrix" tab.
-* Per line and pack size (kg): [packKg, tubsPerHour, secondsPerUnit, basis]. Read-only reference. */
+* Per line and pack size (kg): [packKg, tubsPerHour, secondsPerUnit, basis]. Defaults for the editable matrix. */
 export type TimeMotionRow = readonly [number, number, number, string];
 export const TIME_MOTION_SOURCE = "Time & Motion review, 23 Nov 2026";
 export const TIME_MOTION: Record<number, readonly TimeMotionRow[]> = {
@@ -13,7 +13,7 @@ export const TIME_MOTION: Record<number, readonly TimeMotionRow[]> = {
 
 /** Machines outside the six filler lines, from the same review ("Recommended Matrix" / "Matrix Capsules + Gel").
  * `pack` is shown as written on the sheet; `note` carries the review's own warning. */
-export interface MachineSpeed { pack: string; perHour: number; unit: string; seconds: number; product?: string; note?: string; basis?: string }
+export interface MachineSpeed { pack: string; perHour: number; unit: string; seconds: number; fillsPerCycle?: number; product?: string; note?: string; basis?: string }
 export const OTHER_MACHINES: { name: string; rows: MachineSpeed[] }[] = [
   { name: "Gel Machine", rows: [{ pack: "0.60 g", perHour: 3494, unit: "sachets", seconds: 1.03, basis: "0.60 g gel sachets (owner, 25/11/2026)" }] },
   {
@@ -24,6 +24,6 @@ export const OTHER_MACHINES: { name: string; rows: MachineSpeed[] }[] = [
       { pack: "120 tablets", perHour: 766, unit: "tubs", seconds: 4.63, note: "Copied from Line 6 on the sheet — not tablet data" },
     ],
   },
-  { name: "Capsules Machine 1", rows: [{ pack: "647 mg", perHour: 26034, unit: "capsules", seconds: 0.69, product: "TONGKAT ALI - 647mg", note: "5 fills per cycle" }] },
-  { name: "Capsules Machine 2", rows: [{ pack: "500 mg", perHour: 1525125, unit: "capsules", seconds: 0.049, product: "High Strength Probiotic", note: "Sheet figure (1,525,125/h, 21 fills per cycle) looks too high — confirm" }] },
+  { name: "Capsules Machine 1", rows: [{ pack: "647 mg", perHour: 26034, unit: "capsules", seconds: 0.69, fillsPerCycle: 5, product: "TONGKAT ALI - 647mg", note: "5 fills per cycle" }] },
+  { name: "Capsules Machine 2", rows: [{ pack: "500 mg", perHour: 1525125, unit: "capsules", seconds: 0.049, fillsPerCycle: 21, product: "High Strength Probiotic", note: "Sheet figure (1,525,125/h, 21 fills per cycle) looks too high — confirm" }] },
 ];
