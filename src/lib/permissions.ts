@@ -98,6 +98,9 @@ export type Action =
   // Meetings (BLOCO 159)
   | "meetings.view"
   | "meetings.manage"
+  // Employee Announcements (BLOCO 164)
+  | "announcements.view"
+  | "announcements.publish"
   // Notifications
   | "notifications.view"
   | "notifications.manage"
@@ -319,6 +322,16 @@ const MATRIX: Record<Action, Role[]> = {
   // hand the calendar back to the line.
   "meetings.view": ["admin", "manager", "maintenance_manager", "engineer", "warehouse", "quality_supervisor", "production_office_admin", "supervisor", "employee"],
   "meetings.manage": ["admin"],
+  // Employee Announcements: everybody opens the list, and the database shows each person
+  // only what is addressed to their department and shift (`announcement_is_for`), so the
+  // employee holds it inside the ceiling. The line tablet is out, as for Meetings: it is a
+  // shared screen, not a person, and no announcement is ever addressed to it.
+  // Publishing is the admin's by default; SQL asks
+  // `has_action(uid, 'announcements.publish', '{admin}')`, so a tick on the Permissions
+  // screen gives it to a manager role on both sides — and the database then lets that
+  // manager publish only to departments they belong to or manage.
+  "announcements.view": ["admin", "manager", "maintenance_manager", "engineer", "warehouse", "quality_supervisor", "production_office_admin", "supervisor", "employee"],
+  "announcements.publish": ["admin"],
 
 
   "notifications.view": [...ALL, "quality_supervisor", "production_office_admin"],
@@ -456,9 +469,10 @@ export function roleHolds(role: Role, action: Action): boolean {
  * database check asks `has_action` about: Messages is guarded by participation (RLS on
  * `direct_messages` and the group tables), so the employee reads their own
  * conversations and nothing else whatever the screen allows (BLOCO 108). `meetings.view`
- * is the same: RLS shows only the meetings the person is invited to (BLOCO 159).
+ * is the same: RLS shows only the meetings the person is invited to (BLOCO 159), and so is
+ * `announcements.view`: the database shows only what is addressed to them (BLOCO 164).
  */
-export const EMPLOYEE_CEILING: readonly Action[] = ["overtime.respond", "attendance.view_own", "chat.dm", "meetings.view"];
+export const EMPLOYEE_CEILING: readonly Action[] = ["overtime.respond", "attendance.view_own", "chat.dm", "meetings.view", "announcements.view"];
 
 /** Whether a grant of this action to this role could take effect at all. */
 export function roleMayHold(role: Role, action: Action): boolean {
@@ -630,6 +644,7 @@ export const ACTION_GROUPS: { key: string; label: string; actions: Action[] }[] 
   { key: "eng", label: "Engineers & Leaders", actions: ["engineers.view", "engineers.manage", "leaders.view", "leaders.manage"] },
   { key: "chat", label: "Chat & Messages", actions: ["chat.line", "chat.dm", "chat.groups.manage", "chat.settings"] },
   { key: "meetings", label: "Meetings", actions: ["meetings.view", "meetings.manage"] },
+  { key: "announcements", label: "Announcements", actions: ["announcements.view", "announcements.publish"] },
   { key: "notif", label: "Notifications", actions: ["notifications.view", "notifications.manage"] },
   { key: "intouch", label: "iTouching", actions: ["intouch.view", "intouch.manage"] },
   { key: "cc", label: "Control Center", actions: ["controlcenter.view", "assets.manage"] },
@@ -644,6 +659,8 @@ export const ACTION_LABELS: Partial<Record<Action, string>> = {
   "chat.dm": "Messages",
   "meetings.view": "Meetings",
   "meetings.manage": "Schedule meetings",
+  "announcements.view": "Announcements",
+  "announcements.publish": "Publish announcements",
   "chat.groups.manage": "Create & manage groups",
 };
 
@@ -708,6 +725,8 @@ export const ACTION_DESCRIPTIONS: Partial<Record<Action, string>> = {
   "chat.settings": "Choose who the operators reach when they write from a line.",
   "meetings.view": "Open the meetings calendar and answer invitations. Each person sees only the meetings they are invited to.",
   "meetings.manage": "Create, change and cancel meetings and choose who is invited.",
+  "announcements.view": "Read the announcements addressed to your department and shift, and confirm you have read them.",
+  "announcements.publish": "Publish, schedule, edit and withdraw announcements, and see who has read them. Outside admin, only to departments the person belongs to or manages.",
   "notifications.view": "See the notifications center.",
   "notifications.manage": "Configure and clear notifications.",
   "intouch.view": "Open the iTouching monitoring pages.",

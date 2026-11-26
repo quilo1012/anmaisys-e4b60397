@@ -192,6 +192,7 @@ const OperatorPerformancePage = lazyWithReload(() => import("./pages/dashboard/O
 const LeaderMyScorecardPage = lazyWithReload(() => import("./pages/dashboard/LeaderMyScorecardPage"));
 const DirectMessagesPage = lazyWithReload(() => import("./pages/dashboard/DirectMessagesPage"));
 const MeetingsPage = lazyWithReload(() => import("./pages/dashboard/MeetingsPage"));
+const AnnouncementsPage = lazyWithReload(() => import("./pages/dashboard/AnnouncementsPage"));
 const PermissionsMatrixPage = lazyWithReload(() => import("./pages/dashboard/PermissionsMatrixPage"));
 const RootDiagnosticsPage = lazyWithReload(() => import("./pages/dashboard/RootDiagnosticsPage"));
 const PhoneNotificationsPage = lazyWithReload(() => import("./pages/dashboard/PhoneNotificationsPage"));
@@ -963,6 +964,16 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAction="meetings.view">
                       <MeetingsPage />
+                    </ProtectedRoute>
+                  }
+                />
+                {/* Employee Announcements (BLOCO 164). /dashboard/updates is the address the
+                    bell rows written by the database already carry. */}
+                <Route
+                  path="/dashboard/updates"
+                  element={
+                    <ProtectedRoute requiredAction="announcements.view">
+                      <AnnouncementsPage />
                     </ProtectedRoute>
                   }
                 />
