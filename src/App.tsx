@@ -152,6 +152,7 @@ const DowntimePage = lazyWithReload(() => import("./pages/dashboard/DowntimePage
 const StopAnalysisPage = lazyWithReload(() => import("./pages/dashboard/StopAnalysisPage"));
 const SmartTargetPage = lazyWithReload(() => import("./pages/dashboard/SmartTargetPage"));
 const FillSpeedMatrixPage = lazyWithReload(() => import("./pages/dashboard/FillSpeedMatrixPage"));
+const LineFillPerformancePage = lazyWithReload(() => import("./pages/dashboard/LineFillPerformancePage"));
 const SkuFillTimesAdminPage = lazyWithReload(() => import("./pages/dashboard/SkuFillTimesAdminPage"));
 
 const PreventiveMaintenancePage = lazyWithReload(() => import("./pages/dashboard/PreventiveMaintenancePage"));
@@ -670,6 +671,14 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAction="smarttarget.view">
                       <FillSpeedMatrixPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/line-fill-performance"
+                  element={
+                    <ProtectedRoute requiredAction="smarttarget.view">
+                      <LineFillPerformancePage />
                     </ProtectedRoute>
                   }
                 />

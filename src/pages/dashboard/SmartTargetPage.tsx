@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSkuCatalogue } from "@/hooks/useSkuCatalogue";
-import { useItouchCycles } from "@/hooks/useItouchCycles";
+import { useStandardCycles } from "@/hooks/useStandardCycles";
 import { useSmartTargetHistory } from "@/hooks/useSmartTargetHistory";
 import { useSmartTargetQueue, type QueueState } from "@/hooks/useSmartTargetQueue";
 import { useCleaningBasis } from "@/hooks/useCleaningBasis";
@@ -673,7 +673,8 @@ export default function SmartTargetPage() {
   const [date, setDate] = useState(now.sessionDate);
   const [shift, setShift] = useState<ShiftType>(now.shiftCode === "day" ? "DAY" : "NIGHT");
   const { catalogue, isLoading: skusLoading } = useSkuCatalogue();
-  const cyclesQuery = useItouchCycles();
+  // Approved per-SKU fill time first, then iTouch's real seconds.
+  const cyclesQuery = useStandardCycles();
   const historyQuery = useSmartTargetHistory(date);
   const queue = useSmartTargetQueue(date, shift);
   const skuIsSampleOf = useMemo(() => skuIsSample(catalogue), [catalogue]);

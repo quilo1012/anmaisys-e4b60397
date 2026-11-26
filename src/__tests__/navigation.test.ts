@@ -128,6 +128,7 @@ describe("sidebar", () => {
       "Smart Target",
       "Fill speed matrix",
       "SKU fill times",
+      "Line fill performance",
       "SKU Products",
       "Production Control",
       "Board",

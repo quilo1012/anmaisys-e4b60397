@@ -17,7 +17,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, Megaphone, TrendingUp, PanelLeft, PanelLeftClose, PanelLeftOpen, Target, Warehouse, HandCoins, Hand, CalendarCheck, Link2, Search, X, KeyRound, ListChecks } from "lucide-react";
+import { ClipboardList, Users, UsersRound, Package, LogOut, LayoutDashboard, BarChart3, Cog, AlertCircle, Shield, ShieldCheck, Monitor, DollarSign, Sun, Moon, Clock, PowerOff, Settings as SettingsIcon, Factory, Boxes, History, Gauge, FileBarChart, AlertTriangle, Trophy, Calculator, Brain, Radar, Radio, MessageCircle, CalendarDays, Megaphone, TrendingUp, PanelLeft, PanelLeftClose, PanelLeftOpen, Target, Warehouse, HandCoins, Hand, CalendarCheck, Link2, Search, X, KeyRound, ListChecks, Activity } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -210,6 +210,7 @@ export const navItems: NavItem[] = [
   { title: "Smart Target", shortTitle: "Target", url: "/dashboard/smart-target", icon: Target, roles: ["admin", "production_office_admin"], group: "Production", action: "smarttarget.view" },
   { title: "Fill speed matrix", shortTitle: "Fill", url: "/dashboard/fill-speed-matrix", icon: Gauge, roles: ["admin", "production_office_admin"], group: "Production", action: "smarttarget.view" },
   { title: "SKU fill times", shortTitle: "SKU", url: "/dashboard/sku-fill-times", icon: ListChecks, roles: ["admin", "production_office_admin"], group: "Production", action: "smarttarget.view" },
+  { title: "Line fill performance", shortTitle: "Perf", url: "/dashboard/line-fill-performance", icon: Activity, roles: ["admin", "production_office_admin"], group: "Production", action: "smarttarget.view" },
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager", "production_office_admin"], group: "Production", action: "sku.manage" },
   { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Production", action: "production.manage" },
   // Headcount is the way in to all four workforce screens. Leave, Attendance and

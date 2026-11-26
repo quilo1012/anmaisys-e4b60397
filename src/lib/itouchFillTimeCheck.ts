@@ -5,6 +5,7 @@
  */
 import { cleanCycles, type CycleRecord } from "@/lib/smartTargetRates";
 import { packSizeKg, timeMotionFor } from "@/lib/packSize";
+import { fillKey, type ApprovedStandard } from "@/lib/approvedFillTimes";
 
 /** iTouch further than this from the matrix (either way) is flagged. */
 export const FAR_FROM_MATRIX = 0.3;
@@ -20,20 +21,24 @@ export interface ItouchFillTimeIssue {
 export function checkItouchFillTimes(
   records: CycleRecord[],
   nameOf: (sku: string) => string | null | undefined,
+  approved: Map<string, ApprovedStandard> = new Map(),
 ): ItouchFillTimeIssue[] {
   const { cycles, rejected } = cleanCycles(records);
   const out: ItouchFillTimeIssue[] = rejected.map((r) => ({
     line: r.line, sku: r.sku, itouchSeconds: r.cycleSeconds, matrixSeconds: null, reason: r.reason,
   }));
   for (const c of cycles) {
-    const tm = timeMotionFor(c.line, packSizeKg(nameOf(c.sku)));
-    if (!tm) continue;
-    const m = tm[2];
+    // The approved per-SKU fill time is the reference when there is one; the matrix only otherwise.
+    const a = approved.get(fillKey(`Line ${c.line}`, c.sku));
+    const tm = a ? null : timeMotionFor(c.line, packSizeKg(nameOf(c.sku)));
+    if (!a && !tm) continue;
+    const m = a ? a.seconds : tm![2];
+    const ref = a ? "approved fill time" : "matrix";
     const diff = (c.cycleSeconds - m) / m;
     if (Math.abs(diff) > FAR_FROM_MATRIX) {
       out.push({
         line: `Line ${c.line}`, sku: c.sku, itouchSeconds: c.cycleSeconds, matrixSeconds: m,
-        reason: `iTouch ${c.cycleSeconds} s is ${Math.round(Math.abs(diff) * 100)}% ${diff < 0 ? "faster" : "slower"} than the matrix (${m} s).`,
+        reason: `iTouch ${c.cycleSeconds} s is ${Math.round(Math.abs(diff) * 100)}% ${diff < 0 ? "faster" : "slower"} than the ${ref} (${m} s).`,
       });
     }
   }
