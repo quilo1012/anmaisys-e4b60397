@@ -21,3 +21,15 @@ describe("fill speed matrix sheet", () => {
     expect(r.skipped.length).toBe(1);
   });
 });
+
+describe("screen-style workbook", () => {
+  it("imports back an edited fill time from the block layout", async () => {
+    const XLSX = await import("xlsx");
+    const { buildMatrixBuffer, importGrid } = await import("@/lib/fillSpeedMatrixSheet");
+    const wb = XLSX.read(new Uint8Array(await buildMatrixBuffer({ "line:4:0.25": 2.4 })));
+    const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false });
+    const r = importGrid(grid);
+    expect(r.overrides).toEqual({ "line:4:0.25": 2.4 });
+    expect(r.skipped).toEqual([]);
+  });
+});
