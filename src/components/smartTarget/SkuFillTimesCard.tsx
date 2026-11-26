@@ -54,7 +54,7 @@ export function SkuFillTimesCard() {
   const [q, setQ] = useState("");
   const itouchOf = useMemo(() => {
     const m = new Map<string, number>();
-    for (const r of cycles?.records ?? []) if (r.cycleSeconds != null) m.set(`${norm(r.line)}|${norm(r.sku)}`, r.cycleSeconds);
+    for (const r of ((cycles as { records?: { line: string; sku: string; cycleSeconds: number | null }[] } | undefined)?.records ?? [])) if (r.cycleSeconds != null) m.set(`${norm(r.line)}|${norm(r.sku)}`, r.cycleSeconds);
     return (row: SkuFillTime) => m.get(`${norm(row.machine_name)}|${norm(row.sku_code)}`) ?? null;
   }, [cycles]);
   const machines = useMemo<string[]>(() => [...new Set<string>((data ?? []).map((r) => r.machine_name))], [data]);
