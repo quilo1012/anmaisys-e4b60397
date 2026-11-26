@@ -1,4 +1,5 @@
 import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/ui/DateField";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { capaStatusLabel } from "@/lib/capaGate";
@@ -63,13 +64,7 @@ export function CapaBlock({
           </div>
           <div>
             <Label htmlFor="capa-due-date" className="text-xs">CAPA due date</Label>
-            <Input
-              id="capa-due-date"
-              type="date"
-              value={draft.capa_due_date ?? ""}
-              onChange={(e) => setField("capa_due_date", e.target.value || null)}
-              className="mt-1 h-9"
-            />
+            <DateField value={draft.capa_due_date ?? ""} onChange={(v) => setField("capa_due_date", v || null)} className="mt-1 h-9" aria-label="CAPA due date" />
           </div>
         </div>
 

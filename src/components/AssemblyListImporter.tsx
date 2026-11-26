@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { DateField } from "@/components/ui/DateField";
 import * as XLSX from "xlsx";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -437,7 +438,7 @@ export function AssemblyListImporter({
             </div>
             <div>
               <Label>Default date</Label>
-              <Input type="date" value={defaultDate} onChange={(e) => setDefaultDate(e.target.value)} />
+              <DateField value={defaultDate} onChange={(v) => setDefaultDate(v)} />
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
@@ -530,7 +531,7 @@ export function AssemblyListImporter({
                         <TableCell className="font-mono text-xs">{r.raw_code || "—"}</TableCell>
                         <TableCell className="text-xs">{r.raw_name || "—"}</TableCell>
                         <TableCell className="tabular-nums">{r.qty.toLocaleString()}</TableCell>
-                        <TableCell><Input type="date" value={r.date} onChange={(e) => update(i, { date: e.target.value })} className="h-8 w-36" /></TableCell>
+                        <TableCell><DateField value={r.date} onChange={(v) => update(i, { date: v })} className="h-8 w-36" /></TableCell>
                         <TableCell>
                           <Select value={r.shift} onValueChange={(v) => update(i, { shift: v as "DAY" | "NIGHT" })}>
                             <SelectTrigger className="h-8 w-24"><SelectValue /></SelectTrigger>

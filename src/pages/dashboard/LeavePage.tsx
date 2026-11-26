@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { DateField } from "@/components/ui/DateField";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -601,8 +602,8 @@ export default function LeavePage() {
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div><Label className="text-xs">From</Label><Input type="date" value={start} onChange={(e) => setStart(e.target.value)} className="mt-1 h-9" /></div>
-                <div><Label className="text-xs">To</Label><Input type="date" value={end} onChange={(e) => setEnd(e.target.value)} className="mt-1 h-9" /></div>
+                <div><Label className="text-xs">From</Label><DateField value={start} onChange={(v) => setStart(v)} className="mt-1 h-9" /></div>
+                <div><Label className="text-xs">To</Label><DateField value={end} onChange={(v) => setEnd(v)} className="mt-1 h-9" /></div>
               </div>
               <div className="lg:col-span-3">
                 <Label className="text-xs">Note</Label>

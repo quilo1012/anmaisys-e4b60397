@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { DateField } from "@/components/ui/DateField";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -206,11 +207,7 @@ export default function PreventiveMaintenancePage() {
                   </div>
                   <div>
                     <Label>First due</Label>
-                    <Input
-                      type="date"
-                      value={form.first_due}
-                      onChange={(e) => setForm((f) => ({ ...f, first_due: e.target.value }))}
-                    />
+                    <DateField value={form.first_due} onChange={(v) => setForm((f) => ({ ...f, first_due: v }))} />
                     <p className="mt-1 text-xs text-muted-foreground">
                       Leave empty to start one interval from today.
                     </p>

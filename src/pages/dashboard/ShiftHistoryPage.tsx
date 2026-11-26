@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { DateField } from "@/components/ui/DateField";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { DashboardLayout } from "@/components/DashboardLayout";
@@ -2334,7 +2335,7 @@ export default function ShiftHistoryPage() {
                   spill out of the dialog. Date takes half the row and every cell is
                   allowed to shrink (min-w-0), which keeps the grid inside the box. */}
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                <div className="col-span-2 min-w-0"><Label htmlFor="add-date" className="text-xs">Date</Label><Input id="add-date" type="date" className="w-full min-w-0" value={addDate} onChange={(e) => setAddDate(e.target.value)} /></div>
+                <div className="col-span-2 min-w-0"><Label htmlFor="add-date" className="text-xs">Date</Label><DateField value={addDate} onChange={(v) => setAddDate(v)} className="w-full min-w-0" aria-label="add-date" /></div>
                 <div className="min-w-0"><Label htmlFor="add-line" className="text-xs">Line</Label>
                   <Select value={addLine} onValueChange={setAddLine}>
                     <SelectTrigger id="add-line"><SelectValue placeholder="Line" /></SelectTrigger>

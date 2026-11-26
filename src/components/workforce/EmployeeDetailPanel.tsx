@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { DateField } from "@/components/ui/DateField";
 import type { ReactNode } from "react";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
@@ -366,14 +367,7 @@ export function EmployeeDetailPanel({
             </div>
             <div>
               <Label className="text-xs" htmlFor="wf-started">Start date</Label>
-              <Input
-                id="wf-started"
-                type="date"
-                value={startedOn}
-                disabled={!canEdit}
-                onChange={(e) => setStartedOn(e.target.value)}
-                className="text-sm"
-              />
+              <DateField value={startedOn} onChange={(v) => setStartedOn(v)} disabled={!canEdit} className="text-sm" aria-label="Start date" />
               {startedOn === "" && (
                 <p className="mt-1 text-2xs text-muted-foreground">
                   Not recorded — the imported list carried no start dates.
@@ -591,13 +585,7 @@ export function EmployeeDetailPanel({
                     <div className="flex items-end gap-2">
                       <div className="flex-1">
                         <Label className="text-2xs" htmlFor="wf-left-on">Last day</Label>
-                        <Input
-                          id="wf-left-on"
-                          type="date"
-                          value={leftOn}
-                          onChange={(e) => e.target.value && setLeftOn(e.target.value)}
-                          className="h-9 text-sm"
-                        />
+                        <DateField value={leftOn} onChange={(v) => v && setLeftOn(v)} className="h-9 text-sm" aria-label="Left on" />
                       </div>
                       <Button
                         size="sm"
@@ -618,13 +606,7 @@ export function EmployeeDetailPanel({
                     <div className="flex items-end gap-2">
                       <div className="flex-1">
                         <Label className="text-2xs" htmlFor="wf-left-on-edit">Leaving date</Label>
-                        <Input
-                          id="wf-left-on-edit"
-                          type="date"
-                          value={leftOn}
-                          onChange={(e) => e.target.value && setLeftOn(e.target.value)}
-                          className="h-9 text-sm"
-                        />
+                        <DateField value={leftOn} onChange={(v) => v && setLeftOn(v)} className="h-9 text-sm" aria-label="Left on" />
                       </div>
                       {/* Correcting the date is not the same as bringing them back, so
                           it saves on its own without touching the active flag. */}

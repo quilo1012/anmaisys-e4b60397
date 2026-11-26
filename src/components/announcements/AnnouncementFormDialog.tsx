@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { DateField } from "@/components/ui/DateField";
 import { toast } from "sonner";
 import { Users } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -181,7 +182,7 @@ export function AnnouncementFormDialog({ open, onClose, editing }: Props) {
               </RadioGroup>
               {when === "later" && (
                 <div className="grid grid-cols-2 gap-2">
-                  <Input type="date" aria-label="Publish date" value={day} onChange={(e) => setDay(e.target.value)} />
+                  <DateField value={day} onChange={(v) => setDay(v)} aria-label="Publish date" />
                   <Input type="time" aria-label="Publish time" value={time} onChange={(e) => setTime(e.target.value)} />
                 </div>
               )}
@@ -193,7 +194,7 @@ export function AnnouncementFormDialog({ open, onClose, editing }: Props) {
               <span>Stop showing it after a date</span>
               <Switch checked={hasEnd} onCheckedChange={setHasEnd} />
             </label>
-            {hasEnd && <Input type="date" aria-label="Last day shown" value={endDay} onChange={(e) => setEndDay(e.target.value)} />}
+            {hasEnd && <DateField value={endDay} onChange={(v) => setEndDay(v)} aria-label="Last day shown" />}
           </div>
 
           <label className="flex items-center justify-between gap-3 text-sm">

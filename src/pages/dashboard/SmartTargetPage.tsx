@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { DateField } from "@/components/ui/DateField";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ChevronRight, Download, Printer, RefreshCw, Target } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -881,13 +882,7 @@ export default function SmartTargetPage() {
           icon={<Target className="h-5 w-5" />}
           actions={
             <div className="flex flex-wrap items-center gap-2">
-              <Input
-                type="date"
-                aria-label="Shift date"
-                value={date}
-                onChange={(e) => e.target.value && setDate(e.target.value)}
-                className="h-10 w-40"
-              />
+              <DateField value={date} onChange={(v) => v && setDate(v)} className="h-10 w-40" aria-label="Shift date" />
               <ShiftSwitch value={shift} onChange={setShift} />
             </div>
           }

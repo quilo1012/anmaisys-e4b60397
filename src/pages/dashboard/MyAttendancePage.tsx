@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { DateField } from "@/components/ui/DateField";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { ModuleHeader } from "@/components/ui/ModuleHeader";
 import { LoadFailed } from "@/components/portal/LoadFailed";
@@ -252,10 +253,8 @@ function Attendance({ data, today, range, onRange, pickedKey, refreshing = false
             </Select>
             {(currentKey === "custom" || pickedKey === "custom") && (
               <div className="flex gap-2">
-                <Input type="date" aria-label="From" value={range.from} max={range.to}
-                  onChange={(e) => e.target.value && onRange({ from: e.target.value, to: range.to }, "custom")} />
-                <Input type="date" aria-label="To" value={range.to} min={range.from}
-                  onChange={(e) => e.target.value && onRange({ from: range.from, to: e.target.value }, "custom")} />
+                <DateField value={range.from} onChange={(v) => v && onRange({ from: v, to: range.to }, "custom")} max={range.to} aria-label="From" />
+                <DateField value={range.to} onChange={(v) => v && onRange({ from: range.from, to: v }, "custom")} min={range.from} aria-label="To" />
               </div>
             )}
           </div>

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { DateField } from "@/components/ui/DateField";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -196,8 +197,7 @@ export function AddEmployeeDialog() {
 
           <div>
             <Label className="text-xs" htmlFor="ae-start">Start date</Label>
-            <Input id="ae-start" type="date" value={startedOn}
-                   onChange={(e) => setStartedOn(e.target.value)} />
+            <DateField value={startedOn} onChange={(v) => setStartedOn(v)} aria-label="Start date" />
             <p className="mt-1 text-2xs text-muted-foreground">
               Leave blank if you do not know it. Blank reads as unrecorded; today's date
               would read as a fact.

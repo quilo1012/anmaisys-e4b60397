@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { DateField } from "@/components/ui/DateField";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -575,7 +576,7 @@ export function IntouchImportDialog({ open, onOpenChange, defaultDate, defaultSh
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <Label className="text-xs">Date</Label>
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <DateField value={date} onChange={(v) => setDate(v)} />
           </div>
           <div>
             <Label className="text-xs">Shift</Label>

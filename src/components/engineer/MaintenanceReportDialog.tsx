@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { DateField } from "@/components/ui/DateField";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -176,9 +177,8 @@ export function MaintenanceReportDialog({
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="report-date">Report date</Label>
-              <Input
-                id="report-date" type="date" value={sessionDate} max={todayFactory}
-                onChange={(e) => { setSessionDate(e.target.value); setQuick("custom"); setResult(null); setError(null); }}
+              <DateField aria-label="Report date" value={sessionDate} max={todayFactory}
+                onChange={(v) => { setSessionDate(v); setQuick("custom"); setResult(null); setError(null); }}
                 className="h-9"
               />
               <p className="text-xs text-muted-foreground">A night shift keeps the date it started on.</p>

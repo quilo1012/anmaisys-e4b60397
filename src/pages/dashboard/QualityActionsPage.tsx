@@ -1,4 +1,5 @@
 import { RootCauseKeywordsEditor } from "@/components/quality/RootCauseKeywordsEditor";
+import { DateField } from "@/components/ui/DateField";
 import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { writeOptionalDomain } from "@/lib/writeOptionalDomain";
@@ -959,7 +960,7 @@ export function QualityActionsView() {
                       </Select>
                     </div>
                     <div className="min-w-0"><Label>Date</Label>
-                      <Input type="date" className="w-full min-w-0" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+                      <DateField value={form.date} onChange={(v) => setForm({ ...form, date: v })} className="w-full min-w-0" />
                     </div>
                     <div className="min-w-0"><Label>Shift</Label>
                       <Select value={form.shift} onValueChange={(v) => setForm({ ...form, shift: v })}>

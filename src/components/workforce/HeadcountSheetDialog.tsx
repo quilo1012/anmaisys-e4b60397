@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { DateField } from "@/components/ui/DateField";
 import { isTeamLeader } from "@/lib/leaderMark";
 // The styled build: `writeFile` from plain `xlsx` drops every fill the workbook carries.
 import XLSX from "xlsx-js-style";
@@ -541,11 +542,11 @@ export function HeadcountSheetDialog({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">From</Label>
-                <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1" />
+                <DateField value={from} onChange={(v) => setFrom(v)} className="mt-1" />
               </div>
               <div>
                 <Label className="text-xs">To</Label>
-                <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="mt-1" />
+                <DateField value={to} onChange={(v) => setTo(v)} className="mt-1" />
               </div>
             </div>
             <p className="text-xs text-muted-foreground">

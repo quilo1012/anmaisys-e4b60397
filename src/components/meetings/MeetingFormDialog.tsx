@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { DateField } from "@/components/ui/DateField";
 import { toast } from "sonner";
 import { X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -133,7 +134,7 @@ export function MeetingFormDialog({ open, onClose, myId, slot, editing }: Props)
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="grid gap-1.5">
               <Label htmlFor="mt-day">Date</Label>
-              <Input id="mt-day" type="date" value={day} onChange={(e) => setDay(e.target.value)} />
+              <DateField value={day} onChange={(v) => setDay(v)} aria-label="Day" />
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="mt-time">Start</Label>
@@ -184,7 +185,7 @@ export function MeetingFormDialog({ open, onClose, myId, slot, editing }: Props)
             {recurrence !== "none" && (
               <div className="grid gap-1.5">
                 <Label htmlFor="mt-until">Repeat until</Label>
-                <Input id="mt-until" type="date" value={until} min={day} disabled={!!editing} onChange={(e) => setUntil(e.target.value)} />
+                <DateField value={until} onChange={(v) => setUntil(v)} min={day} disabled={!!editing} aria-label="Until" />
               </div>
             )}
           </div>
