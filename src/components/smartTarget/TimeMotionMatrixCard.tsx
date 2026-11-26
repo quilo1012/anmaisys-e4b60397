@@ -27,12 +27,20 @@ export function TimeMotionMatrixCard() {
   const [query, setQuery] = useState("");
   const [overrides, setOverrides] = useState<Record<string, number>>(() => readFillTimeOverrides());
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [saveError, setSaveError] = useState(false);
   const kg = packSizeKg(query) ?? (Number(query.replace(",", ".")) > 0 ? Number(query.replace(",", ".")) : null);
   const lines = line === "all" ? LINES : typeof line === "number" ? [line] : [];
   const machines = line === "all" ? OTHER_MACHINES : OTHER_MACHINES.filter((m) => m.name === line);
   const editedCount = Object.keys(overrides).length;
 
-  useEffect(() => writeFillTimeOverrides(overrides), [overrides]);
+  useEffect(() => {
+    try {
+      writeFillTimeOverrides(overrides);
+      setSaveError(false);
+    } catch {
+      setSaveError(true);
+    }
+  }, [overrides]);
 
   const secondsFor = (key: string, original: number) => {
     const draft = drafts[key];
@@ -115,6 +123,7 @@ export function TimeMotionMatrixCard() {
         )}
       </CardHeader>
       <CardContent>
+        {saveError && <p role="alert" className="mb-4 text-sm text-destructive">This browser could not save your corrections. Keep this page open and allow browser storage before trying again.</p>}
         <div className={cn("grid gap-4", lines.length > 1 ? "md:grid-cols-2 xl:grid-cols-3" : "")}>
           {lines.map((l) => (
             <div key={l} className="overflow-hidden rounded-lg border" style={{ borderTop: `4px solid ${bayInk(`Line ${l}`)}` }}>
@@ -146,10 +155,9 @@ export function TimeMotionMatrixCard() {
                           <td className="p-2 text-right tabular-nums">{metrics.perMinute.toFixed(1)}</td>
                           <td className="p-2 text-right">
                             <Input
-                              type="number"
+                              type="text"
                               inputMode="decimal"
-                              min="0.001"
-                              step="0.01"
+                              autoComplete="off"
                               value={drafts[key] ?? String(seconds)}
                               onChange={(event) => changeFillTime(key, s, event.target.value)}
                               onBlur={() => clearInvalidDraft(key)}
@@ -190,10 +198,9 @@ export function TimeMotionMatrixCard() {
                             <td className="whitespace-nowrap p-2 text-right tabular-nums">{metrics.perMinute.toLocaleString("en-GB", { maximumFractionDigits: 1 })}</td>
                             <td className="p-2 text-right">
                               <Input
-                                type="number"
+                                type="text"
                                 inputMode="decimal"
-                                min="0.001"
-                                step="0.01"
+                                autoComplete="off"
                                 value={drafts[key] ?? String(seconds)}
                                 onChange={(event) => changeFillTime(key, r.seconds, event.target.value)}
                                 onBlur={() => clearInvalidDraft(key)}
