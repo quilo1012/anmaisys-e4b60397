@@ -47,18 +47,19 @@ function ApproveRow({ row, itouch }: { row: SkuFillTime; itouch: number | null }
 }
 
 /** Per-SKU fill time register: iTouch next to the suggested and approved standard. */
-export function SkuFillTimesCard() {
+export function SkuFillTimesCard({ initialStatus = "all", tall = false }: { initialStatus?: "all" | "approved" | "pending"; tall?: boolean } = {}) {
   const { data, isLoading, error } = useSkuFillTimes();
   const { data: cycles } = useItouchCycles();
   const [machine, setMachine] = useState("all");
   const [q, setQ] = useState("");
+  const [status, setStatus] = useState(initialStatus);
   const itouchOf = useMemo(() => {
     const m = new Map<string, number>();
     for (const r of ((cycles as { records?: { line: string; sku: string; cycleSeconds: number | null }[] } | undefined)?.records ?? [])) if (r.cycleSeconds != null) m.set(`${norm(r.line)}|${norm(r.sku)}`, r.cycleSeconds);
     return (row: SkuFillTime) => m.get(`${norm(row.machine_name)}|${norm(row.sku_code)}`) ?? null;
   }, [cycles]);
   const machines = useMemo<string[]>(() => [...new Set<string>((data ?? []).map((r) => r.machine_name))], [data]);
-  const rows = (data ?? []).filter((r) => (machine === "all" || r.machine_name === machine) && (!q || norm(`${r.sku_code} ${r.product_description}`).includes(norm(q))));
+  const rows = (data ?? []).filter((r) => (machine === "all" || r.machine_name === machine) && (status === "all" || (status === "approved") === (r.approved_seconds != null)) && (!q || norm(`${r.sku_code} ${r.product_description}`).includes(norm(q))));
   const approved = (data ?? []).filter((r) => r.approved_seconds != null).length;
 
   return (
@@ -74,6 +75,10 @@ export function SkuFillTimesCard() {
         {data && (
           <div className="flex flex-wrap gap-2">
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="SKU or product…" autoComplete="off" className="h-12 max-w-xs" />
+            {(["all", "approved", "pending"] as const).map((st) => (
+              <button key={st} type="button" onClick={() => setStatus(st)} className={cn("h-12 rounded-lg border px-4 text-sm font-medium", status === st ? "border-primary bg-primary/15 text-primary" : "bg-card hover:bg-muted")}>{st === "all" ? "Any status" : st === "approved" ? "Approved" : "Pending"}</button>
+            ))}
+            <span className="mx-1 w-px self-stretch bg-border" aria-hidden />
             {["all", ...machines].map((m) => (
               <button key={m} type="button" onClick={() => setMachine(m)} className={cn("inline-flex h-12 items-center gap-2 rounded-lg border px-4 text-sm font-medium", machine === m ? "border-primary bg-primary text-primary-foreground" : "bg-card hover:bg-muted")}>
                 {m !== "all" && <span className="h-2.5 w-2.5 rounded-[2px]" style={{ backgroundColor: bayInk(m) }} aria-hidden />}{m === "all" ? "All" : m}
@@ -87,7 +92,7 @@ export function SkuFillTimesCard() {
           : error ? <p role="alert" className="text-sm text-destructive">Could not load the SKU register.</p>
           : data === null ? <p className="text-sm text-muted-foreground">The SKU register is not active in this database yet.</p>
           : (
-            <div className="max-h-[560px] overflow-auto rounded-lg border">
+            <div className={cn(tall ? "max-h-[calc(100vh-260px)]" : "max-h-[560px]", "overflow-auto rounded-lg border")}>
               <table className="w-full text-sm">
                 <thead className="sticky top-0 z-10 bg-card text-xs uppercase tracking-wide text-muted-foreground">
                   <tr><th className="p-2 text-left">SKU</th><th className="p-2 text-right">iTouch</th><th className="p-2 text-right">Suggested</th><th className="p-2 text-right">Median</th><th className="p-2 text-right">Approved</th></tr>

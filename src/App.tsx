@@ -152,6 +152,7 @@ const DowntimePage = lazyWithReload(() => import("./pages/dashboard/DowntimePage
 const StopAnalysisPage = lazyWithReload(() => import("./pages/dashboard/StopAnalysisPage"));
 const SmartTargetPage = lazyWithReload(() => import("./pages/dashboard/SmartTargetPage"));
 const FillSpeedMatrixPage = lazyWithReload(() => import("./pages/dashboard/FillSpeedMatrixPage"));
+const SkuFillTimesAdminPage = lazyWithReload(() => import("./pages/dashboard/SkuFillTimesAdminPage"));
 
 const PreventiveMaintenancePage = lazyWithReload(() => import("./pages/dashboard/PreventiveMaintenancePage"));
 const SettingsPage = lazyWithReload(() => import("./pages/dashboard/SettingsPage"));
@@ -669,6 +670,14 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAction="smarttarget.view">
                       <FillSpeedMatrixPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/sku-fill-times"
+                  element={
+                    <ProtectedRoute requiredAction="smarttarget.view">
+                      <SkuFillTimesAdminPage />
                     </ProtectedRoute>
                   }
                 />
