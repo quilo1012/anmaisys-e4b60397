@@ -57,7 +57,7 @@ export function SkuFillTimesCard() {
     for (const r of cycles?.records ?? []) if (r.cycleSeconds != null) m.set(`${norm(r.line)}|${norm(r.sku)}`, r.cycleSeconds);
     return (row: SkuFillTime) => m.get(`${norm(row.machine_name)}|${norm(row.sku_code)}`) ?? null;
   }, [cycles]);
-  const machines = useMemo<string[]>(() => [...new Set((data ?? []).map((r) => r.machine_name))], [data]);
+  const machines = useMemo<string[]>(() => [...new Set<string>((data ?? []).map((r) => r.machine_name))], [data]);
   const rows = (data ?? []).filter((r) => (machine === "all" || r.machine_name === machine) && (!q || norm(`${r.sku_code} ${r.product_description}`).includes(norm(q))));
   const approved = (data ?? []).filter((r) => r.approved_seconds != null).length;
 
