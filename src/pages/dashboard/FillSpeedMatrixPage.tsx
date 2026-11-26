@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Gauge } from "lucide-react";
 import { TimeMotionMatrixCard } from "@/components/smartTarget/TimeMotionMatrixCard";
 import { ItouchFillTimeAlert } from "@/components/smartTarget/ItouchFillTimeAlert";
+import { SkuFillTimesCard } from "@/components/smartTarget/SkuFillTimesCard";
 import { FillTimeCorrectionCard } from "@/components/smartTarget/FillTimeCorrectionCard";
 
 export default function FillSpeedMatrixPage() {
@@ -13,6 +14,7 @@ export default function FillSpeedMatrixPage() {
         <ItouchFillTimeAlert />
         <FillTimeCorrectionCard />
         <TimeMotionMatrixCard />
+        <SkuFillTimesCard />
       </div>
     </DashboardLayout>
   );
