@@ -54,18 +54,7 @@ const MEETINGS_FALLBACK =
   "switched on yet', UpcomingMeetingsWidget draws nothing, and the bell offers no " +
   "Accept/Decline — nobody can be invited to anything until the block exists.";
 
-const ANNOUNCEMENTS_BLOCK = "BLOCO 164 — 20261126120000_employee_announcements.sql";
-const ANNOUNCEMENTS_FALLBACK =
-  "useAnnouncements turns PGRST202 into an empty list: UnreadAnnouncementsWidget draws " +
-  "nothing, AnnouncementsPage says there are no announcements, and the form offers no " +
-  "departments or shifts. Publishing itself is not listed: it fails out loud, as it must.";
-
 const PENDING: readonly PendingRpc[] = [
-  // BLOCO 164: the reads only. A write before the paste is a real fault and stays one.
-  { name: "my_announcements", block: ANNOUNCEMENTS_BLOCK, fallback: ANNOUNCEMENTS_FALLBACK, probe: { p_limit: 1 } },
-  { name: "announcements_manage_list", block: ANNOUNCEMENTS_BLOCK, fallback: ANNOUNCEMENTS_FALLBACK },
-  { name: "announcement_audience_preview", block: ANNOUNCEMENTS_BLOCK, fallback: ANNOUNCEMENTS_FALLBACK },
-  { name: "announcement_audience_options", block: ANNOUNCEMENTS_BLOCK, fallback: ANNOUNCEMENTS_FALLBACK },
   // BLOCO 159: every read the screens make before the paste goes through these, never
   // the tables, so the gap is a declared PGRST202 rather than an undeclared PGRST205.
   { name: "my_meetings", block: MEETINGS_BLOCK, fallback: MEETINGS_FALLBACK },
