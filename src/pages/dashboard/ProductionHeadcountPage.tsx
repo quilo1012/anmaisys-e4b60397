@@ -4,7 +4,7 @@ import { lineLeadersByArea } from "@/lib/leaderMark";
 import { useAuth } from "@/contexts/AuthContext";
 import { format, parseISO } from "date-fns";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { boardBandOf, boardReorderBand, isOvertimeSlotArea, overtimeSlot, isTrainingArea, foldTrainingArea } from "@/lib/headcountBlocks";
+import { boardBandOf, boardReorderBand, overtimeAwaitingArea, isTrainingArea, foldTrainingArea } from "@/lib/headcountBlocks";
 import { holdDrag, clearDrag, takeDrag } from "@/lib/boardDrag";
 import { useQueryClient } from "@tanstack/react-query";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors, type Announcements, type DragEndEvent } from "@dnd-kit/core";
@@ -136,13 +136,6 @@ const AWAY_BLOCKS: { status: AllocStatus; label: string; head: SheetFill }[] = [
   // Amarelo, como uma área: na planilha o Training é uma coluna de sítio, não de falta.
   { status: "training", label: "Training", head: "heading" },
 ];
-
-/**
- * A coluna Overtime, desenhada na banda de produção no sítio do Lab (`overtimeSlot`)
- * sempre que essa banda está à vista. Escondida ou dobrada, volta para o fim da segunda
- * banda com as outras: a coluna muda de sítio, nunca desaparece.
- */
-const OVERTIME_BLOCK = AWAY_BLOCKS.find((b) => b.status === "overtime")!;
 
 /**
  * As cores da planilha, as mesmas que o export escreve (`SHEET_LOOKS` em
@@ -1239,11 +1232,10 @@ function ShiftBoard({
   const supportShown = blockVisible("support") && openSections["support"] !== false
     && areas.some((a) => boardBandOf(a) === "support");
   const awayInSupport = supportShown;
-  // O Overtime sobe para o sítio do Lab na banda de produção quando ela está à vista e
-  // aberta; senão fica no fim, com as faltas, como estava.
-  const overtimeUp = blockVisible("production") && openSections["production"] !== false
-    && areas.some((a) => boardBandOf(a) === "production");
-  const tailBlocks = overtimeUp ? AWAY_BLOCKS.filter((b) => b !== OVERTIME_BLOCK) : AWAY_BLOCKS;
+  const tailBlocks = AWAY_BLOCKS;
+  const overtimeWaitingNames = overtimeAwaitingArea(allocations, missingBooked)
+    .map((id) => everyoneById?.get(id)?.full_name ?? employeeById.get(id)?.full_name ?? "An employee")
+    .sort((a, b) => a.localeCompare(b));
   const awayRowsOf = (b: (typeof AWAY_BLOCKS)[number]) =>
     peopleWith(b.status).length + (b.status === "holiday" ? halfDayMirrors.length : 0);
 
@@ -1817,6 +1809,17 @@ function ShiftBoard({
           booking here itself, but never over a row already there, so a copied day or an
           absence left the person nowhere — Yuri Correa, Mon 02/11. Said where the board
           starts, with the one-tap fix; a row in the way is named, not overwritten. */}
+      {overtimeWaitingNames.length > 0 && (
+        <div role="status" aria-label="Overtime awaiting a work area"
+          className="flex flex-wrap items-start gap-2 rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm print:hidden">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning-strong" />
+          <p className="min-w-0 flex-1 break-words">
+            <span className="font-semibold">Overtime · not placed on a line yet: </span>
+            {overtimeWaitingNames.join(", ")}
+          </p>
+        </div>
+      )}
+
       {missingBooked.length > 0 && (
         <div role="status" aria-label="Booked for overtime, not on this board"
           className="space-y-1.5 rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm print:hidden">
@@ -1972,8 +1975,7 @@ function ShiftBoard({
         if (!blockVisible(section.key)) return null;
         const allOfKind = areas.filter((a) => boardBandOf(a) === section.key);
         if (allOfKind.length === 0) return null;
-        // Os números que um arrasto renumera: na produção com o Lab, que lá não se desenha
-        // mas guarda o sítio da coluna Overtime; no apoio sem ele (`boardReorderBand`).
+        // Renumber the areas in the displayed band.
         const reorderBand = boardReorderBand(areas, section.key === "production" ? "production" : "support");
         // Hidden on this shift and empty today: not drawn. Hidden but with people on it:
         // drawn anyway and flagged, so a filter never takes anybody off the headcount.
@@ -1982,9 +1984,6 @@ function ShiftBoard({
         const lastDrawn = ofKind[ofKind.length - 1]?.id;
         const open = openSections[section.key] !== false;
         const inSection = ofKind.reduce((n, a) => n + peopleIn(a.id).length, 0);
-        // A coluna Overtime, na banda de produção, entra antes desta coluna desenhada.
-        const withOvertime = section.key === "production" && overtimeUp;
-        const otAt = withOvertime ? overtimeSlot(ofKind, areas) : -1;
         // A banda inteira tem a altura da coluna mais comprida, mais uma linha livre
         // para escrever um nome — como a folha. As faltas contam na banda de apoio
         // quando estão lá dentro, e o Overtime na de produção quando subiu.
@@ -1992,7 +1991,6 @@ function ShiftBoard({
           0,
           ...ofKind.map((a) => peopleIn(a.id).length + ghostsIn(a.id).length),
           ...(section.key === "support" && awayInSupport ? tailBlocks.map(awayRowsOf) : []),
-          ...(withOvertime ? [awayRowsOf(OVERTIME_BLOCK)] : []),
         ) + 1;
         return (
         <div key={section.key} id={jumpId(section.key)}>
@@ -2044,13 +2042,12 @@ function ShiftBoard({
             não um corredor de cartões. Tantas lado a lado quantas o ecrã deixar. */}
         <div
           className="headcount-columns grid gap-0"
-          style={{ gridTemplateColumns: bandTracks(ofKind.length + (section.key === "support" && awayInSupport ? 1 + tailBlocks.length : 0) + (withOvertime ? 1 : 0)) }}
+          style={{ gridTemplateColumns: bandTracks(ofKind.length + (section.key === "support" && awayInSupport ? 1 + tailBlocks.length : 0)) }}
         >
-        {ofKind.map((area, i) => {
+        {ofKind.map((area) => {
           const people = peopleIn(area.id);
           return (
             <Fragment key={area.id}>
-            {i === otAt && awayColumn(OVERTIME_BLOCK, bandRows)}
             <SortableColumn id={area.id} name={area.name}>
             {(grip) => (
             <>
@@ -2068,9 +2065,7 @@ function ShiftBoard({
               <SheetColumn
                 title={area.name}
                 head="heading"
-                // O Lab, no apoio, não se arrasta: o seu número é o sítio da coluna Overtime
-                // na produção, e um arrasto aqui renumerava-o com as áreas de apoio.
-                grip={canManage && !(section.key === "support" && isOvertimeSlotArea(area)) ? grip : undefined}
+                grip={canManage ? grip : undefined}
                 onHeadClick={canManage ? () => setPicking({ id: area.id, name: area.name }) : undefined}
                 headHint={canManage ? `Add or remove people on ${area.name}` : undefined}
                 actions={canManage ? (
@@ -2188,7 +2183,6 @@ function ShiftBoard({
             </Fragment>
           );
         })}
-        {otAt === ofKind.length && awayColumn(OVERTIME_BLOCK, bandRows)}
         {/* A figura roxa e as faltas fecham a segunda banda, que é onde a folha as tem. */}
         {section.key === "support" && awayInSupport && sheetTail(bandRows)}
         </div>
@@ -2465,7 +2459,7 @@ function ShiftBoard({
           ela: ficam numa fila sua, com o mesmo desenho. */}
       {!awayInSupport && (
         <>
-          <SectionLabel>{overtimeUp ? "Away & training" : <>Away, overtime &amp; training</>}</SectionLabel>
+          <SectionLabel>Away, overtime &amp; training</SectionLabel>
           <div className="headcount-away grid gap-0" style={{ gridTemplateColumns: "repeat(auto-fill,minmax(150px,1fr))" }}>
             {sheetTail(Math.max(0, ...tailBlocks.map(awayRowsOf)) + 1)}
           </div>

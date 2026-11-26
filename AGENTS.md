@@ -20,7 +20,7 @@
 
 - Mount start-of-shift tablet acknowledgements inside `OperatorLineGuard`, because only authenticated operator line screens may display them.
 - Pin the areas the factory reads as production to the Production band in `headcountBlocks`, not in the stored `section`, because direct SQL rewrites that column and the board must not change shape between mornings; `kind` still decides what the totals count.
-- On the Headcount board the Overtime column takes Lab's slot in the Production band and Lab is drawn in Support (`boardBandOf`, `overtimeSlot`; owner's request 23/11/2026), so the overtime team finds it without scrolling to the end of the second band; when Production is hidden or folded the column goes back to the Support tail, never off the board. The sheet (export, paper, import) keeps `sheetBandOf`, so Lab's `sort_order` is always counted in the production band: column drags renumber through `boardReorderBand`, which includes Lab in Production and leaves it out of Support, and Lab has no drag handle on the board.
+- Keep Headcount board area bands aligned with `sheetBandOf` and Overtime in the Support tail; derive the top unplaced-overtime notice from existing allocations and missing bookings without changing saved records or totals.
 
 ## Which database you are looking at
 

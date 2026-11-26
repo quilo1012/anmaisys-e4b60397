@@ -78,3 +78,7 @@
 - [x] Completed orders listed from completion time in shift (not from stops); open orders separate, never counted as completed
 - [x] Downtime counted from validated records with existing exclusion rules; no 15-min floor; total most prominent
 - [x] Verified: 55 report tests + full suite (6213) pass, real 1-page PDF generated from production data and inspected
+
+## Headcount Overtime placement (26 Nov)
+- [x] Restore Overtime to the Support tail and Lab to Production; show names of overtime people still without a working column above the board.
+- [x] 23 focused tests pass; preview redirects to production login, so real-account visual verification remains unavailable. No publishing.
