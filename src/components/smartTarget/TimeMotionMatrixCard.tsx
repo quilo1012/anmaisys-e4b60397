@@ -18,6 +18,7 @@ import {
   writeFillTimeOverrides,
 } from "@/lib/fillSpeedMatrixEditor";
 import { cn } from "@/lib/utils";
+import { loadSharedOverrides, syncSharedOverrides } from "@/hooks/useMatrixOverrides";
 
 const LINES = Object.keys(TIME_MOTION).map(Number);
 const kgLabel = (kg: number) => (kg < 1 ? `${Math.round(kg * 1000)} g` : `${kg} kg`);
@@ -50,6 +51,23 @@ export function TimeMotionMatrixCard() {
     }
   };
 
+  // Shared copy in the database (when active) wins over this browser's copy.
+  const shared = useRef<Record<string, number> | null>(null);
+  const [sharedState, setSharedState] = useState<"loading" | "shared" | "local" | "error">("loading");
+  useEffect(() => {
+    let alive = true;
+    loadSharedOverrides()
+      .then((rows) => {
+        if (!alive) return;
+        if (rows === null) { setSharedState("local"); return; }
+        shared.current = rows;
+        setOverrides(rows);
+        setSharedState("shared");
+      })
+      .catch(() => alive && setSharedState("local"));
+    return () => { alive = false; };
+  }, []);
+
   useEffect(() => {
     try {
       writeFillTimeOverrides(overrides);
@@ -57,6 +75,14 @@ export function TimeMotionMatrixCard() {
     } catch {
       setSaveError(true);
     }
+    const prev = shared.current;
+    if (prev === null) return;
+    const timer = window.setTimeout(() => {
+      syncSharedOverrides(prev, overrides)
+        .then(() => { shared.current = overrides; setSharedState("shared"); })
+        .catch(() => setSharedState("error"));
+    }, 600);
+    return () => window.clearTimeout(timer);
   }, [overrides]);
 
   const secondsFor = (key: string, original: number) => {
@@ -103,7 +129,7 @@ export function TimeMotionMatrixCard() {
           <div>
             <CardTitle>Fill speed matrix</CardTitle>
             <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-              Recommended speed per line and pack size, from the {TIME_MOTION_SOURCE}. Edit any fill time in seconds; per-hour and per-minute rates update automatically. Corrections are saved in this browser.
+              Recommended speed per line and pack size, from the {TIME_MOTION_SOURCE}. Edit any fill time in seconds; per-hour and per-minute rates update automatically. {sharedState === "shared" ? "Corrections are saved for everyone." : sharedState === "loading" ? "Loading saved corrections…" : "Corrections are saved in this browser only."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -150,6 +176,7 @@ export function TimeMotionMatrixCard() {
         )}
       </CardHeader>
       <CardContent>
+        {sharedState === "error" && <p role="alert" className="mb-4 text-sm text-destructive">Your last correction could not be saved for everyone. Check your connection and edit it again.</p>}
         {saveError && <p role="alert" className="mb-4 text-sm text-destructive">This browser could not save your corrections. Keep this page open and allow browser storage before trying again.</p>}
         <div className={cn("grid gap-4", lines.length > 1 ? "md:grid-cols-2 xl:grid-cols-3" : "")}>
           {lines.map((l) => (
