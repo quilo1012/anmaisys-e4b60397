@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { deviationPct, reviewBatches, shiftStandards } from "./batchReview";
+import { deviationPct, reviewBatches, shiftOfStart, shiftStandards } from "./batchReview";
 
 const run = (startedAt: string, finishedAt: string, quantity: number) => ({ line: "Line 6", sku: "CW2C", name: "2KG", batch: null, date: startedAt.slice(0, 10), startedAt, finishedAt, quantity });
 
@@ -14,5 +14,10 @@ describe("batch review", () => {
   });
   it("deviation is positive when slower than standard", () => {
     expect(deviationPct(7.8, 9.36)).toBe(20); expect(deviationPct(null, 5)).toBeNull();
+  });
+  it("uses the configured London shift hours", () => {
+    expect(shiftOfStart("2026-11-02T06:30:00Z")).toBe("Day");
+    expect(shiftOfStart("2026-11-02T06:30:00Z", { dayStart: 7, dayEnd: 19 })).toBe("Night");
+    expect(shiftOfStart("2026-07-02T05:30:00Z", { dayStart: 6, dayEnd: 18 })).toBe("Day");
   });
 });

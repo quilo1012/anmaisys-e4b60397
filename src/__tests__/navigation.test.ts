@@ -127,6 +127,7 @@ describe("sidebar", () => {
       // reads against the two rows above it.
       "Smart Target",
       "Fill speed matrix",
+      "Line deviation",
       "SKU Products",
       "Production Control",
       "Board",

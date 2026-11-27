@@ -2,19 +2,25 @@ import { batchRunMinutes, type BatchRun, type StopWindow } from "@/lib/batchFill
 import { fillKey } from "@/lib/approvedFillTimes";
 
 export type Shift = "Day" | "Night";
-/** Day = batch started 06:00–17:59 local time, otherwise Night. */
-export function shiftOfStart(iso: string): Shift {
-  const h = new Date(iso).getHours();
-  return h >= 6 && h < 18 ? "Day" : "Night";
+export interface ShiftHours { dayStart: number; dayEnd: number }
+export const DEFAULT_SHIFT_HOURS: ShiftHours = { dayStart: 6, dayEnd: 18 };
+const londonHour = (iso: string) => {
+  const p = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(iso));
+  return Number(p.find((x) => x.type === "hour")?.value) + Number(p.find((x) => x.type === "minute")?.value) / 60;
+};
+/** Day = batch started (London time) inside [dayStart, dayEnd), otherwise Night. */
+export function shiftOfStart(iso: string, hours: ShiftHours = DEFAULT_SHIFT_HOURS): Shift {
+  const h = londonHour(iso);
+  return h >= hours.dayStart && h < hours.dayEnd ? "Day" : "Night";
 }
 
 export interface BatchRow { run: BatchRun; shift: Shift; totalMinutes: number; stopMinutes: number | null; runMinutes: number | null; secondsPerUnit: number | null }
 
-export function reviewBatches(runs: BatchRun[], stops: StopWindow[]): BatchRow[] {
+export function reviewBatches(runs: BatchRun[], stops: StopWindow[], hours: ShiftHours = DEFAULT_SHIFT_HOURS): BatchRow[] {
   return runs.filter((r) => Date.parse(r.startedAt) && Date.parse(r.finishedAt) > Date.parse(r.startedAt)).map((run) => {
     const total = (Date.parse(run.finishedAt) - Date.parse(run.startedAt)) / 60000;
     const rm = batchRunMinutes(run, stops);
-    return { run, shift: shiftOfStart(run.startedAt), totalMinutes: total, runMinutes: rm, stopMinutes: rm == null ? null : total - rm, secondsPerUnit: rm != null && rm > 0 && run.quantity > 0 ? (rm * 60) / run.quantity : null };
+    return { run, shift: shiftOfStart(run.startedAt, hours), totalMinutes: total, runMinutes: rm, stopMinutes: rm == null ? null : total - rm, secondsPerUnit: rm != null && rm > 0 && run.quantity > 0 ? (rm * 60) / run.quantity : null };
   }).sort((a, b) => b.run.startedAt.localeCompare(a.run.startedAt));
 }
 
