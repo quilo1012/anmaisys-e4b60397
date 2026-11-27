@@ -10,13 +10,17 @@ import { bayInk } from "@/lib/lineBay";
 import { cn } from "@/lib/utils";
 
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+const DEFAULT_UNITS: Record<string, number> = { "line 4": 2, "gel machine": 2, "capsules machine 1": 5, "capsules machine 2": 21 };
 const fmt = (n: number | null | undefined) => (n == null ? "—" : `${Number(n).toFixed(2)} s`);
 
 function ApproveRow({ row, itouch }: { row: SkuFillTime; itouch: number | null }) {
   const approve = useApproveSkuFillTime();
-  const [secs, setSecs] = useState(row.approved_seconds == null ? "" : String(row.approved_seconds));
+  const [secs, setSecs] = useState(() => {
+    const start = row.approved_seconds ?? row.suggested_seconds ?? row.median_seconds;
+    return start == null ? "" : String(Number(start));
+  });
   const [basis, setBasis] = useState<TimeBasis>(row.time_basis === "unconfirmed" ? "per_cycle" : row.time_basis);
-  const [units, setUnits] = useState(row.units_per_cycle == null ? "" : String(row.units_per_cycle));
+  const [units, setUnits] = useState(String(row.units_per_cycle ?? DEFAULT_UNITS[norm(row.machine_name)] ?? 1));
   const [err, setErr] = useState<string | null>(null);
   const s = parseFillTime(secs); const u = units ? Number(units) : null;
   const valid = s !== null && (basis === "per_unit" || (u !== null && Number.isInteger(u) && u > 0));
