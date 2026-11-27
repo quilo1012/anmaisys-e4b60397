@@ -82,3 +82,8 @@
 ## Headcount Overtime placement (26 Nov)
 - [x] Restore Overtime to the Support tail and Lab to Production; show names of overtime people still without a working column above the board.
 - [x] 23 focused tests pass; preview redirects to production login, so real-account visual verification remains unavailable. No publishing.
+
+## Production-derived fill-time standards (27 Nov)
+- [x] Add per-machine, exact-SKU batch medians with recorded downtime subtraction, overlap/missing-window safeguards, sample review and explicit per-unit approval through the shared SKU register.
+- [x] 46 focused tests pass, including save readback and per-unit handling; preview build OK and browser redirects to login without runtime errors. No database/schema changes or publishing.
+- [ ] Verify production batch read and approval readback with a real authorized account — requesting-user sign-in unavailable; preview redirects to login. Exact batch-to-SKU consolidation awaits confirmation of CW2C-27/28 suffix meaning.

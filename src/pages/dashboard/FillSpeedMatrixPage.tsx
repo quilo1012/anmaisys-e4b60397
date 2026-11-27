@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TimeMotionMatrixCard } from "@/components/smartTarget/TimeMotionMatrixCard";
 import { ItouchFillTimeAlert } from "@/components/smartTarget/ItouchFillTimeAlert";
 import { SkuFillTimesCard } from "@/components/smartTarget/SkuFillTimesCard";
+import { BatchFillStandardsCard } from "@/components/smartTarget/BatchFillStandardsCard";
 import { FillTimeCorrectionCard } from "@/components/smartTarget/FillTimeCorrectionCard";
 import SkuFillTimesAdminPage from "./SkuFillTimesAdminPage";
 import LineFillPerformancePage from "./LineFillPerformancePage";
@@ -24,6 +25,7 @@ export default function FillSpeedMatrixPage() {
             <ItouchFillTimeAlert />
             <FillTimeCorrectionCard />
             <TimeMotionMatrixCard />
+            <BatchFillStandardsCard />
             <SkuFillTimesCard />
           </TabsContent>
           <TabsContent value="per-line"><SkuFillTimesAdminPage embedded /></TabsContent>

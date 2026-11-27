@@ -33,8 +33,9 @@ export function useApproveSkuFillTime() {
   return useMutation({
     mutationFn: async (p: { id: string; approved_seconds: number | null; time_basis: TimeBasis; units_per_cycle: number | null }) => {
       const { id, ...patch } = p;
-      const { error } = await db.from("sku_fill_times").update(patch).eq("id", id);
+      const { data, error } = await db.from("sku_fill_times").update(patch).eq("id", id).select("id, approved_seconds, time_basis, units_per_cycle").single();
       if (error) throw error;
+      if (!data || Number(data.approved_seconds) !== Number(patch.approved_seconds) || data.time_basis !== patch.time_basis || data.units_per_cycle !== patch.units_per_cycle) throw new Error("The approved standard was not saved. Please reload and try again.");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   });
@@ -47,10 +48,11 @@ export function useRegisterSkuFillTime() {
     mutationFn: async (p: { machine_name: string; sku_code: string; product_description: string; approved_seconds: number; time_basis: TimeBasis; units_per_cycle: number | null }) => {
       const { data: existing, error: e1 } = await db.from("sku_fill_times").select("id").eq("machine_name", p.machine_name).eq("sku_code", p.sku_code).maybeSingle();
       if (e1) throw e1;
-      const { error } = existing
-        ? await db.from("sku_fill_times").update({ approved_seconds: p.approved_seconds, time_basis: p.time_basis, units_per_cycle: p.units_per_cycle }).eq("id", existing.id)
-        : await db.from("sku_fill_times").insert(p);
+      const { data, error } = existing
+        ? await db.from("sku_fill_times").update({ approved_seconds: p.approved_seconds, time_basis: p.time_basis, units_per_cycle: p.units_per_cycle }).eq("id", existing.id).select("id, approved_seconds, time_basis, units_per_cycle").single()
+        : await db.from("sku_fill_times").insert(p).select("id, approved_seconds, time_basis, units_per_cycle").single();
       if (error) throw error;
+      if (!data || Number(data.approved_seconds) !== p.approved_seconds || data.time_basis !== p.time_basis || data.units_per_cycle !== p.units_per_cycle) throw new Error("The approved standard was not saved. Please reload and try again.");
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: KEY }),
   });
