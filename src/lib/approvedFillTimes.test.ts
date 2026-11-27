@@ -23,3 +23,12 @@ describe("approved fill time replaces iTouch", () => {
     expect(l.shifts[0].performance).toBe(120);
   });
 });
+
+import { fillKey as fk } from "@/lib/approvedFillTimes";
+describe("iTouch and register machine names", () => {
+  it("match across naming", () => {
+    expect(fk("Filler Line 2", "ABC")).toBe(fk("Line 2", "abc"));
+    expect(fk("Capsules MC 1", "X")).toBe(fk("Capsules Machine 1", "X"));
+    expect(fk("GEL Machine", "X")).toBe(fk("Gel Machine", "X"));
+  });
+});

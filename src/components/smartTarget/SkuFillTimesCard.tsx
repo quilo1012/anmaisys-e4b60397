@@ -8,6 +8,7 @@ import { useApproveSkuFillTime, useSkuFillTimes, type SkuFillTime, type TimeBasi
 import { parseFillTime } from "@/lib/fillSpeedMatrixEditor";
 import { bayInk } from "@/lib/lineBay";
 import { cn } from "@/lib/utils";
+import { fillKey } from "@/lib/approvedFillTimes";
 
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
 const DEFAULT_UNITS: Record<string, number> = { "line 4": 2, "gel machine": 2, "capsules machine 1": 5, "capsules machine 2": 21 };
@@ -59,8 +60,8 @@ export function SkuFillTimesCard({ initialStatus = "all", tall = false }: { init
   const [status, setStatus] = useState(initialStatus);
   const itouchOf = useMemo(() => {
     const m = new Map<string, number>();
-    for (const r of ((cycles as { records?: { line: string; sku: string; cycleSeconds: number | null }[] } | undefined)?.records ?? [])) if (r.cycleSeconds != null) m.set(`${norm(r.line)}|${norm(r.sku)}`, r.cycleSeconds);
-    return (row: SkuFillTime) => m.get(`${norm(row.machine_name)}|${norm(row.sku_code)}`) ?? null;
+    for (const r of ((cycles as { records?: { line: string; sku: string; cycleSeconds: number | null }[] } | undefined)?.records ?? [])) if (r.cycleSeconds != null) m.set(fillKey(r.line, r.sku), r.cycleSeconds);
+    return (row: SkuFillTime) => m.get(fillKey(row.machine_name, row.sku_code)) ?? null;
   }, [cycles]);
   const machines = useMemo<string[]>(() => [...new Set<string>((data ?? []).map((r) => r.machine_name))], [data]);
   const rows = (data ?? []).filter((r) => (machine === "all" || r.machine_name === machine) && (status === "all" || (status === "approved") === (r.approved_seconds != null)) && (!q || norm(`${r.sku_code} ${r.product_description}`).includes(norm(q))));

@@ -7,7 +7,12 @@ import type { CycleRecord } from "@/lib/smartTargetRates";
 import type { SkuFillTime } from "@/hooks/useSkuFillTimes";
 
 const norm = (s: unknown) => String(s ?? "").toLowerCase().replace(/[^a-z0-9.]+/g, " ").trim();
-export const fillKey = (machine: unknown, sku: unknown) => `${norm(machine)}|${norm(sku)}`;
+/** iTouch says "Filler Line 2", "Capsules MC 1", "GEL Machine"; the register says "Line 2", "Capsules Machine 1". */
+export const machineKey = (machine: unknown) => {
+  const n = norm(machine).replace(/^filler /, "").replace(/\bmc\b/, "machine");
+  return /^\d+$/.test(n) ? `line ${n}` : n;
+};
+export const fillKey = (machine: unknown, sku: unknown) => `${machineKey(machine)}|${norm(sku)}`;
 
 export interface ApprovedStandard { seconds: number; unitsPerCycle: number }
 
