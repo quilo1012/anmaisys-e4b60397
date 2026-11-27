@@ -19,3 +19,15 @@ describe("packStandardsFromApproved", () => {
     expect(m.get(lineFillTimeKey(4, 0.39))?.seconds).toBe(3);
   });
 });
+
+import { packStandardsFromBatches } from "./matrixFromApproved";
+describe("packStandardsFromBatches", () => {
+  it("uses only ready standards, median per line and size", () => {
+    const m = packStandardsFromBatches([
+      { line: "Filler Line 6", sku: "A", name: "WHEY 2KG", standardSeconds: 10, ready: true },
+      { line: "Line 6", sku: "B", name: "WHEY 2KG", standardSeconds: 12, ready: true },
+      { line: "Line 6", sku: "C", name: "WHEY 2KG", standardSeconds: 99, ready: false },
+    ]);
+    expect([...m.values()]).toEqual([{ seconds: 11, skus: 2 }]);
+  });
+});

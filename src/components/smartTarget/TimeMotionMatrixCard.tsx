@@ -20,7 +20,8 @@ import {
 import { cn } from "@/lib/utils";
 import { loadSharedOverrides, syncSharedOverrides } from "@/hooks/useMatrixOverrides";
 import { useSkuFillTimes } from "@/hooks/useSkuFillTimes";
-import { packStandardsFromApproved } from "@/lib/matrixFromApproved";
+import { packStandardsFromApproved, packStandardsFromBatches } from "@/lib/matrixFromApproved";
+import { useBatchFillStandards } from "@/hooks/useBatchFillStandards";
 
 const LINES = Object.keys(TIME_MOTION).map(Number);
 const kgLabel = (kg: number) => (kg < 1 ? `${Math.round(kg * 1000)} g` : `${kg} kg`);
@@ -32,7 +33,16 @@ export function TimeMotionMatrixCard() {
   const [query, setQuery] = useState("");
   const [overrides, setOverrides] = useState<Record<string, number>>(() => readFillTimeOverrides());
   const { data: skuRows } = useSkuFillTimes();
-  const auto = useMemo(() => packStandardsFromApproved(skuRows), [skuRows]);
+  const approvedAuto = useMemo(() => packStandardsFromApproved(skuRows), [skuRows]);
+  const { data: batchData } = useBatchFillStandards(90);
+  const batchAuto = useMemo(() => packStandardsFromBatches(batchData?.truncated ? [] : batchData?.standards), [batchData]);
+  // Approved SKUs win over factory batches; both lose to a manual edit.
+  const auto = useMemo(() => {
+    const m = new Map<string, { seconds: number; skus: number; from: "approved" | "batches" }>();
+    for (const [k, v] of batchAuto) m.set(k, { ...v, from: "batches" });
+    for (const [k, v] of approvedAuto) m.set(k, { ...v, from: "approved" });
+    return m;
+  }, [approvedAuto, batchAuto]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saveError, setSaveError] = useState(false);
   const kg = packSizeKg(query) ?? (Number(query.replace(",", ".")) > 0 ? Number(query.replace(",", ".")) : null);
@@ -133,7 +143,7 @@ export function TimeMotionMatrixCard() {
           <div>
             <CardTitle>Fill speed matrix</CardTitle>
             <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-              Recommended speed per line and pack size, from the {TIME_MOTION_SOURCE}. Line cells update automatically from approved SKU fill times (median per pack size); a manual edit overrides it. Per-hour and per-minute rates update automatically. {sharedState === "shared" ? "Corrections are saved for everyone." : sharedState === "loading" ? "Loading saved corrections…" : "Corrections are saved in this browser only."}
+              Recommended speed per line and pack size, from the {TIME_MOTION_SOURCE}. Line cells update automatically from approved SKU fill times (Auto), otherwise from real factory batches of the last 90 days (Batches), median per pack size; a manual edit overrides both. Per-hour and per-minute rates update automatically. {sharedState === "shared" ? "Corrections are saved for everyone." : sharedState === "loading" ? "Loading saved corrections…" : "Corrections are saved in this browser only."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -203,7 +213,7 @@ export function TimeMotionMatrixCard() {
                       const invalid = drafts[key] !== undefined && parseFillTime(drafts[key]) === null;
                       return (
                         <tr key={p} title={basis || undefined} className={cn("border-t", hit && "bg-primary/15 font-semibold")}>
-                          <td className="whitespace-nowrap p-2">{kgLabel(p)}{auto.has(key) && overrides[key] === undefined && <Badge variant="outline" className="ml-2 border-success text-success text-[10px]" title={`Median of ${auto.get(key)!.skus} approved SKU(s)`}>Auto · {auto.get(key)!.skus} SKU</Badge>}</td>
+                          <td className="whitespace-nowrap p-2">{kgLabel(p)}{auto.has(key) && overrides[key] === undefined && <Badge variant="outline" className="ml-2 border-success text-success text-[10px]" title={auto.get(key)!.from === "approved" ? `Median of ${auto.get(key)!.skus} approved SKU(s)` : `Median of ${auto.get(key)!.skus} SKU(s) measured from real batches (last 90 days)`}>{auto.get(key)!.from === "approved" ? "Auto" : "Batches"} · {auto.get(key)!.skus} SKU</Badge>}</td>
                           <td className="p-2">
                             <div className="flex items-center gap-2">
                               <div className="h-2 flex-1 rounded bg-muted"><div className="h-2 rounded" style={{ width: `${Math.min(100, (metrics.perHour / max) * 100)}%`, backgroundColor: bayInk(`Line ${l}`) }} /></div>
