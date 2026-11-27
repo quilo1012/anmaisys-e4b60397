@@ -24,7 +24,7 @@ export function useBatchFillStandards(days = 90) {
       const windows: StopWindow[] = stops.map((s) => ({ line: s.line, date: s.occurred_date, startedAt: s.started_at, endedAt: s.ended_at, durationMinutes: Number(s.duration_minutes) }));
       const standards = batchFillStandards(batches, windows);
       const used = standards.reduce((n, s) => n + s.samples.length, 0);
-      return { standards, batches: batches.length, excluded: batches.length - used, truncated: items.length >= LIMIT || stops.length >= LIMIT };
+      return { standards, runs: batches, windows, batches: batches.length, excluded: batches.length - used, truncated: items.length >= LIMIT || stops.length >= LIMIT };
     },
   });
 }
