@@ -9,7 +9,8 @@ const LIMIT = 20_000;
 export function useBatchFillStandards(days = 90) {
   return useQuery({
     queryKey: ["batch-fill-standards", days],
-    staleTime: 10 * 60_000,
+    staleTime: 5 * 60_000,
+    refetchInterval: 5 * 60_000,
     queryFn: async () => {
       const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
       const db = supabase as any;
