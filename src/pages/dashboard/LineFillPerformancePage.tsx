@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 const s = (n: number | null | undefined) => (n == null ? "—" : `${n.toFixed(2)} s`);
 const p = (n: number | null | undefined) => (n == null ? "—" : `${n.toFixed(1)}%`);
 
-export default function LineFillPerformancePage() {
+export default function LineFillPerformancePage({ embedded = false }: { embedded?: boolean }) {
   const [days, setDays] = useState(14);
   const cycles = useStandardCycles();
   const runs = useLineShiftRuns(days);
@@ -25,10 +25,9 @@ export default function LineFillPerformancePage() {
   );
   const shown = (data ?? []).filter((l) => line === "all" || l.line === line);
 
-  return (
-    <DashboardLayout>
+  const body = (
       <div className="space-y-6">
-        <PageHeader dense module="Production" title="Line fill performance" description="Approved fill time, iTouch and performance per line, shift by shift." icon={<Activity className="h-5 w-5" />} className="mb-0 border-b pb-3" />
+        {!embedded && <PageHeader dense module="Production" title="Line fill performance" description="Approved fill time, iTouch and performance per line, shift by shift." icon={<Activity className="h-5 w-5" />} className="mb-0 border-b pb-3" />}
         <div className="flex flex-wrap items-center gap-2">
           {[7, 14, 30].map((d) => (
             <button key={d} type="button" onClick={() => setDays(d)} className={cn("h-12 rounded-lg border px-4 text-sm font-medium", days === d ? "border-primary bg-primary/15 text-primary" : "bg-card hover:bg-muted")}>{d} days</button>
@@ -88,6 +87,6 @@ export default function LineFillPerformancePage() {
             </Card>
           ))}
       </div>
-    </DashboardLayout>
   );
+  return embedded ? body : <DashboardLayout>{body}</DashboardLayout>;
 }
