@@ -62,10 +62,10 @@ function Filters({ lines, line, setLine, q, setQ, days, setDays }: { lines: stri
 
 /** Every batch per line with times, stops and real run time, for review before approving. */
 export function BatchReviewCard() {
-  const [days, setDays] = useState(30); const [line, setLine] = useState("all"); const [q, setQ] = useState("");
+  const [days, setDays] = useState(90); const [line, setLine] = useState("all"); const [q, setQ] = useState("");
   const { rows, itouch, standard, isLoading, error, truncated } = useData(days);
   const lines = useMemo(() => [...new Set(rows.map((r) => r.run.line))].filter(Boolean).sort(), [rows]);
-  const list = rows.filter((r) => (line === "all" || r.run.line === line) && (!q || norm(`${r.run.sku} ${r.run.name ?? ""}`).includes(norm(q)))).slice(0, 500);
+  const list = rows.filter((r) => (line === "all" || r.run.line === line) && (!q || norm(`${r.run.sku} ${r.run.name ?? ""}`).includes(norm(q)))).slice(0, 200);
   return (
     <Card>
       <CardHeader className="space-y-3">

@@ -43,5 +43,6 @@ export async function fetchStoredCycles(): Promise<StoredCycles> {
 }
 
 export function useItouchCycles() {
-  return useQuery({ queryKey: ["itouch_cycle_times"], queryFn: fetchStoredCycles });
+  // iTouch times change only on import: read once per 30 min, not on every screen or tab focus.
+  return useQuery({ queryKey: ["itouch_cycle_times"], queryFn: fetchStoredCycles, staleTime: 30 * 60_000, gcTime: 60 * 60_000, refetchOnWindowFocus: false });
 }
