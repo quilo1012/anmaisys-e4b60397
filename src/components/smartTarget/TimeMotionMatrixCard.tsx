@@ -19,6 +19,8 @@ import {
 } from "@/lib/fillSpeedMatrixEditor";
 import { cn } from "@/lib/utils";
 import { loadSharedOverrides, syncSharedOverrides } from "@/hooks/useMatrixOverrides";
+import { useSkuFillTimes } from "@/hooks/useSkuFillTimes";
+import { packStandardsFromApproved } from "@/lib/matrixFromApproved";
 
 const LINES = Object.keys(TIME_MOTION).map(Number);
 const kgLabel = (kg: number) => (kg < 1 ? `${Math.round(kg * 1000)} g` : `${kg} kg`);
@@ -29,6 +31,8 @@ export function TimeMotionMatrixCard() {
   const [line, setLine] = useState<number | string>("all");
   const [query, setQuery] = useState("");
   const [overrides, setOverrides] = useState<Record<string, number>>(() => readFillTimeOverrides());
+  const { data: skuRows } = useSkuFillTimes();
+  const auto = useMemo(() => packStandardsFromApproved(skuRows), [skuRows]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [saveError, setSaveError] = useState(false);
   const kg = packSizeKg(query) ?? (Number(query.replace(",", ".")) > 0 ? Number(query.replace(",", ".")) : null);
@@ -87,7 +91,7 @@ export function TimeMotionMatrixCard() {
 
   const secondsFor = (key: string, original: number) => {
     const draft = drafts[key];
-    return (draft === undefined ? null : parseFillTime(draft)) ?? overrides[key] ?? original;
+    return (draft === undefined ? null : parseFillTime(draft)) ?? overrides[key] ?? auto.get(key)?.seconds ?? original;
   };
 
   const changeFillTime = (key: string, original: number, value: string) => {
@@ -120,7 +124,7 @@ export function TimeMotionMatrixCard() {
   const max = useMemo(() => Math.max(...LINES.flatMap((l) => TIME_MOTION[l].map(([pack, perHour, seconds]) => {
     const key = lineFillTimeKey(l, pack);
     return fillSpeedMetrics(secondsFor(key, seconds), seconds, perHour).perHour;
-  }))), [drafts, overrides]);
+  }))), [drafts, overrides, auto]);
 
   return (
     <Card data-testid="time-motion-matrix">
@@ -129,7 +133,7 @@ export function TimeMotionMatrixCard() {
           <div>
             <CardTitle>Fill speed matrix</CardTitle>
             <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-              Recommended speed per line and pack size, from the {TIME_MOTION_SOURCE}. Edit any fill time in seconds; per-hour and per-minute rates update automatically. {sharedState === "shared" ? "Corrections are saved for everyone." : sharedState === "loading" ? "Loading saved corrections…" : "Corrections are saved in this browser only."}
+              Recommended speed per line and pack size, from the {TIME_MOTION_SOURCE}. Line cells update automatically from approved SKU fill times (median per pack size); a manual edit overrides it. Per-hour and per-minute rates update automatically. {sharedState === "shared" ? "Corrections are saved for everyone." : sharedState === "loading" ? "Loading saved corrections…" : "Corrections are saved in this browser only."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -199,7 +203,7 @@ export function TimeMotionMatrixCard() {
                       const invalid = drafts[key] !== undefined && parseFillTime(drafts[key]) === null;
                       return (
                         <tr key={p} title={basis || undefined} className={cn("border-t", hit && "bg-primary/15 font-semibold")}>
-                          <td className="whitespace-nowrap p-2">{kgLabel(p)}</td>
+                          <td className="whitespace-nowrap p-2">{kgLabel(p)}{auto.has(key) && overrides[key] === undefined && <Badge variant="outline" className="ml-2 border-success text-success text-[10px]" title={`Median of ${auto.get(key)!.skus} approved SKU(s)`}>Auto · {auto.get(key)!.skus} SKU</Badge>}</td>
                           <td className="p-2">
                             <div className="flex items-center gap-2">
                               <div className="h-2 flex-1 rounded bg-muted"><div className="h-2 rounded" style={{ width: `${Math.min(100, (metrics.perHour / max) * 100)}%`, backgroundColor: bayInk(`Line ${l}`) }} /></div>
