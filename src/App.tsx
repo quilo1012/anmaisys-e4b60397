@@ -153,6 +153,7 @@ const StopAnalysisPage = lazyWithReload(() => import("./pages/dashboard/StopAnal
 const SmartTargetPage = lazyWithReload(() => import("./pages/dashboard/SmartTargetPage"));
 const FillSpeedMatrixPage = lazyWithReload(() => import("./pages/dashboard/FillSpeedMatrixPage"));
 const LineDeviationPage = lazyWithReload(() => import("./pages/dashboard/LineDeviationPage"));
+const ShiftHoursPage = lazyWithReload(() => import("./pages/dashboard/ShiftHoursPage"));
 const LineFillPerformancePage = lazyWithReload(() => import("./pages/dashboard/LineFillPerformancePage"));
 const SkuFillTimesAdminPage = lazyWithReload(() => import("./pages/dashboard/SkuFillTimesAdminPage"));
 
@@ -672,6 +673,14 @@ const App = () => (
                   element={
                     <ProtectedRoute requiredAction="smarttarget.view">
                       <FillSpeedMatrixPage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/dashboard/shift-hours"
+                  element={
+                    <ProtectedRoute requiredAction="smarttarget.view">
+                      <ShiftHoursPage />
                     </ProtectedRoute>
                   }
                 />

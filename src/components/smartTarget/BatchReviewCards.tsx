@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { useShiftHours } from "@/hooks/useShiftHours";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -19,32 +21,15 @@ function Dev({ pct }: { pct: number | null }) {
   return <span className={cn("tabular-nums font-medium", pct > 10 ? "text-destructive" : pct < -10 ? "text-warning" : "text-success")}>{pct > 0 ? "+" : ""}{pct}%</span>;
 }
 
-const SHIFT_KEY = "fill-shift-hours-v1";
-function readHours(): ShiftHours { try { const v = JSON.parse(localStorage.getItem(SHIFT_KEY) ?? "null"); if (v && v.dayStart >= 0 && v.dayEnd <= 24 && v.dayStart < v.dayEnd) return v; } catch { /* ignore */ } return DEFAULT_SHIFT_HOURS; }
-let hoursState = readHours();
-const listeners = new Set<() => void>();
-export function useShiftHours(): [ShiftHours, (h: ShiftHours) => void] {
-  const [h, setH] = useState(hoursState);
-  useEffect(() => { const f = () => setH(hoursState); listeners.add(f); return () => { listeners.delete(f); }; }, []);
-  return [h, (n) => { hoursState = n; localStorage.setItem(SHIFT_KEY, JSON.stringify(n)); listeners.forEach((f) => f()); }];
-}
-const hh = (n: number) => `${String(Math.floor(n)).padStart(2, "0")}:00`;
-export function ShiftHoursPicker() {
-  const [h, set] = useShiftHours();
-  const opts = Array.from({ length: 25 }, (_, i) => i);
-  return (
-    <div className="flex flex-wrap items-center gap-2 text-sm">
-      <span className="text-muted-foreground">Day shift (London time):</span>
-      <Select value={String(h.dayStart)} onValueChange={(v) => Number(v) < h.dayEnd && set({ ...h, dayStart: Number(v) })}><SelectTrigger className="h-12 w-28" aria-label="Day shift starts"><SelectValue /></SelectTrigger><SelectContent>{opts.slice(0, 24).map((o) => <SelectItem key={o} value={String(o)}>{hh(o)}</SelectItem>)}</SelectContent></Select>
-      <span>to</span>
-      <Select value={String(h.dayEnd)} onValueChange={(v) => Number(v) > h.dayStart && set({ ...h, dayEnd: Number(v) })}><SelectTrigger className="h-12 w-28" aria-label="Day shift ends"><SelectValue /></SelectTrigger><SelectContent>{opts.slice(1).map((o) => <SelectItem key={o} value={String(o)}>{hh(o)}</SelectItem>)}</SelectContent></Select>
-      <span className="text-muted-foreground">· Night is the rest</span>
-    </div>
-  );
+const hh = (n: number) => `${String(n).padStart(2, "0")}:00`;
+/** Read-only summary of the factory shift hours, set on the Shift hours page. */
+export function ShiftHoursNote() {
+  const { hours } = useShiftHours();
+  return <p className="text-sm text-muted-foreground">Day shift {hh(hours.dayStart)}–{hh(hours.dayEnd)} (London time), Night is the rest. Change it on <Link className="underline" to="/dashboard/shift-hours">Shift hours</Link>.</p>;
 }
 
 function useData(days: number) {
-  const [hours] = useShiftHours();
+  const { hours } = useShiftHours();
   const { data, isLoading, error } = useBatchFillStandards(days);
   const { data: cycles } = useItouchCycles();
   const { data: sku } = useSkuFillTimes();
@@ -87,7 +72,7 @@ export function BatchReviewCard() {
         <CardTitle>Batches per line</CardTitle>
         <p className="text-sm text-muted-foreground">Each completed batch with its start, finish, stops inside it and real run time. Review these before approving a standard. Deviation compares the batch with the iTouch time.</p>
         <Filters {...{ lines, line, setLine, q, setQ, days, setDays }} />
-        <ShiftHoursPicker />
+        <ShiftHoursNote />
       </CardHeader>
       <CardContent>
         {error ? <p className="text-destructive">Could not load batches.</p> : isLoading ? <p className="text-muted-foreground">Loading batches…</p> : (
@@ -138,7 +123,7 @@ export function ShiftStandardsCard({ title = "Standards by shift" }: { title?: s
         <CardTitle>{title}</CardTitle>
         <p className="text-sm text-muted-foreground">Real seconds per unit from completed batches (stops removed), split by Day and Night shift, with the deviation from the iTouch time. Red = more than 10% slower.</p>
         <Filters {...{ lines, line, setLine, q, setQ, days, setDays }} />
-        <ShiftHoursPicker />
+        <ShiftHoursNote />
       </CardHeader>
       <CardContent>
         {error ? <p className="text-destructive">Could not load batches.</p> : isLoading ? <p className="text-muted-foreground">Loading batches…</p> : (
