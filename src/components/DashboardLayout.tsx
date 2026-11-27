@@ -209,8 +209,6 @@ export const navItems: NavItem[] = [
   // lists say the same thing.
   { title: "Smart Target", shortTitle: "Target", url: "/dashboard/smart-target", icon: Target, roles: ["admin", "production_office_admin"], group: "Production", action: "smarttarget.view" },
   { title: "Fill speed matrix", shortTitle: "Fill", url: "/dashboard/fill-speed-matrix", icon: Gauge, roles: ["admin", "production_office_admin"], group: "Production", action: "smarttarget.view" },
-  { title: "Line deviation", shortTitle: "Deviation", url: "/dashboard/line-deviation", icon: Activity, roles: ["admin", "production_office_admin"], group: "Production", action: "smarttarget.view" },
-  { title: "Shift hours", shortTitle: "Shifts", url: "/dashboard/shift-hours", icon: Clock, roles: ["admin", "production_office_admin"], group: "Production", action: "smarttarget.view" },
   { title: "SKU Products", url: "/dashboard/sku-products", icon: Boxes, roles: ["admin", "manager", "production_office_admin"], group: "Production", action: "sku.manage" },
   { title: "Production Control", url: "/dashboard/shift-history", icon: History, roles: ["admin", "manager", "maintenance_manager", "production_office_admin"], group: "Production", action: "production.manage" },
   // Headcount is the way in to all four workforce screens. Leave, Attendance and

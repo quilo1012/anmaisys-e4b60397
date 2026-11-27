@@ -10,6 +10,7 @@ import { FillTimeCorrectionCard } from "@/components/smartTarget/FillTimeCorrect
 import { BatchReviewCard, ShiftStandardsCard } from "@/components/smartTarget/BatchReviewCards";
 import SkuFillTimesAdminPage from "./SkuFillTimesAdminPage";
 import LineFillPerformancePage from "./LineFillPerformancePage";
+import ShiftHoursPage from "./ShiftHoursPage";
 
 export default function FillSpeedMatrixPage() {
   return (
@@ -23,6 +24,8 @@ export default function FillSpeedMatrixPage() {
             <TabsTrigger value="performance" className="h-12 px-4">Line fill performance</TabsTrigger>
             <TabsTrigger value="line-batches" className="h-12 px-4">Line batch performance</TabsTrigger>
             <TabsTrigger value="batches" className="h-12 px-4">Batches per line</TabsTrigger>
+            <TabsTrigger value="deviation" className="h-12 px-4">Line deviation</TabsTrigger>
+            <TabsTrigger value="shift-hours" className="h-12 px-4">Shift hours</TabsTrigger>
           </TabsList>
           <TabsContent value="matrix" className="space-y-6">
             <ItouchFillTimeAlert />
@@ -36,6 +39,8 @@ export default function FillSpeedMatrixPage() {
           <TabsContent value="performance"><LineFillPerformancePage embedded /></TabsContent>
           <TabsContent value="line-batches" className="space-y-6"><ShiftStandardsCard title="Line batch performance" /><BatchFillStandardsCard /></TabsContent>
           <TabsContent value="batches"><BatchReviewCard /></TabsContent>
+          <TabsContent value="deviation" className="space-y-6"><ShiftStandardsCard title="Deviation per line" /><BatchReviewCard /></TabsContent>
+          <TabsContent value="shift-hours"><ShiftHoursPage embedded /></TabsContent>
         </Tabs>
       </div>
     </DashboardLayout>

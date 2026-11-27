@@ -10,7 +10,7 @@ import { useSaveShiftHours, useShiftHours } from "@/hooks/useShiftHours";
 const hh = (n: number) => `${String(n).padStart(2, "0")}:00`;
 
 /** Factory Day/Night hours used by the Fill speed matrix and Line deviation. */
-export default function ShiftHoursPage() {
+export default function ShiftHoursPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { hours, active, isLoading, error } = useShiftHours();
   const save = useSaveShiftHours();
   const [start, setStart] = useState(hours.dayStart);
@@ -18,10 +18,9 @@ export default function ShiftHoursPage() {
   const [saved, setSaved] = useState(false);
   useEffect(() => { setStart(hours.dayStart); setEnd(hours.dayEnd); }, [hours.dayStart, hours.dayEnd]);
   const valid = start < end;
-  return (
-    <DashboardLayout>
+  const body = (
       <div className="space-y-6">
-        <PageHeader dense module="Production" title="Shift hours" description="The factory's real Day and Night hours, used to split batches by shift in the Fill speed matrix and Line deviation." icon={<Clock className="h-5 w-5" />} className="mb-0 border-b pb-3" />
+        {!embedded && <PageHeader dense module="Production" title="Shift hours" description="The factory's real Day and Night hours, used to split batches by shift in the Fill speed matrix and Line deviation." icon={<Clock className="h-5 w-5" />} className="mb-0 border-b pb-3" />}
         <Card className="max-w-xl">
           <CardHeader><CardTitle>Day shift (London time)</CardTitle></CardHeader>
           <CardContent className="space-y-4">
@@ -49,6 +48,6 @@ export default function ShiftHoursPage() {
           </CardContent>
         </Card>
       </div>
-    </DashboardLayout>
   );
+  return embedded ? body : <DashboardLayout>{body}</DashboardLayout>;
 }
